@@ -1,73 +1,130 @@
-# Welcome to your Lovable project
+# Flashcards Study App - Knowledge Base Manager
 
-## Project info
+Una aplicación web de estudio basada en flashcards conectadas a bases de datos de Notion. Diseñada para gestión consciente del conocimiento, sin gamificación.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 🎯 Características principales
 
-## How can I edit this code?
+- **Conexión con Notion**: Sincroniza tus bases de datos de Notion como flashcards
+- **Estados de conocimiento**: Tocado, Verde, Sólido (sin puntuaciones ni gamificación)
+- **Repaso inteligente**: Orden por "menos visto primero"
+- **Estadísticas claras**: Visualiza el estado de tu conocimiento sin ruido
+- **Control total**: Tú decides qué y cuándo repasar
 
-There are several ways of editing your application.
+## 🚀 Inicio rápido
 
-**Use Lovable**
+### Requisitos previos
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- Node.js & npm instalados - [instalar con nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Una cuenta de Notion con bases de datos configuradas
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Instalación
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# 1. Clonar el repositorio
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
+# 2. Navegar al directorio del proyecto
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
-npm i
+# 3. Instalar dependencias
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# 4. Configurar variables de entorno
+cp .env.example .env
+# Edita .env y añade tu token de Notion
+
+# 5. Iniciar el servidor de desarrollo
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## 🔧 Configuración de Notion
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Para conectar la aplicación con Notion, sigue estos pasos:
 
-**Use GitHub Codespaces**
+1. **Crear una integración en Notion**
+   - Ve a [https://www.notion.so/my-integrations](https://www.notion.so/my-integrations)
+   - Crea una nueva integración con permisos de lectura y escritura
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+2. **Configurar el token**
+   - Copia el token de integración (comienza con `secret_`)
+   - Añádelo al archivo `.env`:
+     ```
+     VITE_NOTION_TOKEN=secret_tu_token_aqui
+     ```
 
-## What technologies are used for this project?
+3. **Compartir bases de datos**
+   - En cada base de datos de Notion que quieras usar
+   - Haz clic en "Share" y añade tu integración
 
-This project is built with:
+4. **Estructura recomendada**
+   - **Título** (Title): Título de la flashcard
+   - **Estado** (Select): tocado, verde, solido
+   - **Notas** (Text): Notas personales
+   - **Relacionados** (Multi-select): Conceptos relacionados
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+📖 **Guía completa**: Ver [NOTION_SETUP.md](./NOTION_SETUP.md) para instrucciones detalladas
 
-## How can I deploy this project?
+## 🛠️ Tecnologías utilizadas
+
+- **Vite** - Build tool y dev server
+- **React** - Framework UI
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Estilos
+- **shadcn/ui** - Componentes UI
+- **TanStack Query** - Gestión de estado y cache
+- **Notion API** - Integración con Notion
+
+## 📁 Estructura del proyecto
+
+```
+src/
+├── components/       # Componentes React
+│   ├── ui/          # Componentes base de shadcn/ui
+│   ├── DatabaseCard.tsx
+│   ├── FlashcardReview.tsx
+│   └── ...
+├── hooks/           # Custom hooks
+│   └── useNotion.ts # Hooks para Notion API
+├── services/        # Servicios externos
+│   └── notion.ts    # Cliente de Notion API
+├── types/           # Definiciones de tipos TypeScript
+├── pages/           # Páginas de la aplicación
+└── data/            # Datos mock (para desarrollo)
+```
+
+## 🎨 Filosofía de diseño
+
+Esta aplicación está diseñada con los siguientes principios:
+
+- **Sin gamificación**: No hay puntos, streaks ni premios
+- **Control del usuario**: Tú decides qué y cuándo repasar
+- **Claridad visual**: Diseño sobrio y profesional
+- **Gestión consciente**: Enfoque en conocimiento profundo, no memorización
+
+## 📝 Scripts disponibles
+
+```sh
+npm run dev          # Servidor de desarrollo
+npm run build        # Build para producción
+npm run build:dev    # Build en modo desarrollo
+npm run lint         # Ejecutar linter
+npm run preview      # Preview de la build
+```
+
+## 🚢 Despliegue
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
+## 🌐 Dominio personalizado
 
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## 🤝 Contribuir
+
+Este proyecto está en desarrollo activo. Las contribuciones son bienvenidas.
+
+## 📄 Licencia
+
+Este proyecto es de código abierto y está disponible bajo la licencia MIT.
