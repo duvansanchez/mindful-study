@@ -123,3 +123,31 @@ export const getOverallStats = (): Statistics => {
     total: mockFlashcards.length,
   };
 };
+
+export const getStatsForGroup = (databaseIds: string[]): Statistics => {
+  const cards = mockFlashcards.filter(c => databaseIds.includes(c.databaseId));
+  return {
+    tocado: cards.filter(c => c.state === 'tocado').length,
+    verde: cards.filter(c => c.state === 'verde').length,
+    solido: cards.filter(c => c.state === 'solido').length,
+    total: cards.length,
+  };
+};
+
+export const getLastReviewedForGroup = (databaseIds: string[]): Date | null => {
+  const cards = mockFlashcards.filter(c => databaseIds.includes(c.databaseId) && c.lastReviewed);
+  if (cards.length === 0) return null;
+  return cards.reduce((latest, card) => {
+    if (!card.lastReviewed) return latest;
+    return card.lastReviewed > latest ? card.lastReviewed : latest;
+  }, cards[0].lastReviewed!);
+};
+
+export const getReviewedThisWeekForGroup = (databaseIds: string[]): number => {
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  return mockFlashcards.filter(c => 
+    databaseIds.includes(c.databaseId) && 
+    c.lastReviewed && 
+    c.lastReviewed > oneWeekAgo
+  ).length;
+};

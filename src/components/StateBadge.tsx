@@ -6,6 +6,7 @@ interface StateBadgeProps {
   size?: 'sm' | 'md' | 'lg';
   onClick?: () => void;
   active?: boolean;
+  showLabel?: boolean;
 }
 
 const stateLabels: Record<KnowledgeState, string> = {
@@ -20,7 +21,7 @@ const stateDescriptions: Record<KnowledgeState, string> = {
   solido: 'No requiere repaso activo',
 };
 
-export function StateBadge({ state, size = 'md', onClick, active = true }: StateBadgeProps) {
+export function StateBadge({ state, size = 'md', onClick, active = true, showLabel = true }: StateBadgeProps) {
   const sizeClasses = {
     sm: 'px-2 py-0.5 text-xs',
     md: 'px-3 py-1 text-sm',
@@ -43,7 +44,7 @@ export function StateBadge({ state, size = 'md', onClick, active = true }: State
       )}
       title={stateDescriptions[state]}
     >
-      {stateLabels[state]}
+      {showLabel && stateLabels[state]}
     </button>
   );
 }
