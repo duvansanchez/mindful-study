@@ -1,5 +1,11 @@
 export type KnowledgeState = 'tocado' | 'verde' | 'solido';
 
+export interface ReviewNote {
+  id: string;
+  content: string;
+  createdAt: Date;
+}
+
 export interface Flashcard {
   id: string;
   title: string;
@@ -11,6 +17,7 @@ export interface Flashcard {
   databaseId: string;
   createdAt: Date;
   viewCount: number;
+  reviewNotes: ReviewNote[];
 }
 
 export interface Database {

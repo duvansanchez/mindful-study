@@ -62,6 +62,7 @@ export const mockFlashcards: Flashcard[] = [
     databaseId: "db-1",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30),
     viewCount: 5,
+    reviewNotes: [],
   },
   {
     id: "card-2",
@@ -74,6 +75,7 @@ export const mockFlashcards: Flashcard[] = [
     databaseId: "db-2",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60),
     viewCount: 12,
+    reviewNotes: [],
   },
   {
     id: "card-3",
@@ -86,6 +88,7 @@ export const mockFlashcards: Flashcard[] = [
     databaseId: "db-3",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90),
     viewCount: 20,
+    reviewNotes: [],
   },
   {
     id: "card-4",
@@ -98,6 +101,7 @@ export const mockFlashcards: Flashcard[] = [
     databaseId: "db-1",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15),
     viewCount: 2,
+    reviewNotes: [],
   },
 ];
 
