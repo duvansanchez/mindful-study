@@ -150,6 +150,45 @@ export function FlashcardReview({
                       </div>
                     </div>
                   )}
+
+                  {/* Información auxiliar de todas las columnas de Notion */}
+                  {card.auxiliaryInfo && Object.keys(card.auxiliaryInfo).length > 0 && (
+                    <div className="border-t border-border pt-4">
+                      <p className="text-xs text-muted-foreground mb-3 font-medium">Información de la base de datos</p>
+                      <div className="grid grid-cols-1 gap-3">
+                        {Object.entries(card.auxiliaryInfo).map(([propName, propData]) => (
+                          <div key={propName} className="flex items-start gap-3">
+                            <div className="w-2 h-2 rounded-full bg-muted-foreground/40 mt-2 flex-shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs text-muted-foreground mb-1 font-medium">{propName}</p>
+                              <p className="text-sm text-foreground break-words">{propData.value}</p>
+                              {propData.type !== 'rich_text' && propData.type !== 'title' && (
+                                <p className="text-xs text-muted-foreground/60 mt-1">
+                                  {propData.type === 'select' && '• Selección'}
+                                  {propData.type === 'multi_select' && '• Selección múltiple'}
+                                  {propData.type === 'date' && '• Fecha'}
+                                  {propData.type === 'number' && '• Número'}
+                                  {propData.type === 'checkbox' && '• Casilla'}
+                                  {propData.type === 'url' && '• URL'}
+                                  {propData.type === 'email' && '• Email'}
+                                  {propData.type === 'phone_number' && '• Teléfono'}
+                                  {propData.type === 'people' && '• Personas'}
+                                  {propData.type === 'files' && '• Archivos'}
+                                  {propData.type === 'relation' && '• Relación'}
+                                  {propData.type === 'formula' && '• Fórmula'}
+                                  {propData.type === 'rollup' && '• Rollup'}
+                                  {propData.type === 'created_time' && '• Fecha de creación'}
+                                  {propData.type === 'created_by' && '• Creado por'}
+                                  {propData.type === 'last_edited_time' && '• Última edición'}
+                                  {propData.type === 'last_edited_by' && '• Editado por'}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

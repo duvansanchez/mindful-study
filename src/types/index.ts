@@ -14,6 +14,7 @@ export interface Flashcard {
   lastReviewed: Date | null;
   notes: string;
   relatedConcepts: string[];
+  auxiliaryInfo?: Record<string, { type: string; value: string }>; // Nueva propiedad
   databaseId: string;
   createdAt: Date;
   viewCount: number;
