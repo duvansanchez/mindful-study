@@ -46,6 +46,25 @@ const Index = () => {
     ));
   };
 
+  const handleAddReviewNote = (note: string) => {
+    const currentCard = reviewCards[currentCardIndex];
+    const newNote = {
+      id: `note-${Date.now()}`,
+      content: note,
+      createdAt: new Date(),
+    };
+    setCards(prev => prev.map(c => 
+      c.id === currentCard.id 
+        ? { ...c, reviewNotes: [...c.reviewNotes, newNote] } 
+        : c
+    ));
+    setReviewCards(prev => prev.map(c => 
+      c.id === currentCard.id 
+        ? { ...c, reviewNotes: [...c.reviewNotes, newNote] } 
+        : c
+    ));
+  };
+
   const handleNextCard = () => {
     if (currentCardIndex < reviewCards.length - 1) {
       setCurrentCardIndex(prev => prev + 1);
@@ -180,6 +199,7 @@ const Index = () => {
           onStateChange={handleStateChange}
           onNext={handleNextCard}
           onClose={handleCloseReview}
+          onAddReviewNote={handleAddReviewNote}
           currentIndex={currentCardIndex}
           totalCards={reviewCards.length}
         />

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
-import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ interface FlashcardReviewProps {
   onStateChange: (state: KnowledgeState) => void;
   onNext: () => void;
   onClose: () => void;
+  onAddReviewNote: (note: string) => void;
   currentIndex: number;
   totalCards: number;
 }
@@ -20,11 +21,14 @@ export function FlashcardReview({
   onStateChange, 
   onNext, 
   onClose,
+  onAddReviewNote,
   currentIndex,
   totalCards
 }: FlashcardReviewProps) {
   const [revealed, setRevealed] = useState(false);
   const [showAuxiliary, setShowAuxiliary] = useState(false);
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const [noteText, setNoteText] = useState("");
 
   const handleReveal = () => {
     setRevealed(true);
@@ -33,8 +37,20 @@ export function FlashcardReview({
   const handleNext = () => {
     setRevealed(false);
     setShowAuxiliary(false);
+    setShowNoteInput(false);
+    setNoteText("");
     onNext();
   };
+
+  const handleAddNote = () => {
+    if (noteText.trim()) {
+      onAddReviewNote(noteText.trim());
+      setNoteText("");
+      setShowNoteInput(false);
+    }
+  };
+
+  const quickNotes = ["definición formal", "ejemplo", "fórmula", "contexto"];
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col">
@@ -156,6 +172,52 @@ export function FlashcardReview({
                     <p key={i} className="mb-3 last:mb-0">{paragraph}</p>
                   ))}
                 </div>
+              </div>
+
+              {/* Review note section */}
+              <div className="mt-4 animate-fade-in">
+                {!showNoteInput ? (
+                  <button
+                    onClick={() => setShowNoteInput(true)}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <MessageSquarePlus className="w-4 h-4" />
+                    ¿Qué parte no dominabas?
+                  </button>
+                ) : (
+                  <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-3">
+                    <p className="text-xs text-muted-foreground">Nota de repaso</p>
+                    <div className="flex flex-wrap gap-2">
+                      {quickNotes.map((quick) => (
+                        <button
+                          key={quick}
+                          onClick={() => setNoteText(noteText ? `${noteText}, ${quick}` : quick)}
+                          className="px-3 py-1.5 text-xs rounded-full bg-background border border-border hover:border-primary/50 hover:text-primary transition-colors"
+                        >
+                          {quick}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
+                        placeholder="Escribe qué no dominabas..."
+                        className="flex-1 px-3 py-2 text-sm rounded-lg bg-background border border-border focus:border-primary/50 focus:outline-none transition-colors"
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleAddNote}
+                        disabled={!noteText.trim()}
+                        className="px-3 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               
               <button
