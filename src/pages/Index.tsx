@@ -3,17 +3,19 @@ import { Header } from "@/components/Header";
 import { DatabaseCard } from "@/components/DatabaseCard";
 import { GroupCard } from "@/components/GroupCard";
 import { StatsOverview } from "@/components/StatsOverview";
+import { DetailedStatsCard } from "@/components/DetailedStatsCard";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
-import { mockDatabases, mockGroups, mockFlashcards, getOverallStats, getStatsForDatabase } from "@/data/mockData";
-import { KnowledgeState, Flashcard } from "@/types";
-import { Plus, BarChart3 } from "lucide-react";
+import { mockDatabases, mockGroups, mockFlashcards, getOverallStats, getStatsForDatabase, getStatsForGroup, getLastReviewedForGroup, getReviewedThisWeekForGroup } from "@/data/mockData";
+import { KnowledgeState, Flashcard, DatabaseGroup } from "@/types";
+import { Plus, BarChart3, ArrowLeft } from "lucide-react";
 
-type View = 'home' | 'stats' | 'review-setup' | 'review';
+type View = 'home' | 'stats' | 'review-setup' | 'review' | 'group-stats';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
   const [selectedDatabaseId, setSelectedDatabaseId] = useState<string | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<DatabaseGroup | null>(null);
   const [reviewCards, setReviewCards] = useState<Flashcard[]>([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [cards, setCards] = useState(mockFlashcards);
@@ -81,6 +83,11 @@ const Index = () => {
     setCurrentCardIndex(0);
   };
 
+  const handleGroupClick = (group: DatabaseGroup) => {
+    setSelectedGroup(group);
+    setView('group-stats');
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header 
@@ -122,7 +129,7 @@ const Index = () => {
                       key={group.id}
                       group={group}
                       databases={mockDatabases.filter(db => group.databaseIds.includes(db.id))}
-                      onClick={() => {}}
+                      onClick={() => handleGroupClick(group)}
                     />
                   ))}
                 </div>
@@ -175,6 +182,28 @@ const Index = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {view === 'group-stats' && selectedGroup && (
+          <div className="space-y-6 animate-fade-in">
+            <button 
+              onClick={() => {
+                setView('home');
+                setSelectedGroup(null);
+              }}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Volver
+            </button>
+            
+            <DetailedStatsCard
+              title={selectedGroup.name}
+              stats={getStatsForGroup(selectedGroup.databaseIds)}
+              lastReviewed={getLastReviewedForGroup(selectedGroup.databaseIds)}
+              reviewedThisWeek={getReviewedThisWeekForGroup(selectedGroup.databaseIds)}
+            />
           </div>
         )}
       </main>
