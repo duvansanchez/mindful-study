@@ -8,7 +8,7 @@ export const useNotionDatabases = () => {
   return useQuery({
     queryKey: ['notion-databases'],
     queryFn: NotionService.getDatabases,
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 0, // Sin cache para debugging
     retry: 2,
   });
 };

@@ -1,15 +1,18 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2 } from "lucide-react";
-import { useCreateGroup } from "@/hooks/useGroups";
+import { Loader2 } from "lucide-react";
+import { useUpdateGroup } from "@/hooks/useGroups";
 import { useNotionDatabases } from "@/hooks/useNotion";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DatabaseGroup } from "@/types";
 
-interface CreateGroupDialogProps {
-  children?: React.ReactNode;
+interface EditGroupDialogProps {
+  group: DatabaseGroup | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 const colors = [
@@ -23,19 +26,27 @@ const colors = [
   { name: 'Teal', value: '#14B8A6' },
 ];
 
-export function CreateGroupDialog({ children }: CreateGroupDialogProps) {
-  const [open, setOpen] = useState(false);
+export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogProps) {
   const [name, setName] = useState('');
   const [selectedColor, setSelectedColor] = useState('#3B82F6');
   const [selectedDatabases, setSelectedDatabases] = useState<string[]>([]);
 
-  const createGroupMutation = useCreateGroup();
+  const updateGroupMutation = useUpdateGroup();
   const { data: databases = [] } = useNotionDatabases();
+
+  // Actualizar formulario cuando cambie el grupo
+  useEffect(() => {
+    if (group) {
+      setName(group.name);
+      setSelectedColor(group.color);
+      setSelectedDatabases(group.databaseIds || []);
+    }
+  }, [group]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name.trim()) return;
+    if (!group || !name.trim()) return;
 
     try {
       // Convertir los IDs seleccionados a objetos con id y name
@@ -47,19 +58,18 @@ export function CreateGroupDialog({ children }: CreateGroupDialogProps) {
         };
       });
 
-      await createGroupMutation.mutateAsync({
-        name: name.trim(),
-        color: selectedColor,
-        databaseIds: databaseObjects,
+      await updateGroupMutation.mutateAsync({
+        groupId: group.id,
+        updates: {
+          name: name.trim(),
+          color: selectedColor,
+          databaseIds: databaseObjects,
+        },
       });
       
-      // Resetear formulario y cerrar dialog
-      setName('');
-      setSelectedColor('#3B82F6');
-      setSelectedDatabases([]);
-      setOpen(false);
+      onOpenChange(false);
     } catch (error) {
-      console.error('Error creating group:', error);
+      console.error('Error updating group:', error);
     }
   };
 
@@ -71,26 +81,20 @@ export function CreateGroupDialog({ children }: CreateGroupDialogProps) {
     );
   };
 
+  if (!group) return null;
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children || (
-          <Button variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Nueva agrupación
-          </Button>
-        )}
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Crear nueva agrupación</DialogTitle>
+          <DialogTitle>Editar agrupación</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Nombre */}
           <div className="space-y-2">
-            <Label htmlFor="name">Nombre de la agrupación</Label>
+            <Label htmlFor="edit-name">Nombre de la agrupación</Label>
             <Input
-              id="name"
+              id="edit-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: Tecnología, Idiomas, Ciencias..."
@@ -122,17 +126,17 @@ export function CreateGroupDialog({ children }: CreateGroupDialogProps) {
           {/* Bases de datos */}
           {databases.length > 0 && (
             <div className="space-y-2">
-              <Label>Bases de datos (opcional)</Label>
+              <Label>Bases de datos</Label>
               <div className="max-h-32 overflow-y-auto space-y-2 border rounded-md p-2">
                 {databases.map((database) => (
                   <div key={database.id} className="flex items-center space-x-2">
                     <Checkbox
-                      id={database.id}
+                      id={`edit-${database.id}`}
                       checked={selectedDatabases.includes(database.id)}
                       onCheckedChange={() => handleDatabaseToggle(database.id)}
                     />
                     <Label
-                      htmlFor={database.id}
+                      htmlFor={`edit-${database.id}`}
                       className="text-sm font-normal cursor-pointer flex-1"
                     >
                       <span className="mr-2">{database.icon}</span>
@@ -149,22 +153,22 @@ export function CreateGroupDialog({ children }: CreateGroupDialogProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={createGroupMutation.isPending}
+              onClick={() => onOpenChange(false)}
+              disabled={updateGroupMutation.isPending}
             >
               Cancelar
             </Button>
             <Button
               type="submit"
-              disabled={!name.trim() || createGroupMutation.isPending}
+              disabled={!name.trim() || updateGroupMutation.isPending}
             >
-              {createGroupMutation.isPending ? (
+              {updateGroupMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creando...
+                  Guardando...
                 </>
               ) : (
-                'Crear agrupación'
+                'Guardar cambios'
               )}
             </Button>
           </div>

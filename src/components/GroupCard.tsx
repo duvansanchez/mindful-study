@@ -1,14 +1,27 @@
 import { DatabaseGroup, Database } from "@/types";
-import { Folder, MoreHorizontal } from "lucide-react";
+import { Folder, MoreHorizontal, Edit, Trash2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface GroupCardProps {
   group: DatabaseGroup;
   databases: Database[];
   onClick: () => void;
+  onEdit?: (group: DatabaseGroup) => void;
+  onDelete?: (group: DatabaseGroup) => void;
 }
 
-export function GroupCard({ group, databases, onClick }: GroupCardProps) {
+export function GroupCard({ group, databases, onClick, onEdit, onDelete }: GroupCardProps) {
   const totalCards = databases.reduce((acc, db) => acc + db.cardCount, 0);
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit?.(group);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete?.(group);
+  };
 
   return (
     <button
@@ -32,14 +45,36 @@ export function GroupCard({ group, databases, onClick }: GroupCardProps) {
             </p>
           </div>
         </div>
-        <button 
-          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-secondary transition-all"
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-        >
-          <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-        </button>
+        
+        {(onEdit || onDelete) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button 
+                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-secondary transition-all"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              {onEdit && (
+                <DropdownMenuItem onClick={handleEdit} className="cursor-pointer">
+                  <Edit className="w-4 h-4 mr-2" />
+                  Editar
+                </DropdownMenuItem>
+              )}
+              {onDelete && (
+                <DropdownMenuItem 
+                  onClick={handleDelete} 
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Eliminar
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       <div className="mt-3 flex gap-1">
         {databases.slice(0, 4).map((db) => (

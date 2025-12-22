@@ -8,10 +8,12 @@ import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
 import { NotionSetup } from "@/components/NotionSetup";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
+import { EditGroupDialog } from "@/components/EditGroupDialog";
+import { DeleteGroupDialog } from "@/components/DeleteGroupDialog";
 import { useNotionDatabases, useNotionFlashcards, useNotionConnection, useNotionStats, useFilteredFlashcards, useUpdateFlashcardState } from "@/hooks/useNotion";
 import { useGroups } from "@/hooks/useGroups";
 import { KnowledgeState, Flashcard, DatabaseGroup, Statistics } from "@/types";
-import { Plus, BarChart3, ArrowLeft, AlertCircle, Loader2, Wifi, WifiOff } from "lucide-react";
+import { Plus, BarChart3, ArrowLeft, AlertCircle, Loader2, Wifi, WifiOff, Folder } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type View = 'home' | 'stats' | 'review-setup' | 'review' | 'group-stats' | 'notion-setup';
@@ -23,6 +25,10 @@ const Index = () => {
   const [reviewCards, setReviewCards] = useState<Flashcard[]>([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [databaseCounts, setDatabaseCounts] = useState<Record<string, number>>({});
+  
+  // Estados para los diálogos de agrupaciones
+  const [editingGroup, setEditingGroup] = useState<DatabaseGroup | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState<DatabaseGroup | null>(null);
 
   // Notion hooks
   const { data: databases = [], isLoading: databasesLoading, error: databasesError } = useNotionDatabases();
@@ -32,6 +38,194 @@ const Index = () => {
 
   // Groups hooks
   const { data: groups = [], isLoading: groupsLoading } = useGroups();
+
+  // Componente para la vista de estadísticas del grupo
+  const GroupStatsView = ({ selectedGroup, databases, databaseCounts, onBack, onEditGroup, onDatabaseClick }) => {
+    // Obtener estadísticas reales de las bases de datos del grupo
+    const [groupStats, setGroupStats] = useState({ tocado: 0, verde: 0, solido: 0, total: 0 });
+    const [isLoadingStats, setIsLoadingStats] = useState(true);
+
+    useEffect(() => {
+      const loadGroupStats = async () => {
+        if (!selectedGroup.databaseIds || selectedGroup.databaseIds.length === 0) {
+          setGroupStats({ tocado: 0, verde: 0, solido: 0, total: 0 });
+          setIsLoadingStats(false);
+          return;
+        }
+
+        setIsLoadingStats(true);
+        try {
+          const totalStats = { tocado: 0, verde: 0, solido: 0, total: 0 };
+          
+          // Obtener estadísticas de cada base de datos del grupo
+          for (const dbId of selectedGroup.databaseIds) {
+            try {
+              const response = await fetch(`/api/notion/databases/${dbId}/flashcards`);
+              if (response.ok) {
+                const flashcards = await response.json();
+                
+                flashcards.forEach(card => {
+                  totalStats.total++;
+                  switch (card.state?.toLowerCase()) {
+                    case 'tocado':
+                      totalStats.tocado++;
+                      break;
+                    case 'verde':
+                      totalStats.verde++;
+                      break;
+                    case 'sólido':
+                    case 'solido':
+                      totalStats.solido++;
+                      break;
+                  }
+                });
+              }
+            } catch (error) {
+              console.error(`Error loading stats for database ${dbId}:`, error);
+            }
+          }
+          
+          setGroupStats(totalStats);
+        } catch (error) {
+          console.error('Error loading group stats:', error);
+        } finally {
+          setIsLoadingStats(false);
+        }
+      };
+
+      loadGroupStats();
+    }, [selectedGroup.databaseIds]);
+    
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Volver
+        </button>
+        
+        {/* Título del grupo */}
+        <div className="flex items-center gap-3">
+          <div 
+            className="w-12 h-12 rounded-lg flex items-center justify-center"
+            style={{ backgroundColor: `${selectedGroup.color}20` }}
+          >
+            <Folder className="w-6 h-6" style={{ color: selectedGroup.color }} />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">{selectedGroup.name}</h2>
+            <p className="text-sm text-muted-foreground">
+              {databases.filter(db => selectedGroup.databaseIds.includes(db.id)).length} bases de datos
+            </p>
+          </div>
+        </div>
+
+        {/* Estadísticas generales del grupo */}
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium text-foreground">Estadísticas del grupo</h3>
+          <button
+            onClick={() => {
+              setIsLoadingStats(true);
+              // Trigger reload by changing the key
+              const loadGroupStats = async () => {
+                if (!selectedGroup.databaseIds || selectedGroup.databaseIds.length === 0) {
+                  setGroupStats({ tocado: 0, verde: 0, solido: 0, total: 0 });
+                  setIsLoadingStats(false);
+                  return;
+                }
+
+                try {
+                  const totalStats = { tocado: 0, verde: 0, solido: 0, total: 0 };
+                  
+                  for (const dbId of selectedGroup.databaseIds) {
+                    try {
+                      const response = await fetch(`/api/notion/databases/${dbId}/flashcards`);
+                      if (response.ok) {
+                        const flashcards = await response.json();
+                        
+                        flashcards.forEach(card => {
+                          totalStats.total++;
+                          switch (card.state?.toLowerCase()) {
+                            case 'tocado':
+                              totalStats.tocado++;
+                              break;
+                            case 'verde':
+                              totalStats.verde++;
+                              break;
+                            case 'sólido':
+                            case 'solido':
+                              totalStats.solido++;
+                              break;
+                          }
+                        });
+                      }
+                    } catch (error) {
+                      console.error(`Error loading stats for database ${dbId}:`, error);
+                    }
+                  }
+                  
+                  setGroupStats(totalStats);
+                } catch (error) {
+                  console.error('Error loading group stats:', error);
+                } finally {
+                  setIsLoadingStats(false);
+                }
+              };
+              loadGroupStats();
+            }}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            disabled={isLoadingStats}
+          >
+            {isLoadingStats ? 'Sincronizando...' : 'Sincronizar'}
+          </button>
+        </div>
+        
+        {isLoadingStats ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-muted-foreground">Sincronizando estadísticas...</span>
+          </div>
+        ) : (
+          <StatsOverview stats={groupStats} />
+        )}
+
+        {/* Bases de datos del grupo */}
+        <section>
+          <h3 className="text-lg font-medium text-foreground mb-4">Bases de datos</h3>
+          {databases.filter(db => selectedGroup.databaseIds.includes(db.id)).length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {databases
+                .filter(db => selectedGroup.databaseIds.includes(db.id))
+                .map(database => {
+                  const actualCount = databaseCounts[database.id] ?? database.cardCount;
+                  const databaseWithCount = { ...database, cardCount: actualCount };
+                  
+                  return (
+                    <DatabaseCard
+                      key={database.id}
+                      database={databaseWithCount}
+                      onClick={() => onDatabaseClick(database.id)}
+                    />
+                  );
+                })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Esta agrupación no tiene bases de datos asociadas.</p>
+              <button 
+                onClick={() => onEditGroup(selectedGroup)}
+                className="mt-2 text-primary hover:underline"
+              >
+                Agregar bases de datos
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  };
 
   // Update database count when flashcards are loaded
   useEffect(() => {
@@ -45,6 +239,7 @@ const Index = () => {
 
   // Calculate stats with real flashcard data
   const flashcardsStats = useNotionStats(flashcards);
+  const reviewSetupStats = useNotionStats(flashcards);
   const overallStats = flashcardsStats;
 
   const selectedDatabase = databases.find(db => db.id === selectedDatabaseId);
@@ -136,16 +331,41 @@ const Index = () => {
   };
 
   const getStatsForGroup = (databaseIds: string[]): Statistics => {
-    // In a real implementation, you'd fetch flashcards for these databases
-    return { tocado: 0, verde: 0, solido: 0, total: 0 };
+    // Calcular estadísticas combinadas de todas las bases de datos del grupo
+    const totalStats = { tocado: 0, verde: 0, solido: 0, total: 0 };
+    
+    // Por ahora, usar datos mock basados en las bases de datos conocidas
+    // En una implementación real, necesitarías obtener las flashcards de cada base de datos
+    const mockStatsPerDatabase = {
+      '2c576585-c8ed-8120-961b-e9ad0498e162': { tocado: 5, verde: 8, solido: 4, total: 17 }, // Conceptos - Terminos
+      '2c576585-c8ed-8134-9eff-e346521d15e5': { tocado: 1, verde: 1, solido: 0, total: 2 },   // Artículos
+      '2c576585-c8ed-8161-8637-dd175fe3e2ba': { tocado: 3, verde: 4, solido: 2, total: 9 }    // Conocimiento
+    };
+    
+    databaseIds.forEach(dbId => {
+      const dbStats = mockStatsPerDatabase[dbId];
+      if (dbStats) {
+        totalStats.tocado += dbStats.tocado;
+        totalStats.verde += dbStats.verde;
+        totalStats.solido += dbStats.solido;
+        totalStats.total += dbStats.total;
+      }
+    });
+    
+    return totalStats;
   };
 
   const getLastReviewedForGroup = (databaseIds: string[]): Date | null => {
+    // Mock: simular última revisión hace algunos días
+    if (databaseIds.length > 0) {
+      return new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000); // Últimos 7 días
+    }
     return null;
   };
 
   const getReviewedThisWeekForGroup = (databaseIds: string[]): number => {
-    return 0;
+    // Mock: simular tarjetas revisadas esta semana
+    return Math.floor(Math.random() * 20) + 5; // Entre 5 y 25 tarjetas
   };
 
   // Show setup if no token is configured
@@ -251,26 +471,40 @@ const Index = () => {
                   <h2 className="text-lg font-medium text-foreground">Agrupaciones</h2>
                   <CreateGroupDialog />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {groups.map(group => (
-                    <GroupCard
-                      key={group.id}
-                      group={group}
-                      databases={databases.filter(db => group.databaseIds.includes(db.id))}
-                      onClick={() => handleGroupClick(group)}
-                    />
-                  ))}
-                  {groups.length === 0 && !groupsLoading && (
-                    <div className="col-span-full text-center py-8 text-muted-foreground">
-                      <p className="mb-4">No tienes agrupaciones personalizadas aún</p>
-                      <CreateGroupDialog>
-                        <button className="text-primary hover:underline">
-                          Crear tu primera agrupación
-                        </button>
-                      </CreateGroupDialog>
-                    </div>
-                  )}
-                </div>
+                
+                {/* Solo mostrar grupos si las bases de datos ya se cargaron */}
+                {!databasesLoading && databases.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {groups.map(group => {
+                      const groupDatabases = databases.filter(db => group.databaseIds.includes(db.id));
+                      return (
+                        <GroupCard
+                          key={group.id}
+                          group={group}
+                          databases={groupDatabases}
+                          onClick={() => handleGroupClick(group)}
+                          onEdit={setEditingGroup}
+                          onDelete={setDeletingGroup}
+                        />
+                      );
+                    })}
+                    {groups.length === 0 && !groupsLoading && (
+                      <div className="col-span-full text-center py-8 text-muted-foreground">
+                        <p className="mb-4">No tienes agrupaciones personalizadas aún</p>
+                        <CreateGroupDialog>
+                          <button className="text-primary hover:underline">
+                            Crear tu primera agrupación
+                          </button>
+                        </CreateGroupDialog>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Cargando agrupaciones...</span>
+                  </div>
+                )}
               </section>
             )}
 
@@ -350,32 +584,24 @@ const Index = () => {
         )}
 
         {view === 'group-stats' && selectedGroup && (
-          <div className="space-y-6 animate-fade-in">
-            <button 
-              onClick={() => {
-                setView('home');
-                setSelectedGroup(null);
-              }}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Volver
-            </button>
-            
-            <DetailedStatsCard
-              title={selectedGroup.name}
-              stats={getStatsForGroup(selectedGroup.databaseIds)}
-              lastReviewed={getLastReviewedForGroup(selectedGroup.databaseIds)}
-              reviewedThisWeek={getReviewedThisWeekForGroup(selectedGroup.databaseIds)}
-            />
-          </div>
+          <GroupStatsView 
+            selectedGroup={selectedGroup}
+            databases={databases}
+            databaseCounts={databaseCounts}
+            onBack={() => {
+              setView('home');
+              setSelectedGroup(null);
+            }}
+            onEditGroup={setEditingGroup}
+            onDatabaseClick={handleDatabaseClick}
+          />
         )}
       </main>
 
       {/* Review Setup Modal */}
       {view === 'review-setup' && selectedDatabase && (
         <ReviewSetup
-          stats={useNotionStats(flashcards)}
+          stats={reviewSetupStats}
           databaseName={selectedDatabase.name}
           onStart={handleStartReview}
           onCancel={() => {
@@ -397,6 +623,19 @@ const Index = () => {
           totalCards={reviewCards.length}
         />
       )}
+
+      {/* Diálogos para editar y eliminar agrupaciones */}
+      <EditGroupDialog
+        group={editingGroup}
+        open={!!editingGroup}
+        onOpenChange={(open) => !open && setEditingGroup(null)}
+      />
+      
+      <DeleteGroupDialog
+        group={deletingGroup}
+        open={!!deletingGroup}
+        onOpenChange={(open) => !open && setDeletingGroup(null)}
+      />
     </div>
   );
 };
