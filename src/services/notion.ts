@@ -40,6 +40,21 @@ export class NotionService {
     }
   }
 
+  // Obtener contenido detallado de una flashcard específica (lazy loading)
+  static async getFlashcardContent(flashcardId: string): Promise<string> {
+    try {
+      const response = await fetch(`${API_BASE}/flashcards/${flashcardId}/content`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.content || 'Sin contenido disponible';
+    } catch (error) {
+      console.error('Error fetching flashcard content:', error);
+      return 'Error al cargar contenido';
+    }
+  }
+
   // Actualizar el estado de una flashcard en Notion
   static async updateFlashcardState(flashcardId: string, newState: KnowledgeState): Promise<boolean> {
     try {

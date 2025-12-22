@@ -24,6 +24,17 @@ export const useNotionFlashcards = (databaseId: string | null) => {
   });
 };
 
+// Hook para obtener contenido detallado de una flashcard (lazy loading)
+export const useFlashcardContent = (flashcardId: string | null) => {
+  return useQuery({
+    queryKey: ['flashcard-content', flashcardId],
+    queryFn: () => flashcardId ? NotionService.getFlashcardContent(flashcardId) : Promise.resolve(''),
+    enabled: !!flashcardId,
+    staleTime: 10 * 60 * 1000, // 10 minutos (el contenido no cambia frecuentemente)
+    retry: 2,
+  });
+};
+
 // Hook para actualizar estado de flashcard
 export const useUpdateFlashcardState = () => {
   const queryClient = useQueryClient();

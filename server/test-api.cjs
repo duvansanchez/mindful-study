@@ -119,240 +119,228 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
     console.log('📊 Páginas en la base de datos:', pagesInDb.length);
 
     const flashcards = [];
+    
+    // Cache para páginas relacionadas para evitar llamadas duplicadas
+    const relatedPagesCache = new Map();
 
-    for (const page of pagesInDb) {
-      if (page.properties) {
-        const properties = page.properties;
-
-        // Buscar título (columna "Nombre")
-        const titleProperty = Object.values(properties).find((prop) => prop.type === 'title');
-        const title = titleProperty ? 
-          titleProperty.title?.map((t) => t.plain_text).join('') || 'Sin título' : 'Sin título';
-
-        // Buscar estado en la columna "Dominio"
-        let state = 'tocado'; // Estado por defecto
-        const dominioProperty = properties['Dominio'];
-        if (dominioProperty && dominioProperty.type === 'select' && dominioProperty.select) {
-          const dominioValue = dominioProperty.select.name;
-          console.log('🏷️ Dominio encontrado para', title, ':', dominioValue);
-          
-          // Mapear el valor de Dominio a nuestros estados
-          switch (dominioValue?.toLowerCase()) {
-            case 'tocado':
-              state = 'tocado';
-              break;
-            case 'verde':
-              state = 'verde';
-              break;
-            case 'solido':
-            case 'sólido':
-              state = 'solido';
-              break;
-            default:
-              state = 'tocado';
-          }
-        }
-
-        // Buscar notas en "Nota Propia"
-        let notes = '';
-        const notaProperty = properties['Nota Propia'];
-        if (notaProperty && notaProperty.type === 'rich_text') {
-          notes = notaProperty.rich_text?.map((t) => t.plain_text).join('') || '';
-        }
-
-        // Buscar conceptos relacionados en "Conceptos Relacionados"
-        let relatedConcepts = [];
-        const relacionadosProperty = properties['Conceptos Relacionados'];
-        if (relacionadosProperty) {
-          if (relacionadosProperty.type === 'multi_select') {
-            relatedConcepts = relacionadosProperty.multi_select?.map((s) => s.name) || [];
-          } else if (relacionadosProperty.type === 'relation' && relacionadosProperty.relation?.length > 0) {
-            // Si es una relación, obtener los títulos de las páginas relacionadas
-            for (const rel of relacionadosProperty.relation) {
-              try {
-                const relatedPage = await notion.pages.retrieve({ page_id: rel.id });
-                if (relatedPage.properties) {
-                  const titleProp = Object.values(relatedPage.properties).find((p) => p.type === 'title');
-                  if (titleProp && titleProp.type === 'title') {
-                    const title = titleProp.title?.map((t) => t.plain_text).join('') || 'Sin título';
-                    relatedConcepts.push(title);
-                  }
-                }
-              } catch (relError) {
-                console.error('❌ Error obteniendo concepto relacionado:', relError.message);
-                relatedConcepts.push('Concepto no disponible');
-              }
-            }
-          }
-        }
-
-        // Extraer todas las propiedades adicionales para información auxiliar
-        const auxiliaryInfo = {};
-        for (const [propName, propValue] of Object.entries(properties)) {
-          // Saltar propiedades que ya procesamos
-          if (['Nombre', 'Dominio', 'Nota Propia', 'Conceptos Relacionados'].includes(propName)) {
-            continue;
-          }
-          
-          // Saltar la propiedad de título
-          if (propValue.type === 'title') {
-            continue;
-          }
-
-          // Extraer valor según el tipo de propiedad
-          let value = '';
-          switch (propValue.type) {
-            case 'rich_text':
-              value = propValue.rich_text?.map((t) => t.plain_text).join('') || '';
-              break;
-            case 'select':
-              value = propValue.select?.name || '';
-              break;
-            case 'multi_select':
-              value = propValue.multi_select?.map((s) => s.name).join(', ') || '';
-              break;
-            case 'date':
-              if (propValue.date?.start) {
-                value = new Date(propValue.date.start).toLocaleDateString('es-ES');
-              }
-              break;
-            case 'number':
-              value = propValue.number?.toString() || '';
-              break;
-            case 'checkbox':
-              value = propValue.checkbox ? 'Sí' : 'No';
-              break;
-            case 'url':
-              value = propValue.url || '';
-              break;
-            case 'email':
-              value = propValue.email || '';
-              break;
-            case 'phone_number':
-              value = propValue.phone_number || '';
-              break;
-            case 'people':
-              value = propValue.people?.map((p) => p.name || 'Usuario').join(', ') || '';
-              break;
-            case 'files':
-              value = propValue.files?.map((f) => f.name || 'Archivo').join(', ') || '';
-              break;
-            case 'relation':
-              if (propValue.relation && propValue.relation.length > 0) {
-                // Obtener los títulos de las páginas relacionadas
-                const relationTitles = [];
-                for (const rel of propValue.relation) {
-                  try {
-                    const relatedPage = await notion.pages.retrieve({ page_id: rel.id });
-                    if (relatedPage.properties) {
-                      const titleProp = Object.values(relatedPage.properties).find((p) => p.type === 'title');
-                      if (titleProp && titleProp.type === 'title') {
-                        const title = titleProp.title?.map((t) => t.plain_text).join('') || 'Sin título';
-                        relationTitles.push(title);
-                      }
-                    }
-                  } catch (relError) {
-                    console.error('❌ Error obteniendo página relacionada:', relError.message);
-                    relationTitles.push('Relación no disponible');
-                  }
-                }
-                value = relationTitles.join(', ');
-              } else {
-                value = 'Sin relaciones configuradas';
-              }
-              break;
-            case 'formula':
-              if (propValue.formula?.string) value = propValue.formula.string;
-              else if (propValue.formula?.number) value = propValue.formula.number.toString();
-              else if (propValue.formula?.boolean !== undefined) value = propValue.formula.boolean ? 'Sí' : 'No';
-              else if (propValue.formula?.date?.start) value = new Date(propValue.formula.date.start).toLocaleDateString('es-ES');
-              break;
-            case 'rollup':
-              if (propValue.rollup?.array) {
-                value = propValue.rollup.array.length ? `${propValue.rollup.array.length} elemento(s)` : '';
-              } else if (propValue.rollup?.number) {
-                value = propValue.rollup.number.toString();
-              }
-              break;
-            case 'created_time':
-              value = new Date(propValue.created_time).toLocaleDateString('es-ES');
-              break;
-            case 'created_by':
-              value = propValue.created_by?.name || 'Usuario';
-              break;
-            case 'last_edited_time':
-              value = new Date(propValue.last_edited_time).toLocaleDateString('es-ES');
-              break;
-            case 'last_edited_by':
-              value = propValue.last_edited_by?.name || 'Usuario';
-              break;
-          }
-
-          // Solo añadir si tiene valor
-          if (value && value.trim()) {
-            auxiliaryInfo[propName] = {
-              type: propValue.type,
-              value: value.trim()
-            };
-          }
-        }
-
-        console.log('📋 Propiedades auxiliares para', title, ':', Object.keys(auxiliaryInfo));
-
-        // Obtener contenido de la página
-        let content = 'Sin contenido disponible';
-        try {
-          const blocks = await notion.blocks.children.list({
-            block_id: page.id,
-          });
-
-          content = '';
-          for (const block of blocks.results) {
-            if ('type' in block) {
-              switch (block.type) {
-                case 'paragraph':
-                  content += block.paragraph?.rich_text?.map((t) => t.plain_text).join('') + '\n\n';
-                  break;
-                case 'heading_1':
-                  content += '# ' + (block.heading_1?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n\n';
-                  break;
-                case 'heading_2':
-                  content += '## ' + (block.heading_2?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n\n';
-                  break;
-                case 'heading_3':
-                  content += '### ' + (block.heading_3?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n\n';
-                  break;
-                case 'bulleted_list_item':
-                  content += '- ' + (block.bulleted_list_item?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n';
-                  break;
-                case 'numbered_list_item':
-                  content += '1. ' + (block.numbered_list_item?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n';
-                  break;
-              }
-            }
-          }
-          content = content.trim() || 'Sin contenido disponible';
-        } catch (contentError) {
-          console.error('Error obteniendo contenido:', contentError.message);
-        }
-
-        console.log('✅ Flashcard creada:', { title, state, contentLength: content.length });
-
-        flashcards.push({
-          id: page.id,
-          title,
-          content,
-          state,
-          lastReviewed: null,
-          notes,
-          relatedConcepts,
-          auxiliaryInfo, // Nueva propiedad con todas las columnas adicionales
-          databaseId,
-          createdAt: new Date(page.created_time),
-          viewCount: 0,
-          reviewNotes: [],
-        });
+    // Función helper para obtener título de página relacionada con caché
+    const getRelatedPageTitle = async (pageId) => {
+      if (relatedPagesCache.has(pageId)) {
+        return relatedPagesCache.get(pageId);
       }
+      
+      try {
+        const relatedPage = await notion.pages.retrieve({ page_id: pageId });
+        if (relatedPage.properties) {
+          const titleProp = Object.values(relatedPage.properties).find((p) => p.type === 'title');
+          if (titleProp && titleProp.type === 'title') {
+            const title = titleProp.title?.map((t) => t.plain_text).join('') || 'Sin título';
+            relatedPagesCache.set(pageId, title);
+            return title;
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error obteniendo página relacionada:', error.message);
+      }
+      
+      const fallback = 'Relación no disponible';
+      relatedPagesCache.set(pageId, fallback);
+      return fallback;
+    };
+
+    // Procesar páginas en lotes para mejorar rendimiento
+    const batchSize = 5;
+    for (let i = 0; i < pagesInDb.length; i += batchSize) {
+      const batch = pagesInDb.slice(i, i + batchSize);
+      
+      const batchPromises = batch.map(async (page) => {
+        if (page.properties) {
+          const properties = page.properties;
+
+          // Buscar título (columna "Nombre")
+          const titleProperty = Object.values(properties).find((prop) => prop.type === 'title');
+          const title = titleProperty ? 
+            titleProperty.title?.map((t) => t.plain_text).join('') || 'Sin título' : 'Sin título';
+
+          // Buscar estado en la columna "Dominio"
+          let state = 'tocado'; // Estado por defecto
+          const dominioProperty = properties['Dominio'];
+          if (dominioProperty && dominioProperty.type === 'select' && dominioProperty.select) {
+            const dominioValue = dominioProperty.select.name;
+            
+            // Mapear el valor de Dominio a nuestros estados
+            switch (dominioValue?.toLowerCase()) {
+              case 'tocado':
+                state = 'tocado';
+                break;
+              case 'verde':
+                state = 'verde';
+                break;
+              case 'solido':
+              case 'sólido':
+                state = 'solido';
+                break;
+              default:
+                state = 'tocado';
+            }
+          }
+
+          // Buscar notas en "Nota Propia"
+          let notes = '';
+          const notaProperty = properties['Nota Propia'];
+          if (notaProperty && notaProperty.type === 'rich_text') {
+            notes = notaProperty.rich_text?.map((t) => t.plain_text).join('') || '';
+          }
+
+          // Buscar conceptos relacionados en "Conceptos Relacionados"
+          let relatedConcepts = [];
+          const relacionadosProperty = properties['Conceptos Relacionados'];
+          if (relacionadosProperty) {
+            if (relacionadosProperty.type === 'multi_select') {
+              relatedConcepts = relacionadosProperty.multi_select?.map((s) => s.name) || [];
+            } else if (relacionadosProperty.type === 'relation' && relacionadosProperty.relation?.length > 0) {
+              // Procesar relaciones en paralelo
+              const relationPromises = relacionadosProperty.relation.map(rel => getRelatedPageTitle(rel.id));
+              relatedConcepts = await Promise.all(relationPromises);
+            }
+          }
+
+          // Extraer todas las propiedades adicionales para información auxiliar
+          const auxiliaryInfo = {};
+          for (const [propName, propValue] of Object.entries(properties)) {
+            // Saltar propiedades que ya procesamos
+            if (['Nombre', 'Dominio', 'Nota Propia', 'Conceptos Relacionados'].includes(propName)) {
+              continue;
+            }
+            
+            // Saltar la propiedad de título
+            if (propValue.type === 'title') {
+              continue;
+            }
+
+            // Extraer valor según el tipo de propiedad
+            let value = '';
+            switch (propValue.type) {
+              case 'rich_text':
+                value = propValue.rich_text?.map((t) => t.plain_text).join('') || '';
+                break;
+              case 'select':
+                value = propValue.select?.name || '';
+                break;
+              case 'multi_select':
+                value = propValue.multi_select?.map((s) => s.name).join(', ') || '';
+                break;
+              case 'date':
+                if (propValue.date?.start) {
+                  value = new Date(propValue.date.start).toLocaleDateString('es-ES');
+                }
+                break;
+              case 'number':
+                value = propValue.number?.toString() || '';
+                break;
+              case 'checkbox':
+                value = propValue.checkbox ? 'Sí' : 'No';
+                break;
+              case 'url':
+                value = propValue.url || '';
+                break;
+              case 'email':
+                value = propValue.email || '';
+                break;
+              case 'phone_number':
+                value = propValue.phone_number || '';
+                break;
+              case 'people':
+                value = propValue.people?.map((p) => p.name || 'Usuario').join(', ') || '';
+                break;
+              case 'files':
+                value = propValue.files?.map((f) => f.name || 'Archivo').join(', ') || '';
+                break;
+              case 'relation':
+                if (propValue.relation && propValue.relation.length > 0) {
+                  // Procesar relaciones en paralelo con caché
+                  const relationPromises = propValue.relation.map(rel => getRelatedPageTitle(rel.id));
+                  const relationTitles = await Promise.all(relationPromises);
+                  value = relationTitles.join(', ');
+                } else {
+                  value = 'Sin relaciones configuradas';
+                }
+                break;
+              case 'formula':
+                if (propValue.formula?.string) value = propValue.formula.string;
+                else if (propValue.formula?.number) value = propValue.formula.number.toString();
+                else if (propValue.formula?.boolean !== undefined) value = propValue.formula.boolean ? 'Sí' : 'No';
+                else if (propValue.formula?.date?.start) value = new Date(propValue.formula.date.start).toLocaleDateString('es-ES');
+                break;
+              case 'rollup':
+                if (propValue.rollup?.array) {
+                  value = propValue.rollup.array.length ? `${propValue.rollup.array.length} elemento(s)` : '';
+                } else if (propValue.rollup?.number) {
+                  value = propValue.rollup.number.toString();
+                }
+                break;
+              case 'created_time':
+                value = new Date(propValue.created_time).toLocaleDateString('es-ES');
+                break;
+              case 'created_by':
+                value = propValue.created_by?.name || 'Usuario';
+                break;
+              case 'last_edited_time':
+                value = new Date(propValue.last_edited_time).toLocaleDateString('es-ES');
+                break;
+              case 'last_edited_by':
+                value = propValue.last_edited_by?.name || 'Usuario';
+                break;
+            }
+
+            // Solo añadir si tiene valor
+            if (value && value.trim()) {
+              auxiliaryInfo[propName] = {
+                type: propValue.type,
+                value: value.trim()
+              };
+            }
+          }
+
+          // Obtener contenido de la página de forma más eficiente
+          // OPTIMIZACIÓN: Solo obtener contenido cuando sea realmente necesario
+          // Por ahora, usar el título como contenido para mejorar velocidad
+          let content = title || 'Sin contenido disponible';
+          
+          // TODO: Implementar carga lazy del contenido cuando se abra la flashcard
+          // try {
+          //   const blocks = await notion.blocks.children.list({
+          //     block_id: page.id,
+          //     page_size: 3 // Solo los primeros 3 bloques
+          //   });
+          //   // ... procesar bloques
+          // } catch (contentError) {
+          //   console.error('Error obteniendo contenido:', contentError.message);
+          // }
+
+          return {
+            id: page.id,
+            title,
+            content,
+            state,
+            lastReviewed: null,
+            notes,
+            relatedConcepts,
+            auxiliaryInfo,
+            databaseId,
+            createdAt: new Date(page.created_time),
+            viewCount: 0,
+            reviewNotes: [],
+          };
+        }
+        return null;
+      });
+
+      // Esperar a que termine el lote actual antes de continuar
+      const batchResults = await Promise.all(batchPromises);
+      flashcards.push(...batchResults.filter(card => card !== null));
+      
+      console.log(`📊 Procesado lote ${Math.floor(i/batchSize) + 1}/${Math.ceil(pagesInDb.length/batchSize)}`);
     }
 
     console.log('📊 Total flashcards:', flashcards.length);
@@ -365,6 +353,52 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
     res.json(flashcards);
   } catch (error) {
     console.error('❌ Error fetching flashcards:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener contenido detallado de una flashcard específica
+app.get('/flashcards/:flashcardId/content', async (req, res) => {
+  try {
+    const { flashcardId } = req.params;
+    console.log('🔍 Obteniendo contenido detallado para flashcard:', flashcardId);
+    
+    const blocks = await notion.blocks.children.list({
+      block_id: flashcardId,
+    });
+
+    let content = '';
+    for (const block of blocks.results) {
+      if ('type' in block) {
+        switch (block.type) {
+          case 'paragraph':
+            content += block.paragraph?.rich_text?.map((t) => t.plain_text).join('') + '\n\n';
+            break;
+          case 'heading_1':
+            content += '# ' + (block.heading_1?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n\n';
+            break;
+          case 'heading_2':
+            content += '## ' + (block.heading_2?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n\n';
+            break;
+          case 'heading_3':
+            content += '### ' + (block.heading_3?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n\n';
+            break;
+          case 'bulleted_list_item':
+            content += '- ' + (block.bulleted_list_item?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n';
+            break;
+          case 'numbered_list_item':
+            content += '1. ' + (block.numbered_list_item?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n';
+            break;
+        }
+      }
+    }
+    
+    const finalContent = content.trim() || 'Sin contenido disponible';
+    console.log('✅ Contenido obtenido, longitud:', finalContent.length);
+    
+    res.json({ content: finalContent });
+  } catch (error) {
+    console.error('❌ Error fetching flashcard content:', error);
     res.status(500).json({ error: error.message });
   }
 });
