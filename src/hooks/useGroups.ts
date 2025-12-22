@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GroupsService } from '@/services/groups';
+import { NotionService } from '@/services/notion';
 import { DatabaseGroup } from '@/types';
 
 // Hook para obtener todas las agrupaciones
@@ -7,7 +8,7 @@ export const useGroups = () => {
   return useQuery({
     queryKey: ['groups'],
     queryFn: GroupsService.getGroups,
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 0, // Sin cache para debugging
     retry: 2,
   });
 };
@@ -56,12 +57,47 @@ export const useDeleteGroup = () => {
   });
 };
 
-// Hook para obtener bases de datos de una agrupación
-export const useGroupDatabases = (groupId: string | null) => {
+// Hook para obtener estadísticas de múltiples bases de datos (para grupos)
+export const useGroupStats = (databaseIds: string[]) => {
   return useQuery({
-    queryKey: ['group-databases', groupId],
-    queryFn: () => groupId ? GroupsService.getGroupDatabases(groupId) : Promise.resolve([]),
-    enabled: !!groupId,
+    queryKey: ['group-stats', databaseIds],
+    queryFn: async () => {
+      if (!databaseIds || databaseIds.length === 0) {
+        return { tocado: 0, verde: 0, solido: 0, total: 0 };
+      }
+
+      // Obtener flashcards de todas las bases de datos del grupo
+      const allFlashcards = [];
+      for (const dbId of databaseIds) {
+        try {
+          const flashcards = await NotionService.getFlashcardsFromDatabase(dbId);
+          allFlashcards.push(...flashcards);
+        } catch (error) {
+          console.error(`Error fetching flashcards for database ${dbId}:`, error);
+        }
+      }
+
+      // Calcular estadísticas combinadas
+      const stats = { tocado: 0, verde: 0, solido: 0, total: allFlashcards.length };
+      
+      allFlashcards.forEach(card => {
+        switch (card.state) {
+          case 'Tocado':
+            stats.tocado++;
+            break;
+          case 'Verde':
+            stats.verde++;
+            break;
+          case 'Sólido':
+            stats.solido++;
+            break;
+        }
+      });
+
+      return stats;
+    },
+    enabled: databaseIds && databaseIds.length > 0,
     staleTime: 2 * 60 * 1000, // 2 minutos
+    retry: 1,
   });
 };

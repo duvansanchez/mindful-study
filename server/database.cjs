@@ -52,7 +52,9 @@ class DatabaseService {
   static async getDatabaseGroups() {
     try {
       const pool = await getPool();
-      const result = await pool.request().query(`
+      
+      // Obtener las agrupaciones
+      const groupsResult = await pool.request().query(`
         SELECT 
           Id,
           Name,
@@ -65,15 +67,31 @@ class DatabaseService {
         ORDER BY Name
       `);
       
-      return result.recordset.map(group => ({
-        id: group.Id,
-        name: group.Name,
-        color: group.Color,
-        databaseIds: [], // Se llenará con otra consulta si es necesario
-        createdAt: group.CreatedAt,
-        updatedAt: group.UpdatedAt,
-        databaseCount: group.DatabaseCount
-      }));
+      // Para cada agrupación, obtener sus bases de datos
+      const groups = [];
+      for (const group of groupsResult.recordset) {
+        const mappingsResult = await pool.request()
+          .input('groupId', sql.UniqueIdentifier, group.Id)
+          .query(`
+            SELECT NotionDatabaseId, NotionDatabaseName
+            FROM app.DatabaseGroupMappings
+            WHERE GroupId = @groupId
+          `);
+        
+        const databaseIds = mappingsResult.recordset.map(mapping => mapping.NotionDatabaseId);
+        
+        groups.push({
+          id: group.Id,
+          name: group.Name,
+          color: group.Color,
+          databaseIds: databaseIds,
+          createdAt: group.CreatedAt,
+          updatedAt: group.UpdatedAt,
+          databaseCount: group.DatabaseCount
+        });
+      }
+      
+      return groups;
     } catch (error) {
       console.error('Error obteniendo agrupaciones:', error);
       throw error;
