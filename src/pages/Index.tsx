@@ -7,8 +7,9 @@ import { DetailedStatsCard } from "@/components/DetailedStatsCard";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
 import { NotionSetup } from "@/components/NotionSetup";
+import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { useNotionDatabases, useNotionFlashcards, useNotionConnection, useNotionStats, useFilteredFlashcards, useUpdateFlashcardState } from "@/hooks/useNotion";
-import { mockGroups } from "@/data/mockData";
+import { useGroups } from "@/hooks/useGroups";
 import { KnowledgeState, Flashcard, DatabaseGroup, Statistics } from "@/types";
 import { Plus, BarChart3, ArrowLeft, AlertCircle, Loader2, Wifi, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -28,6 +29,9 @@ const Index = () => {
   const { data: flashcards = [], isLoading: flashcardsLoading } = useNotionFlashcards(selectedDatabaseId);
   const { data: isConnected = false, isLoading: connectionLoading } = useNotionConnection();
   const updateFlashcardMutation = useUpdateFlashcardState();
+
+  // Groups hooks
+  const { data: groups = [], isLoading: groupsLoading } = useGroups();
 
   // Update database count when flashcards are loaded
   useEffect(() => {
@@ -241,17 +245,14 @@ const Index = () => {
             </section>
 
             {/* Database Groups */}
-            {mockGroups.length > 0 && (
+            {(groups.length > 0 || !groupsLoading) && (
               <section>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-medium text-foreground">Agrupaciones</h2>
-                  <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                    <Plus className="w-4 h-4" />
-                    Nueva
-                  </button>
+                  <CreateGroupDialog />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {mockGroups.map(group => (
+                  {groups.map(group => (
                     <GroupCard
                       key={group.id}
                       group={group}
@@ -259,6 +260,16 @@ const Index = () => {
                       onClick={() => handleGroupClick(group)}
                     />
                   ))}
+                  {groups.length === 0 && !groupsLoading && (
+                    <div className="col-span-full text-center py-8 text-muted-foreground">
+                      <p className="mb-4">No tienes agrupaciones personalizadas aún</p>
+                      <CreateGroupDialog>
+                        <button className="text-primary hover:underline">
+                          Crear tu primera agrupación
+                        </button>
+                      </CreateGroupDialog>
+                    </div>
+                  )}
                 </div>
               </section>
             )}
