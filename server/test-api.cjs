@@ -1,6 +1,7 @@
 const { Client } = require('@notionhq/client');
 const express = require('express');
 const cors = require('cors');
+const { initializeDatabase, DatabaseService } = require('./database.cjs');
 require('dotenv').config();
 
 const app = express();
@@ -11,6 +12,15 @@ app.use(express.json());
 
 const notion = new Client({ 
   auth: process.env.VITE_NOTION_TOKEN 
+});
+
+// Inicializar base de datos al arrancar el servidor
+initializeDatabase().then(success => {
+  if (success) {
+    console.log('🗄️ Base de datos inicializada correctamente');
+  } else {
+    console.log('⚠️ Continuando sin base de datos local (solo funciones de Notion disponibles)');
+  }
 });
 
 // Test básico
@@ -406,6 +416,152 @@ app.get('/flashcards/:flashcardId/content', async (req, res) => {
 // Actualizar estado de flashcard (placeholder)
 app.put('/flashcards/:flashcardId/state', async (req, res) => {
   res.json({ success: true });
+});
+
+// ==================== ENDPOINTS DE AGRUPACIONES ====================
+
+// Obtener todas las agrupaciones
+app.get('/groups', async (req, res) => {
+  try {
+    const groups = await DatabaseService.getDatabaseGroups();
+    res.json(groups);
+  } catch (error) {
+    console.error('❌ Error obteniendo agrupaciones:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Crear nueva agrupación
+app.post('/groups', async (req, res) => {
+  try {
+    const { name, color, databaseIds } = req.body;
+    
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+    
+    const group = await DatabaseService.createDatabaseGroup(
+      name.trim(), 
+      color || '#3B82F6', 
+      databaseIds || []
+    );
+    
+    console.log('✅ Agrupación creada:', group.name);
+    res.status(201).json(group);
+  } catch (error) {
+    console.error('❌ Error creando agrupación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Actualizar agrupación
+app.put('/groups/:groupId', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const updates = req.body;
+    
+    await DatabaseService.updateDatabaseGroup(groupId, updates);
+    
+    console.log('✅ Agrupación actualizada:', groupId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error actualizando agrupación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar agrupación
+app.delete('/groups/:groupId', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    
+    await DatabaseService.deleteDatabaseGroup(groupId);
+    
+    console.log('✅ Agrupación eliminada:', groupId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error eliminando agrupación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener bases de datos de una agrupación
+app.get('/groups/:groupId/databases', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const databases = await DatabaseService.getDatabasesInGroup(groupId);
+    res.json(databases);
+  } catch (error) {
+    console.error('❌ Error obteniendo bases de datos de agrupación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== ENDPOINTS DE NOTAS Y ESTADÍSTICAS ====================
+
+// Agregar nota de repaso
+app.post('/flashcards/:flashcardId/notes', async (req, res) => {
+  try {
+    const { flashcardId } = req.params;
+    const { content, databaseId, sessionId } = req.body;
+    
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ error: 'El contenido de la nota es requerido' });
+    }
+    
+    const note = await DatabaseService.addReviewNote(
+      flashcardId, 
+      databaseId, 
+      content.trim(), 
+      sessionId
+    );
+    
+    // Registrar evento de estudio
+    await DatabaseService.recordStudyEvent(
+      databaseId, 
+      flashcardId, 
+      'note_added', 
+      null, 
+      sessionId
+    );
+    
+    res.status(201).json(note);
+  } catch (error) {
+    console.error('❌ Error agregando nota:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener notas de una flashcard
+app.get('/flashcards/:flashcardId/notes', async (req, res) => {
+  try {
+    const { flashcardId } = req.params;
+    const notes = await DatabaseService.getReviewNotes(flashcardId);
+    res.json(notes);
+  } catch (error) {
+    console.error('❌ Error obteniendo notas:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Registrar evento de estudio
+app.post('/study-events', async (req, res) => {
+  try {
+    const { databaseId, flashcardId, eventType, eventValue, sessionId } = req.body;
+    
+    await DatabaseService.recordStudyEvent(
+      databaseId, 
+      flashcardId, 
+      eventType, 
+      eventValue, 
+      sessionId
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error registrando evento:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.listen(port, () => {
