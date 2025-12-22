@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
-import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useFlashcardContent } from "@/hooks/useNotion";
 
 interface FlashcardReviewProps {
   card: Flashcard;
@@ -29,6 +30,11 @@ export function FlashcardReview({
   const [showAuxiliary, setShowAuxiliary] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState("");
+
+  // Lazy loading del contenido cuando se revela la respuesta
+  const { data: detailedContent, isLoading: contentLoading } = useFlashcardContent(
+    revealed ? card.id : null
+  );
 
   const handleReveal = () => {
     setRevealed(true);
@@ -206,11 +212,18 @@ export function FlashcardReview({
             <div className="animate-slide-up">
               <div className="p-6 rounded-lg bg-card border border-border">
                 <p className="text-sm text-muted-foreground mb-3">Contenido</p>
-                <div className="prose prose-sm text-foreground max-w-none">
-                  {card.content.split('\n').map((paragraph, i) => (
-                    <p key={i} className="mb-3 last:mb-0">{paragraph}</p>
-                  ))}
-                </div>
+                {contentLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Cargando contenido...</span>
+                  </div>
+                ) : (
+                  <div className="prose prose-sm text-foreground max-w-none">
+                    {(detailedContent || card.content || 'Sin contenido disponible').split('\n').map((paragraph, i) => (
+                      <p key={i} className="mb-3 last:mb-0">{paragraph}</p>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Review note section */}
