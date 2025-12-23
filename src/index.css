@@ -120,3 +120,84 @@
     text-wrap: balance;
   }
 }
+/* Custom animations for the new overview mode */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out;
+  }
+
+  .animate-slide-down {
+    animation: slideDown 0.3s ease-out;
+  }
+
+  .bg-state-tocado {
+    background-color: hsl(var(--state-tocado));
+  }
+
+  .bg-state-tocado-bg {
+    background-color: hsl(var(--state-tocado-bg));
+  }
+
+  .text-state-tocado {
+    color: hsl(var(--state-tocado));
+  }
+
+  .bg-state-verde {
+    background-color: hsl(var(--state-verde));
+  }
+
+  .bg-state-verde-bg {
+    background-color: hsl(var(--state-verde-bg));
+  }
+
+  .text-state-verde {
+    color: hsl(var(--state-verde));
+  }
+
+  .bg-state-solido {
+    background-color: hsl(var(--state-solido));
+  }
+
+  .bg-state-solido-bg {
+    background-color: hsl(var(--state-solido-bg));
+  }
+
+  .text-state-solido {
+    color: hsl(var(--state-solido));
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
