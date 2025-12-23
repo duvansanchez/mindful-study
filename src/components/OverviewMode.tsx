@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { Flashcard } from "@/types";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
-import { X, Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare } from "lucide-react";
+import { X, Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, Filter, ArrowUpDown, ChevronDown } from "lucide-react";
 import { useFlashcardContent } from "@/hooks/useNotion";
 import { useReviewNotes } from "@/hooks/useReviewNotes";
 import { formatDistanceToNow } from "date-fns";
@@ -13,6 +13,9 @@ interface OverviewModeProps {
   databaseName: string;
   onClose: () => void;
 }
+
+type FilterState = 'all' | KnowledgeState;
+type SortOption = 'priority' | 'alphabetical' | 'created';
 
 interface FlashcardOverviewCardProps {
   card: Flashcard;
@@ -83,7 +86,7 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
             <div className="space-y-2 max-h-32 overflow-y-auto">
               {reviewNotes.slice(0, 3).map((note) => (
                 <div key={note.id} className="p-2 rounded bg-secondary/50 border border-border/30">
-                  <p className="text-xs text-foreground leading-relaxed mb-1">
+                  <p className="text-xs text-foreground leading-relaxed mb-1 whitespace-pre-wrap">
                     {note.content}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -161,6 +164,53 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
 
 export function OverviewMode({ flashcards, databaseName, onClose }: OverviewModeProps) {
   const [revealedCount, setRevealedCount] = useState(0);
+  const [filterState, setFilterState] = useState<FilterState>('all');
+  const [sortOption, setSortOption] = useState<SortOption>('priority');
+  const [showFilters, setShowFilters] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar dropdown al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setShowFilters(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtrar y ordenar tarjetas
+  const filteredAndSortedCards = useMemo(() => {
+    let filtered = flashcards;
+
+    // Aplicar filtro por estado
+    if (filterState !== 'all') {
+      filtered = flashcards.filter(card => card.state === filterState);
+    }
+
+    // Aplicar ordenamiento
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortOption) {
+        case 'priority':
+          // Orden de prioridad: tocado > verde > sólido
+          { const stateOrder = { tocado: 0, verde: 1, solido: 2 };
+          return stateOrder[a.state] - stateOrder[b.state]; }
+        
+        case 'alphabetical':
+          return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
+        
+        case 'created':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [flashcards, filterState, sortOption]);
 
   // Contar tarjetas por estado
   const stats = {
@@ -168,6 +218,25 @@ export function OverviewMode({ flashcards, databaseName, onClose }: OverviewMode
     verde: flashcards.filter(c => c.state === 'verde').length,
     solido: flashcards.filter(c => c.state === 'solido').length,
     total: flashcards.length,
+  };
+
+  const getFilterLabel = (filter: FilterState) => {
+    switch (filter) {
+      case 'all': return 'Todas';
+      case 'tocado': return 'Tocado';
+      case 'verde': return 'Verde';
+      case 'solido': return 'Sólido';
+      default: return 'Todas';
+    }
+  };
+
+  const getSortLabel = (sort: SortOption) => {
+    switch (sort) {
+      case 'priority': return 'Por prioridad';
+      case 'alphabetical': return 'Alfabético';
+      case 'created': return 'Más recientes';
+      default: return 'Por prioridad';
+    }
   };
 
   return (
@@ -192,7 +261,7 @@ export function OverviewMode({ flashcards, databaseName, onClose }: OverviewMode
         </div>
         
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <span>{flashcards.length} tarjetas</span>
+          <span>{filteredAndSortedCards.length} de {flashcards.length} tarjetas</span>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-state-tocado"></div>
@@ -229,15 +298,97 @@ export function OverviewMode({ flashcards, databaseName, onClose }: OverviewMode
             </div>
           </div>
 
+          {/* Barra de filtros y ordenamiento */}
+          <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div className="flex flex-wrap gap-3">
+              {/* Filtro por estado */}
+              <div className="relative" ref={filterRef}>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors border border-border"
+                >
+                  <Filter className="w-4 h-4" />
+                  {getFilterLabel(filterState)}
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {showFilters && (
+                  <div className="absolute top-full left-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-10 min-w-[140px]">
+                    {(['all', 'tocado', 'verde', 'solido'] as FilterState[]).map((state) => (
+                      <button
+                        key={state}
+                        onClick={() => {
+                          setFilterState(state);
+                          setShowFilters(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                          filterState === state ? 'bg-secondary text-secondary-foreground' : 'text-foreground'
+                        }`}
+                      >
+                        {state !== 'all' && <StateBadge state={state as KnowledgeState} size="xs" />}
+                        {getFilterLabel(state)}
+                        {state !== 'all' && (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            {stats[state as KnowledgeState]}
+                          </span>
+                        )}
+                        {state === 'all' && (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            {stats.total}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Ordenamiento */}
+              <div className="flex items-center gap-2">
+                <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  className="px-3 py-2 text-sm rounded-lg bg-secondary text-secondary-foreground border border-border focus:border-primary/50 focus:outline-none"
+                >
+                  <option value="priority">Por prioridad (Tocado → Verde → Sólido)</option>
+                  <option value="alphabetical">Alfabético (A → Z)</option>
+                  <option value="created">Más recientes primero</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Contador de resultados */}
+            <div className="text-sm text-muted-foreground">
+              {filteredAndSortedCards.length === flashcards.length ? (
+                `${flashcards.length} tarjetas`
+              ) : (
+                `${filteredAndSortedCards.length} de ${flashcards.length} tarjetas`
+              )}
+            </div>
+          </div>
+
           {/* Grid de tarjetas */}
-          {flashcards.length === 0 ? (
+          {filteredAndSortedCards.length === 0 ? (
             <div className="text-center py-12">
               <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No hay tarjetas disponibles</p>
+              {filterState === 'all' ? (
+                <p className="text-muted-foreground">No hay tarjetas disponibles</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-muted-foreground">No hay tarjetas con estado "{getFilterLabel(filterState)}"</p>
+                  <button
+                    onClick={() => setFilterState('all')}
+                    className="text-sm text-primary hover:text-primary/80 transition-colors"
+                  >
+                    Ver todas las tarjetas
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {flashcards.map((card) => (
+              {filteredAndSortedCards.map((card) => (
                 <FlashcardOverviewCard key={card.id} card={card} />
               ))}
             </div>
@@ -252,7 +403,10 @@ export function OverviewMode({ flashcards, databaseName, onClose }: OverviewMode
             Esta vista es solo para lectura. Los estados de aprendizaje no se modifican.
           </p>
           <p>
-            {flashcards.length} tarjetas disponibles
+            {filteredAndSortedCards.length === flashcards.length 
+              ? `${flashcards.length} tarjetas disponibles`
+              : `${filteredAndSortedCards.length} de ${flashcards.length} tarjetas mostradas`
+            }
           </p>
         </div>
       </footer>
