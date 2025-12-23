@@ -6,6 +6,8 @@ import { StatsOverview } from "@/components/StatsOverview";
 import { DetailedStatsCard } from "@/components/DetailedStatsCard";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
+import { OverviewMode } from "@/components/OverviewMode";
+import { ModeSelection } from "@/components/ModeSelection";
 import { NotionSetup } from "@/components/NotionSetup";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { EditGroupDialog } from "@/components/EditGroupDialog";
@@ -16,7 +18,7 @@ import { KnowledgeState, Flashcard, DatabaseGroup, Statistics } from "@/types";
 import { Plus, BarChart3, ArrowLeft, AlertCircle, Loader2, Wifi, WifiOff, Folder } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type View = 'home' | 'stats' | 'review-setup' | 'review' | 'group-stats' | 'notion-setup';
+type View = 'home' | 'stats' | 'mode-selection' | 'review-setup' | 'review' | 'overview' | 'group-stats' | 'notion-setup';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
@@ -247,7 +249,15 @@ const Index = () => {
 
   const handleDatabaseClick = (databaseId: string) => {
     setSelectedDatabaseId(databaseId);
+    setView('mode-selection');
+  };
+
+  const handleStartActiveReview = (selectedStates: KnowledgeState[]) => {
     setView('review-setup');
+  };
+
+  const handleStartOverviewMode = () => {
+    setView('overview');
   };
 
   const handleStartReview = (selectedStates: KnowledgeState[]) => {
@@ -319,6 +329,16 @@ const Index = () => {
     setSelectedDatabaseId(null);
     setReviewCards([]);
     setCurrentCardIndex(0);
+  };
+
+  const handleCloseModeSelection = () => {
+    setView('home');
+    setSelectedDatabaseId(null);
+  };
+
+  const handleCloseOverview = () => {
+    setView('home');
+    setSelectedDatabaseId(null);
   };
 
   const handleGroupClick = (group: DatabaseGroup) => {
@@ -600,6 +620,26 @@ const Index = () => {
         )}
       </main>
 
+      {/* Mode Selection Modal */}
+      {view === 'mode-selection' && selectedDatabase && (
+        <ModeSelection
+          stats={flashcardsStats}
+          databaseName={selectedDatabase.name}
+          onStartActiveReview={handleStartActiveReview}
+          onStartOverviewMode={handleStartOverviewMode}
+          onCancel={handleCloseModeSelection}
+        />
+      )}
+
+      {/* Overview Mode */}
+      {view === 'overview' && selectedDatabase && (
+        <OverviewMode
+          flashcards={flashcards}
+          databaseName={selectedDatabase.name}
+          onClose={handleCloseOverview}
+        />
+      )}
+
       {/* Review Setup Modal */}
       {view === 'review-setup' && selectedDatabase && (
         <ReviewSetup
@@ -607,8 +647,7 @@ const Index = () => {
           databaseName={selectedDatabase.name}
           onStart={handleStartReview}
           onCancel={() => {
-            setView('home');
-            setSelectedDatabaseId(null);
+            setView('mode-selection');
           }}
         />
       )}
