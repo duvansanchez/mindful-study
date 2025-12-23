@@ -32,7 +32,7 @@ export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogPr
   const [selectedDatabases, setSelectedDatabases] = useState<string[]>([]);
 
   const updateGroupMutation = useUpdateGroup();
-  const { data: databases = [] } = useNotionDatabases();
+  const { data: databases = [], isLoading: databasesLoading } = useNotionDatabases(open); // Solo cargar cuando el diálogo esté abierto
 
   // Actualizar formulario cuando cambie el grupo
   useEffect(() => {
@@ -124,9 +124,14 @@ export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogPr
           </div>
 
           {/* Bases de datos */}
-          {databases.length > 0 && (
-            <div className="space-y-2">
-              <Label>Bases de datos</Label>
+          <div className="space-y-2">
+            <Label>Bases de datos</Label>
+            {databasesLoading ? (
+              <div className="flex items-center justify-center py-4 border rounded-md">
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                <span className="text-sm text-muted-foreground">Cargando bases de datos...</span>
+              </div>
+            ) : databases.length > 0 ? (
               <div className="max-h-32 overflow-y-auto space-y-2 border rounded-md p-2">
                 {databases.map((database) => (
                   <div key={database.id} className="flex items-center space-x-2">
@@ -145,8 +150,12 @@ export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogPr
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="text-center py-4 border rounded-md">
+                <span className="text-sm text-muted-foreground">No se encontraron bases de datos</span>
+              </div>
+            )}
+          </div>
 
           {/* Botones */}
           <div className="flex justify-end space-x-2 pt-4">
@@ -160,12 +169,12 @@ export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogPr
             </Button>
             <Button
               type="submit"
-              disabled={!name.trim() || updateGroupMutation.isPending}
+              disabled={!name.trim() || updateGroupMutation.isPending || databasesLoading}
             >
               {updateGroupMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Guardando...
+                  Guardando cambios...
                 </>
               ) : (
                 'Guardar cambios'

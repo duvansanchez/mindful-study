@@ -4,14 +4,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 interface GroupCardProps {
   group: DatabaseGroup;
-  databases: Database[];
+  databases?: Database[]; // Opcional para carga lazy
   onClick: () => void;
   onEdit?: (group: DatabaseGroup) => void;
   onDelete?: (group: DatabaseGroup) => void;
 }
 
-export function GroupCard({ group, databases, onClick, onEdit, onDelete }: GroupCardProps) {
+export function GroupCard({ group, databases = [], onClick, onEdit, onDelete }: GroupCardProps) {
   const totalCards = databases.reduce((acc, db) => acc + db.cardCount, 0);
+  const databaseCount = group.databaseIds?.length || 0;
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -41,7 +42,8 @@ export function GroupCard({ group, databases, onClick, onEdit, onDelete }: Group
               {group.name}
             </h3>
             <p className="text-sm text-muted-foreground">
-              {databases.length} bases · {totalCards} tarjetas
+              {databaseCount} {databaseCount === 1 ? 'base de datos' : 'bases de datos'}
+              {databases.length > 0 && ` · ${totalCards} tarjetas`}
             </p>
           </div>
         </div>
@@ -76,18 +78,22 @@ export function GroupCard({ group, databases, onClick, onEdit, onDelete }: Group
           </DropdownMenu>
         )}
       </div>
-      <div className="mt-3 flex gap-1">
-        {databases.slice(0, 4).map((db) => (
-          <span key={db.id} className="text-sm">
-            {db.icon}
-          </span>
-        ))}
-        {databases.length > 4 && (
-          <span className="text-xs text-muted-foreground ml-1">
-            +{databases.length - 4}
-          </span>
-        )}
-      </div>
+      
+      {/* Mostrar iconos de bases de datos si están disponibles */}
+      {databases.length > 0 && (
+        <div className="mt-3 flex gap-1">
+          {databases.slice(0, 4).map((db) => (
+            <span key={db.id} className="text-sm">
+              {db.icon}
+            </span>
+          ))}
+          {databases.length > 4 && (
+            <span className="text-xs text-muted-foreground ml-1">
+              +{databases.length - 4}
+            </span>
+          )}
+        </div>
+      )}
     </button>
   );
 }

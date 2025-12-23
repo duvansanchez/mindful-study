@@ -91,7 +91,32 @@ const RichTextRenderer: React.FC<{ richText: RichText[] }> = ({ richText }) => {
   return (
     <>
       {richText.map((text, index) => {
-        let element = <span key={index}>{text.plain_text}</span>;
+        // Procesar saltos de línea y tabs en el texto
+        const processText = (textContent: string) => {
+          // Primero dividir por saltos de línea
+          const lines = textContent.split('\n');
+          
+          return lines.map((line, lineIndex) => (
+            <React.Fragment key={lineIndex}>
+              {/* Procesar tabs en cada línea */}
+              {line.split('\t').map((part, tabIndex) => (
+                <React.Fragment key={tabIndex}>
+                  {part}
+                  {tabIndex < line.split('\t').length - 1 && (
+                    <span style={{ marginLeft: '2em' }}></span>
+                  )}
+                </React.Fragment>
+              ))}
+              {lineIndex < lines.length - 1 && <br />}
+            </React.Fragment>
+          ));
+        };
+        
+        let element = (
+          <span key={index}>
+            {processText(text.plain_text)}
+          </span>
+        );
         
         // Aplicar estilos según las anotaciones
         if (text.annotations.bold) {
@@ -110,9 +135,9 @@ const RichTextRenderer: React.FC<{ richText: RichText[] }> = ({ richText }) => {
           element = (
             <code 
               key={index} 
-              className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono"
+              className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono whitespace-pre"
             >
-              {text.plain_text}
+              {processText(text.plain_text)}
             </code>
           );
         }
@@ -192,28 +217,28 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
         switch (block.type) {
           case 'paragraph':
             return (
-              <p key={key} className="leading-relaxed">
+              <p key={key} className="leading-relaxed whitespace-pre-wrap">
                 <RichTextRenderer richText={richText} />
               </p>
             );
 
           case 'heading_1':
             return (
-              <h1 key={key} className="text-2xl font-bold mt-6 mb-3">
+              <h1 key={key} className="text-2xl font-bold mt-6 mb-3 whitespace-pre-wrap">
                 <RichTextRenderer richText={richText} />
               </h1>
             );
 
           case 'heading_2':
             return (
-              <h2 key={key} className="text-xl font-semibold mt-5 mb-2">
+              <h2 key={key} className="text-xl font-semibold mt-5 mb-2 whitespace-pre-wrap">
                 <RichTextRenderer richText={richText} />
               </h2>
             );
 
           case 'heading_3':
             return (
-              <h3 key={key} className="text-lg font-medium mt-4 mb-2">
+              <h3 key={key} className="text-lg font-medium mt-4 mb-2 whitespace-pre-wrap">
                 <RichTextRenderer richText={richText} />
               </h3>
             );
@@ -222,7 +247,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
             return (
               <div key={key} className="flex items-start gap-2 ml-4">
                 <span className="text-foreground mt-1.5 text-sm">•</span>
-                <div className="flex-1 leading-relaxed">
+                <div className="flex-1 leading-relaxed whitespace-pre-wrap">
                   <RichTextRenderer richText={richText} />
                 </div>
               </div>
@@ -232,7 +257,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
             return (
               <div key={key} className="flex items-start gap-2 ml-4">
                 <span className="text-foreground mt-1.5 text-sm">1.</span>
-                <div className="flex-1 leading-relaxed">
+                <div className="flex-1 leading-relaxed whitespace-pre-wrap">
                   <RichTextRenderer richText={richText} />
                 </div>
               </div>
@@ -250,7 +275,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
                   readOnly
                   className="mt-1.5 rounded border-gray-300"
                 />
-                <div className={`flex-1 leading-relaxed ${block.content?.checked ? 'line-through text-muted-foreground' : ''}`}>
+                <div className={`flex-1 leading-relaxed whitespace-pre-wrap ${block.content?.checked ? 'line-through text-muted-foreground' : ''}`}>
                   <RichTextRenderer richText={richText} />
                 </div>
               </div>
@@ -264,7 +289,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
                     {typeof block.content.icon === 'string' ? block.content.icon : '💡'}
                   </span>
                 )}
-                <div className="flex-1">
+                <div className="flex-1 whitespace-pre-wrap">
                   <RichTextRenderer richText={richText} />
                 </div>
               </div>
@@ -272,14 +297,14 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
 
           case 'quote':
             return (
-              <blockquote key={key} className="border-l-4 border-muted-foreground pl-4 italic text-muted-foreground">
+              <blockquote key={key} className="border-l-4 border-muted-foreground pl-4 italic text-muted-foreground whitespace-pre-wrap">
                 <RichTextRenderer richText={richText} />
               </blockquote>
             );
 
           case 'code':
             return (
-              <pre key={key} className="bg-muted p-4 rounded-lg overflow-x-auto">
+              <pre key={key} className="bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre">
                 <code className="text-sm font-mono">
                   <RichTextRenderer richText={richText} />
                 </code>
@@ -291,7 +316,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
 
           default:
             return (
-              <div key={key} className="leading-relaxed">
+              <div key={key} className="leading-relaxed whitespace-pre-wrap">
                 <RichTextRenderer richText={richText} />
               </div>
             );
