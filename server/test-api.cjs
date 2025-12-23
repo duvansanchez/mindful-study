@@ -588,9 +588,232 @@ app.get('/blocks/:blockId/children', async (req, res) => {
   }
 });
 
-// Actualizar estado de flashcard (placeholder)
+// Cache para propiedades de páginas (5 minutos de TTL)
+const pagePropertiesCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+// Función helper para obtener propiedades de página con cache
+async function getPageProperties(pageId) {
+  const cacheKey = pageId;
+  const cached = pagePropertiesCache.get(cacheKey);
+  
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    return cached.properties;
+  }
+  
+  try {
+    const page = await notion.pages.retrieve({ page_id: pageId });
+    const properties = page.properties;
+    
+    // Guardar en cache
+    pagePropertiesCache.set(cacheKey, {
+      properties,
+      timestamp: Date.now()
+    });
+    
+    return properties;
+  } catch (error) {
+    console.error('Error obteniendo propiedades de página:', error);
+    return null;
+  }
+}
+
+// Actualizar estado de flashcard (optimizado)
 app.put('/flashcards/:flashcardId/state', async (req, res) => {
-  res.json({ success: true });
+  try {
+    const { flashcardId } = req.params;
+    const { state } = req.body;
+    
+    console.log('🔄 Actualizando estado de flashcard:', flashcardId, 'a:', state);
+    
+    // Responder inmediatamente al cliente
+    res.json({ 
+      success: true, 
+      updated: ['Dominio']
+    });
+    
+    // Actualizar en Notion de forma asíncrona (no bloquear la respuesta)
+    setImmediate(async () => {
+      try {
+        let dominioValue = 'Tocado';
+        switch (state) {
+          case 'tocado': dominioValue = 'Tocado'; break;
+          case 'verde': dominioValue = 'Verde'; break;
+          case 'solido': dominioValue = 'Sólido'; break;
+        }
+        
+        await notion.pages.update({
+          page_id: flashcardId,
+          properties: {
+            'Dominio': {
+              select: { name: dominioValue }
+            }
+          }
+        });
+        
+        console.log('✅ Estado actualizado en Notion (async)');
+        
+        // Invalidar cache para esta página
+        pagePropertiesCache.delete(flashcardId);
+      } catch (error) {
+        console.error('❌ Error actualizando estado en Notion (async):', error);
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error en endpoint de estado:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Actualizar fecha de repaso (optimizado)
+app.put('/flashcards/:flashcardId/review', async (req, res) => {
+  try {
+    const { flashcardId } = req.params;
+    
+    console.log('📅 Actualizando fecha de repaso para flashcard:', flashcardId);
+    
+    // Obtener propiedades con cache
+    const properties = await getPageProperties(flashcardId);
+    
+    if (!properties) {
+      return res.status(500).json({ error: 'No se pudieron obtener las propiedades de la página' });
+    }
+    
+    // Buscar el campo de fecha de repaso
+    const lastReviewFields = ['Ultima vez repasado', 'Último repaso', 'Last reviewed', 'Fecha repaso'];
+    let lastReviewField = null;
+    
+    for (const fieldName of lastReviewFields) {
+      if (properties[fieldName] && properties[fieldName].type === 'date') {
+        lastReviewField = fieldName;
+        break;
+      }
+    }
+    
+    if (lastReviewField) {
+      // Responder inmediatamente al cliente
+      res.json({ 
+        success: true, 
+        updated: [lastReviewField]
+      });
+      
+      // Actualizar en Notion de forma asíncrona
+      setImmediate(async () => {
+        try {
+          await notion.pages.update({
+            page_id: flashcardId,
+            properties: {
+              [lastReviewField]: {
+                date: {
+                  start: new Date().toISOString().split('T')[0]
+                }
+              }
+            }
+          });
+          
+          console.log('✅ Fecha de repaso actualizada en Notion (async)');
+          
+          // Invalidar cache para esta página
+          pagePropertiesCache.delete(flashcardId);
+        } catch (error) {
+          console.error('❌ Error actualizando fecha en Notion (async):', error);
+        }
+      });
+    } else {
+      // Campo no encontrado
+      const lastReviewMessage = 'Campo "Ultima vez repasado" no encontrado en la base de datos. Para habilitar el seguimiento automático de fechas de repaso, agrega una columna de tipo "Fecha" con el nombre "Ultima vez repasado" a tu base de datos de Notion.';
+      console.log('⚠️ Campo de fecha de repaso no encontrado');
+      
+      res.json({ 
+        success: false, 
+        updated: [],
+        lastReviewMessage 
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error actualizando fecha de repaso:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint combinado para actualizar estado y fecha de repaso (máxima eficiencia)
+app.put('/flashcards/:flashcardId/complete-review', async (req, res) => {
+  try {
+    const { flashcardId } = req.params;
+    const { state } = req.body;
+    
+    console.log('🔄📅 Actualizando estado y fecha de repaso para flashcard:', flashcardId);
+    
+    // Responder inmediatamente al cliente
+    res.json({ 
+      success: true, 
+      updated: ['Dominio', 'Ultima vez repasado']
+    });
+    
+    // Actualizar ambos campos en una sola llamada a Notion (asíncrono)
+    setImmediate(async () => {
+      try {
+        // Obtener propiedades con cache
+        const properties = await getPageProperties(flashcardId);
+        
+        if (!properties) {
+          console.error('❌ No se pudieron obtener propiedades para actualización combinada');
+          return;
+        }
+        
+        const updates = {};
+        
+        // Actualizar estado
+        if (state) {
+          let dominioValue = 'Tocado';
+          switch (state) {
+            case 'tocado': dominioValue = 'Tocado'; break;
+            case 'verde': dominioValue = 'Verde'; break;
+            case 'solido': dominioValue = 'Sólido'; break;
+          }
+          
+          updates['Dominio'] = {
+            select: { name: dominioValue }
+          };
+        }
+        
+        // Actualizar fecha de repaso
+        const lastReviewFields = ['Ultima vez repasado', 'Último repaso', 'Last reviewed', 'Fecha repaso'];
+        for (const fieldName of lastReviewFields) {
+          if (properties[fieldName] && properties[fieldName].type === 'date') {
+            updates[fieldName] = {
+              date: {
+                start: new Date().toISOString().split('T')[0]
+              }
+            };
+            break;
+          }
+        }
+        
+        // Una sola llamada a Notion para ambas actualizaciones
+        if (Object.keys(updates).length > 0) {
+          await notion.pages.update({
+            page_id: flashcardId,
+            properties: updates
+          });
+          
+          console.log('✅ Estado y fecha actualizados en Notion (async):', Object.keys(updates));
+          
+          // Invalidar cache
+          pagePropertiesCache.delete(flashcardId);
+        }
+        
+      } catch (error) {
+        console.error('❌ Error en actualización combinada (async):', error);
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error en endpoint combinado:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ==================== ENDPOINTS DE NOTAS DE REPASO ====================

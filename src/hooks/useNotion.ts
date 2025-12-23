@@ -49,6 +49,20 @@ export const useUpdateFlashcardState = () => {
   });
 };
 
+// Hook para actualizar fecha de repaso
+export const useUpdateFlashcardReviewDate = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (flashcardId: string) =>
+      NotionService.updateFlashcardReviewDate(flashcardId),
+    onSuccess: () => {
+      // Invalidar queries relacionadas
+      queryClient.invalidateQueries({ queryKey: ['notion-flashcards'] });
+    },
+  });
+};
+
 // Hook para verificar conexión
 export const useNotionConnection = () => {
   return useQuery({

@@ -7,6 +7,7 @@ interface StateBadgeProps {
   onClick?: () => void;
   active?: boolean;
   showLabel?: boolean;
+  disabled?: boolean;
 }
 
 const stateLabels: Record<KnowledgeState, string> = {
@@ -21,7 +22,7 @@ const stateDescriptions: Record<KnowledgeState, string> = {
   solido: 'No requiere repaso activo',
 };
 
-export function StateBadge({ state, size = 'md', onClick, active = true, showLabel = true }: StateBadgeProps) {
+export function StateBadge({ state, size = 'md', onClick, active = true, showLabel = true, disabled = false }: StateBadgeProps) {
   const sizeClasses = {
     sm: 'px-2 py-0.5 text-xs',
     md: 'px-3 py-1 text-sm',
@@ -31,16 +32,17 @@ export function StateBadge({ state, size = 'md', onClick, active = true, showLab
   return (
     <button
       onClick={onClick}
-      disabled={!onClick}
+      disabled={!onClick || disabled}
       className={cn(
         "rounded-md font-medium transition-all duration-200",
         sizeClasses[size],
         state === 'tocado' && "bg-state-tocado-bg text-state-tocado",
         state === 'verde' && "bg-state-verde-bg text-state-verde",
         state === 'solido' && "bg-state-solido-bg text-state-solido",
-        onClick && "cursor-pointer hover:opacity-80",
-        !onClick && "cursor-default",
-        !active && "opacity-40"
+        onClick && !disabled && "cursor-pointer hover:opacity-80",
+        (!onClick || disabled) && "cursor-default",
+        !active && "opacity-40",
+        disabled && "opacity-50"
       )}
       title={stateDescriptions[state]}
     >

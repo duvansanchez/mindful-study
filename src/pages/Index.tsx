@@ -10,7 +10,7 @@ import { NotionSetup } from "@/components/NotionSetup";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { EditGroupDialog } from "@/components/EditGroupDialog";
 import { DeleteGroupDialog } from "@/components/DeleteGroupDialog";
-import { useNotionDatabases, useNotionFlashcards, useNotionConnection, useNotionStats, useFilteredFlashcards, useUpdateFlashcardState } from "@/hooks/useNotion";
+import { useNotionDatabases, useNotionFlashcards, useNotionConnection, useNotionStats, useFilteredFlashcards, useUpdateFlashcardState, useUpdateFlashcardReviewDate } from "@/hooks/useNotion";
 import { useGroups } from "@/hooks/useGroups";
 import { KnowledgeState, Flashcard, DatabaseGroup, Statistics } from "@/types";
 import { Plus, BarChart3, ArrowLeft, AlertCircle, Loader2, Wifi, WifiOff, Folder } from "lucide-react";
@@ -35,6 +35,7 @@ const Index = () => {
   const { data: flashcards = [], isLoading: flashcardsLoading } = useNotionFlashcards(selectedDatabaseId);
   const { data: isConnected = false, isLoading: connectionLoading } = useNotionConnection();
   const updateFlashcardMutation = useUpdateFlashcardState();
+  const updateReviewDateMutation = useUpdateFlashcardReviewDate();
 
   // Groups hooks
   const { data: groups = [], isLoading: groupsLoading } = useGroups();
@@ -273,7 +274,7 @@ const Index = () => {
     const currentCard = reviewCards[currentCardIndex];
     
     try {
-      await updateFlashcardMutation.mutateAsync({
+      const result = await updateFlashcardMutation.mutateAsync({
         flashcardId: currentCard.id,
         newState,
       });
@@ -282,12 +283,29 @@ const Index = () => {
       setReviewCards(prev => prev.map(c => 
         c.id === currentCard.id ? { ...c, state: newState } : c
       ));
+      
+      // Retornar solo el resultado del cambio de estado (sin mensaje de fecha)
+      return { success: result.success, updated: result.updated };
     } catch (error) {
       console.error('Error updating flashcard state:', error);
+      throw error;
     }
   };
 
-  const handleNextCard = () => {
+  const handleNextCard = async () => {
+    // Actualizar fecha de repaso de la tarjeta actual antes de pasar a la siguiente
+    const currentCard = reviewCards[currentCardIndex];
+    if (currentCard) {
+      try {
+        console.log('📅 Actualizando fecha de repaso al pasar a siguiente tarjeta:', currentCard.id);
+        await updateReviewDateMutation.mutateAsync(currentCard.id);
+      } catch (error) {
+        console.error('Error updating review date:', error);
+        // No bloquear el flujo si falla la actualización de fecha
+      }
+    }
+    
+    // Pasar a la siguiente tarjeta o terminar el repaso
     if (currentCardIndex < reviewCards.length - 1) {
       setCurrentCardIndex(prev => prev + 1);
     } else {
