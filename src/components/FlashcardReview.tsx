@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
-import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFlashcardContent } from "@/hooks/useNotion";
@@ -10,7 +10,7 @@ import { useReviewNotes, useAddReviewNote, useDeleteReviewNote } from "@/hooks/u
 
 interface FlashcardReviewProps {
   card: Flashcard;
-  onStateChange: (state: KnowledgeState) => void;
+  onStateChange: (state: KnowledgeState) => Promise<{ success: boolean; updated?: string[] }>;
   onNext: () => void;
   onClose: () => void;
   currentIndex: number;
@@ -29,6 +29,9 @@ export function FlashcardReview({
   const [showAuxiliary, setShowAuxiliary] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
+  const [updatingState, setUpdatingState] = useState(false);
+  const [updatingReviewDate, setUpdatingReviewDate] = useState(false);
 
   // Lazy loading del contenido cuando se revela la respuesta
   const { data: detailedContent, isLoading: contentLoading } = useFlashcardContent(
@@ -44,12 +47,41 @@ export function FlashcardReview({
     setRevealed(true);
   };
 
-  const handleNext = () => {
-    setRevealed(false);
-    setShowAuxiliary(false);
-    setShowNoteInput(false);
-    setNoteText("");
-    onNext();
+  const handleStateChange = async (newState: KnowledgeState) => {
+    setUpdatingState(true);
+    setLastReviewMessage(null);
+    
+    try {
+      console.log('🔄 Actualizando estado a:', newState, 'para card:', card.id);
+      
+      // Llamar al callback del padre que maneja la actualización
+      const result = await onStateChange(newState);
+      
+      console.log('✅ Estado actualizado exitosamente:', result);
+    } catch (error) {
+      console.error('❌ Error actualizando estado:', error);
+    } finally {
+      setUpdatingState(false);
+    }
+  };
+
+  const handleNext = async () => {
+    setUpdatingReviewDate(true);
+    
+    try {
+      // Llamar al callback del padre que actualizará la fecha de repaso
+      await onNext();
+    } catch (error) {
+      console.error('Error al pasar a siguiente tarjeta:', error);
+    } finally {
+      setUpdatingReviewDate(false);
+      // Limpiar estados locales
+      setRevealed(false);
+      setShowAuxiliary(false);
+      setShowNoteInput(false);
+      setNoteText("");
+      setLastReviewMessage(null);
+    }
   };
 
   const handleAddNote = async () => {
@@ -103,15 +135,35 @@ export function FlashcardReview({
               state={state}
               size="sm"
               active={card.state === state}
-              onClick={() => onStateChange(state)}
+              onClick={updatingState ? undefined : () => handleStateChange(state)}
             />
           ))}
+          {updatingState && (
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground ml-2" />
+          )}
         </div>
       </header>
 
       {/* Card content */}
       <div className="flex-1 flex flex-col items-center justify-start px-4 sm:px-6 py-4 sm:py-8 overflow-auto">
         <div className="w-full max-w-2xl space-y-4 sm:space-y-6">
+          {/* Mensaje de advertencia sobre campo de fecha */}
+          {lastReviewMessage && (
+            <div className="animate-fade-in">
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                    Campo de fecha no encontrado
+                  </p>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                    {lastReviewMessage}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Front of card - Title */}
           <div className="text-center animate-slide-up">
             <h1 className="text-2xl sm:text-3xl font-semibold text-foreground mb-2">
@@ -353,9 +405,17 @@ export function FlashcardReview({
               
               <button
                 onClick={handleNext}
-                className="w-full mt-4 py-4 rounded-lg bg-secondary text-secondary-foreground font-medium hover:bg-secondary/80 transition-colors"
+                disabled={updatingReviewDate}
+                className="w-full mt-4 py-4 rounded-lg bg-secondary text-secondary-foreground font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Siguiente tarjeta
+                {updatingReviewDate ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Actualizando fecha de repaso...
+                  </>
+                ) : (
+                  'Siguiente tarjeta'
+                )}
               </button>
             </div>
           )}
