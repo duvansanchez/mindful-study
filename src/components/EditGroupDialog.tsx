@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { useUpdateGroup } from "@/hooks/useGroups";
 import { useNotionDatabases } from "@/hooks/useNotion";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -30,9 +30,19 @@ export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogPr
   const [name, setName] = useState('');
   const [selectedColor, setSelectedColor] = useState('#3B82F6');
   const [selectedDatabases, setSelectedDatabases] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const updateGroupMutation = useUpdateGroup();
-  const { data: databases = [], isLoading: databasesLoading } = useNotionDatabases(open); // Solo cargar cuando el diálogo esté abierto
+  const { data: allDatabases = [], isLoading: databasesLoading } = useNotionDatabases(open);
+
+  // Filtrar bases de datos localmente (mucho más rápido)
+  const filteredDatabases = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    
+    return allDatabases.filter(db => 
+      db.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ).slice(0, 10); // Limitar a 10 resultados
+  }, [allDatabases, searchQuery]);
 
   // Actualizar formulario cuando cambie el grupo
   useEffect(() => {
@@ -49,21 +59,12 @@ export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogPr
     if (!group || !name.trim()) return;
 
     try {
-      // Convertir los IDs seleccionados a objetos con id y name
-      const databaseObjects = selectedDatabases.map(dbId => {
-        const database = databases.find(db => db.id === dbId);
-        return {
-          id: dbId,
-          name: database?.name || null
-        };
-      });
-
       await updateGroupMutation.mutateAsync({
         groupId: group.id,
         updates: {
           name: name.trim(),
           color: selectedColor,
-          databaseIds: databaseObjects,
+          databaseIds: selectedDatabases, // Ya son strings
         },
       });
       
@@ -126,33 +127,88 @@ export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogPr
           {/* Bases de datos */}
           <div className="space-y-2">
             <Label>Bases de datos</Label>
-            {databasesLoading ? (
-              <div className="flex items-center justify-center py-4 border rounded-md">
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                <span className="text-sm text-muted-foreground">Cargando bases de datos...</span>
-              </div>
-            ) : databases.length > 0 ? (
-              <div className="max-h-32 overflow-y-auto space-y-2 border rounded-md p-2">
-                {databases.map((database) => (
-                  <div key={database.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`edit-${database.id}`}
-                      checked={selectedDatabases.includes(database.id)}
-                      onCheckedChange={() => handleDatabaseToggle(database.id)}
-                    />
-                    <Label
-                      htmlFor={`edit-${database.id}`}
-                      className="text-sm font-normal cursor-pointer flex-1"
-                    >
-                      <span className="mr-2">{database.icon}</span>
-                      {database.name}
-                    </Label>
+            
+            {/* Buscador */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Buscar bases de datos..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            {/* Resultados de búsqueda */}
+            {searchQuery.length > 0 && (
+              <div className="border rounded-md">
+                {databasesLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <span className="text-sm text-muted-foreground">Cargando bases de datos...</span>
                   </div>
-                ))}
+                ) : filteredDatabases.length > 0 ? (
+                  <div className="max-h-32 overflow-y-auto space-y-2 p-2">
+                    {filteredDatabases.map((database) => (
+                      <div key={database.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`edit-${database.id}`}
+                          checked={selectedDatabases.includes(database.id)}
+                          onCheckedChange={() => handleDatabaseToggle(database.id)}
+                        />
+                        <Label
+                          htmlFor={`edit-${database.id}`}
+                          className="text-sm font-normal cursor-pointer flex-1"
+                        >
+                          <span className="mr-2">{database.icon}</span>
+                          {database.name}
+                          <span className="text-xs text-muted-foreground ml-2">
+                            ({database.cardCount} tarjetas)
+                          </span>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <span className="text-sm text-muted-foreground">
+                      No se encontraron bases de datos con "{searchQuery}"
+                    </span>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="text-center py-4 border rounded-md">
-                <span className="text-sm text-muted-foreground">No se encontraron bases de datos</span>
+            )}
+            
+            {/* Bases de datos seleccionadas */}
+            {selectedDatabases.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Bases de datos seleccionadas ({selectedDatabases.length})</Label>
+                <div className="flex flex-wrap gap-2">
+                  {selectedDatabases.map((dbId) => {
+                    const database = allDatabases.find(db => db.id === dbId);
+                    return database ? (
+                      <div key={dbId} className="flex items-center gap-1 bg-secondary px-2 py-1 rounded text-sm">
+                        <span>{database.icon}</span>
+                        <span>{database.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDatabaseToggle(dbId)}
+                          className="ml-1 text-muted-foreground hover:text-foreground"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            )}
+            
+            {searchQuery.length === 0 && !databasesLoading && (
+              <div className="text-center py-4 border rounded-md border-dashed">
+                <span className="text-sm text-muted-foreground">
+                  Escribe para buscar bases de datos
+                </span>
               </div>
             )}
           </div>
@@ -169,7 +225,7 @@ export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogPr
             </Button>
             <Button
               type="submit"
-              disabled={!name.trim() || updateGroupMutation.isPending || databasesLoading}
+              disabled={!name.trim() || updateGroupMutation.isPending}
             >
               {updateGroupMutation.isPending ? (
                 <>

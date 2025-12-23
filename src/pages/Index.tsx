@@ -13,7 +13,7 @@ import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { EditGroupDialog } from "@/components/EditGroupDialog";
 import { DeleteGroupDialog } from "@/components/DeleteGroupDialog";
 import { useNotionDatabases, useNotionFlashcards, useNotionConnection, useNotionStats, useFilteredFlashcards, useUpdateFlashcardState, useUpdateFlashcardReviewDate } from "@/hooks/useNotion";
-import { useGroups } from "@/hooks/useGroups";
+import { useGroups, useGroupStats } from "@/hooks/useGroups";
 import { KnowledgeState, Flashcard, DatabaseGroup, Statistics } from "@/types";
 import { Plus, BarChart3, ArrowLeft, AlertCircle, Loader2, Wifi, WifiOff, Folder } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -47,60 +47,9 @@ const Index = () => {
 
   // Componente para la vista de estadísticas del grupo
   const GroupStatsView = ({ selectedGroup, databases, databaseCounts, onBack, onEditGroup, onDatabaseClick }) => {
-    // Obtener estadísticas reales de las bases de datos del grupo
-    const [groupStats, setGroupStats] = useState({ tocado: 0, verde: 0, solido: 0, total: 0 });
-    const [isLoadingStats, setIsLoadingStats] = useState(true);
+    // Usar el hook optimizado para estadísticas
+    const { data: groupStats = { tocado: 0, verde: 0, solido: 0, total: 0 }, isLoading: isLoadingStats, refetch } = useGroupStats(selectedGroup?.id);
 
-    useEffect(() => {
-      const loadGroupStats = async () => {
-        if (!selectedGroup.databaseIds || selectedGroup.databaseIds.length === 0) {
-          setGroupStats({ tocado: 0, verde: 0, solido: 0, total: 0 });
-          setIsLoadingStats(false);
-          return;
-        }
-
-        setIsLoadingStats(true);
-        try {
-          const totalStats = { tocado: 0, verde: 0, solido: 0, total: 0 };
-          
-          // Obtener estadísticas de cada base de datos del grupo
-          for (const dbId of selectedGroup.databaseIds) {
-            try {
-              const response = await fetch(`/api/notion/databases/${dbId}/flashcards`);
-              if (response.ok) {
-                const flashcards = await response.json();
-                
-                flashcards.forEach(card => {
-                  totalStats.total++;
-                  switch (card.state?.toLowerCase()) {
-                    case 'tocado':
-                      totalStats.tocado++;
-                      break;
-                    case 'verde':
-                      totalStats.verde++;
-                      break;
-                    case 'sólido':
-                    case 'solido':
-                      totalStats.solido++;
-                      break;
-                  }
-                });
-              }
-            } catch (error) {
-              console.error(`Error loading stats for database ${dbId}:`, error);
-            }
-          }
-          
-          setGroupStats(totalStats);
-        } catch (error) {
-          console.error('Error loading group stats:', error);
-        } finally {
-          setIsLoadingStats(false);
-        }
-      };
-
-      loadGroupStats();
-    }, [selectedGroup.databaseIds]);
     
     return (
       <div className="space-y-6 animate-fade-in">
@@ -132,55 +81,7 @@ const Index = () => {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-medium text-foreground">Estadísticas del grupo</h3>
           <button
-            onClick={() => {
-              setIsLoadingStats(true);
-              // Trigger reload by changing the key
-              const loadGroupStats = async () => {
-                if (!selectedGroup.databaseIds || selectedGroup.databaseIds.length === 0) {
-                  setGroupStats({ tocado: 0, verde: 0, solido: 0, total: 0 });
-                  setIsLoadingStats(false);
-                  return;
-                }
-
-                try {
-                  const totalStats = { tocado: 0, verde: 0, solido: 0, total: 0 };
-                  
-                  for (const dbId of selectedGroup.databaseIds) {
-                    try {
-                      const response = await fetch(`/api/notion/databases/${dbId}/flashcards`);
-                      if (response.ok) {
-                        const flashcards = await response.json();
-                        
-                        flashcards.forEach(card => {
-                          totalStats.total++;
-                          switch (card.state?.toLowerCase()) {
-                            case 'tocado':
-                              totalStats.tocado++;
-                              break;
-                            case 'verde':
-                              totalStats.verde++;
-                              break;
-                            case 'sólido':
-                            case 'solido':
-                              totalStats.solido++;
-                              break;
-                          }
-                        });
-                      }
-                    } catch (error) {
-                      console.error(`Error loading stats for database ${dbId}:`, error);
-                    }
-                  }
-                  
-                  setGroupStats(totalStats);
-                } catch (error) {
-                  console.error('Error loading group stats:', error);
-                } finally {
-                  setIsLoadingStats(false);
-                }
-              };
-              loadGroupStats();
-            }}
+            onClick={() => refetch()}
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             disabled={isLoadingStats}
           >
@@ -191,7 +92,7 @@ const Index = () => {
         {isLoadingStats ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-muted-foreground">Sincronizando estadísticas...</span>
+            <span className="ml-2 text-muted-foreground">Cargando estadísticas...</span>
           </div>
         ) : (
           <StatsOverview stats={groupStats} />
@@ -200,7 +101,12 @@ const Index = () => {
         {/* Bases de datos del grupo */}
         <section>
           <h3 className="text-lg font-medium text-foreground mb-4">Bases de datos</h3>
-          {databases.filter(db => selectedGroup.databaseIds.includes(db.id)).length > 0 ? (
+          {databasesLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Cargando bases de datos...</span>
+            </div>
+          ) : databases.filter(db => selectedGroup.databaseIds.includes(db.id)).length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {databases
                 .filter(db => selectedGroup.databaseIds.includes(db.id))

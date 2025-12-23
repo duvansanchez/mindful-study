@@ -94,7 +94,57 @@ class DatabaseService {
       return groups;
     } catch (error) {
       console.error('Error obteniendo agrupaciones:', error);
-      throw error;
+      return [];
+    }
+  }
+
+  // Obtener una agrupación específica
+  static async getDatabaseGroup(groupId) {
+    try {
+      const pool = await getPool();
+      
+      // Obtener la agrupación
+      const groupResult = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .query(`
+          SELECT 
+            Id,
+            Name,
+            Color,
+            CreatedAt,
+            UpdatedAt
+          FROM app.DatabaseGroups
+          WHERE Id = @groupId AND IsActive = 1
+        `);
+      
+      if (groupResult.recordset.length === 0) {
+        return null;
+      }
+      
+      const group = groupResult.recordset[0];
+      
+      // Obtener las bases de datos de la agrupación
+      const mappingsResult = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .query(`
+          SELECT NotionDatabaseId, NotionDatabaseName
+          FROM app.DatabaseGroupMappings
+          WHERE GroupId = @groupId
+        `);
+      
+      const databaseIds = mappingsResult.recordset.map(mapping => mapping.NotionDatabaseId);
+      
+      return {
+        id: group.Id,
+        name: group.Name,
+        color: group.Color,
+        databaseIds: databaseIds,
+        createdAt: group.CreatedAt,
+        updatedAt: group.UpdatedAt
+      };
+    } catch (error) {
+      console.error('Error obteniendo agrupación:', error);
+      return null;
     }
   }
 
