@@ -79,9 +79,9 @@ const LazyToggle: React.FC<{ block: NotionBlock }> = ({ block }) => {
 
   return (
     <div className="my-2">
-      <button
+      <div
         onClick={handleToggle}
-        className={`flex items-center gap-2 hover:bg-muted p-2 rounded w-full text-left border border-transparent hover:border-border ${getToggleStyle()}`}
+        className={`flex items-center gap-2 hover:bg-muted p-2 rounded w-full text-left border border-transparent hover:border-border cursor-pointer ${getToggleStyle()}`}
       >
         <span className={`text-muted-foreground transition-transform ${isOpen ? 'rotate-90' : ''}`}>
           ▶
@@ -92,7 +92,7 @@ const LazyToggle: React.FC<{ block: NotionBlock }> = ({ block }) => {
             {loaded ? `${children.length} elementos` : 'Expandir'}
           </span>
         )}
-      </button>
+      </div>
       {isOpen && (
         <div className="ml-6 mt-2 space-y-1 border-l-2 border-muted pl-4">
           {loading ? (

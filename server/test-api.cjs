@@ -426,14 +426,19 @@ async function getBlockChildren(blockId, depth = 0) {
   }
   
   try {
+    console.log(`🔍 Obteniendo hijos del bloque ${blockId} (profundidad: ${depth})`);
+    
     const children = await notion.blocks.children.list({
       block_id: blockId,
     });
     
+    console.log(`📊 Hijos encontrados: ${children.results.length}`);
+    console.log('🔍 Tipos de hijos:', children.results.map(c => c.type));
+    
     const processedChildren = [];
     
-    // Procesar solo los primeros 10 hijos para evitar lentitud
-    const limitedChildren = children.results.slice(0, 10);
+    // Procesar solo los primeros 20 hijos para evitar lentitud
+    const limitedChildren = children.results.slice(0, 20);
     
     for (const child of limitedChildren) {
       if ('type' in child) {
@@ -441,14 +446,30 @@ async function getBlockChildren(blockId, depth = 0) {
           id: child.id,
           type: child.type,
           content: null,
-          children: []
+          children: [],
+          hasChildren: child.has_children || false
         };
 
-        // Procesar solo los tipos más comunes para velocidad
+        // Procesar TODOS los tipos de bloques comunes
         switch (child.type) {
           case 'paragraph':
             processedChild.content = {
               rich_text: child.paragraph?.rich_text || []
+            };
+            break;
+          case 'heading_1':
+            processedChild.content = {
+              rich_text: child.heading_1?.rich_text || []
+            };
+            break;
+          case 'heading_2':
+            processedChild.content = {
+              rich_text: child.heading_2?.rich_text || []
+            };
+            break;
+          case 'heading_3':
+            processedChild.content = {
+              rich_text: child.heading_3?.rich_text || []
             };
             break;
           case 'bulleted_list_item':
@@ -476,18 +497,47 @@ async function getBlockChildren(blockId, depth = 0) {
               processedChild.children = await getBlockChildren(child.id, depth + 1);
             }
             break;
+          case 'callout':
+            processedChild.content = {
+              rich_text: child.callout?.rich_text || [],
+              icon: child.callout?.icon
+            };
+            break;
+          case 'quote':
+            processedChild.content = {
+              rich_text: child.quote?.rich_text || []
+            };
+            break;
+          case 'code':
+            processedChild.content = {
+              rich_text: child.code?.rich_text || [],
+              language: child.code?.language
+            };
+            break;
+          case 'divider':
+            processedChild.content = {};
+            break;
           default:
-            // Para otros tipos, solo obtener el texto básico
+            // Para otros tipos, intentar obtener el texto básico
+            console.log(`⚠️ Tipo de bloque no reconocido: ${child.type}`);
             const richTextField = child[child.type]?.rich_text;
             if (richTextField) {
               processedChild.content = { rich_text: richTextField };
+            } else {
+              // Si no hay rich_text, crear contenido vacío pero válido
+              processedChild.content = { rich_text: [] };
             }
             break;
         }
         
+        console.log(`✅ Procesado bloque hijo: ${child.type} con contenido:`, 
+          processedChild.content?.rich_text?.length || 0, 'elementos de texto');
+        
         processedChildren.push(processedChild);
       }
     }
+    
+    console.log(`✅ Total hijos procesados: ${processedChildren.length}`);
     
     // Guardar en cache por 5 minutos
     blockChildrenCache.set(cacheKey, processedChildren);
@@ -495,7 +545,7 @@ async function getBlockChildren(blockId, depth = 0) {
     
     return processedChildren;
   } catch (error) {
-    console.error(`Error fetching children for block ${blockId}:`, error);
+    console.error(`❌ Error fetching children for block ${blockId}:`, error);
     return [];
   }
 }
