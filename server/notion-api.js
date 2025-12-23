@@ -1,4 +1,5 @@
 import { Client } from '@notionhq/client';
+import { Client } from '@notionhq/client';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';

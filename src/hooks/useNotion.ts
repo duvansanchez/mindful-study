@@ -28,7 +28,7 @@ export const useNotionFlashcards = (databaseId: string | null) => {
 export const useFlashcardContent = (flashcardId: string | null) => {
   return useQuery({
     queryKey: ['flashcard-content', flashcardId],
-    queryFn: () => flashcardId ? NotionService.getFlashcardContent(flashcardId) : Promise.resolve(''),
+    queryFn: () => flashcardId ? NotionService.getFlashcardContent(flashcardId) : Promise.resolve({ blocks: null, content: '' }),
     enabled: !!flashcardId,
     staleTime: 10 * 60 * 1000, // 10 minutos (el contenido no cambia frecuentemente)
     retry: 2,

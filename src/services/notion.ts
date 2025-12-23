@@ -29,7 +29,7 @@ export class NotionService {
       const data = await response.json();
       
       // Convertir fechas de string a Date objects
-      return data.map((flashcard: unknown) => ({
+      return data.map((flashcard: any) => ({
         ...flashcard,
         createdAt: new Date(flashcard.createdAt),
         lastReviewed: flashcard.lastReviewed ? new Date(flashcard.lastReviewed) : null,
@@ -41,17 +41,23 @@ export class NotionService {
   }
 
   // Obtener contenido detallado de una flashcard específica (lazy loading)
-  static async getFlashcardContent(flashcardId: string): Promise<string> {
+  static async getFlashcardContent(flashcardId: string): Promise<{ blocks?: any[]; content: string }> {
     try {
       const response = await fetch(`${API_BASE}/flashcards/${flashcardId}/content`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      return data.content || 'Sin contenido disponible';
+      return {
+        blocks: data.blocks || null,
+        content: data.content || 'Sin contenido disponible'
+      };
     } catch (error) {
       console.error('Error fetching flashcard content:', error);
-      return 'Error al cargar contenido';
+      return {
+        blocks: null,
+        content: 'Error al cargar contenido'
+      };
     }
   }
 

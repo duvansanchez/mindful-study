@@ -399,6 +399,21 @@ class DatabaseService {
       throw error;
     }
   }
+
+  // Eliminar nota de repaso
+  static async deleteReviewNote(noteId) {
+    try {
+      const pool = await getPool();
+      await pool.request()
+        .input('noteId', sql.UniqueIdentifier, noteId)
+        .query('DELETE FROM app.ReviewNotes WHERE Id = @noteId');
+      
+      return true;
+    } catch (error) {
+      console.error('Error eliminando nota de repaso:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = {
