@@ -1,8 +1,9 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "notion-study",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "Transform your Notion databases into interactive flashcards for effective learning and knowledge retention",
   "scripts": {
     "dev": "vite",
     "dev:api": "node server/simple-api.cjs",

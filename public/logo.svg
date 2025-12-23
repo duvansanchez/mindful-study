@@ -1,0 +1,23 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background rounded rectangle -->
+  <rect x="40" y="40" width="432" height="432" rx="80" ry="80" fill="#F5F5F0" stroke="#4A4A4A" stroke-width="8"/>
+  
+  <!-- 3D Notion-style logo -->
+  <g transform="translate(256, 200)">
+    <!-- Main cube structure -->
+    <path d="M-40 -20 L40 -20 L60 0 L60 80 L-20 80 L-40 60 Z" fill="#8FA8B2" stroke="#6B7B85" stroke-width="2"/>
+    <path d="M-40 -20 L-20 0 L60 0 L40 -20 Z" fill="#B8CDD9" stroke="#6B7B85" stroke-width="2"/>
+    <path d="M60 0 L60 80 L80 100 L80 20 Z" fill="#6B7B85" stroke="#6B7B85" stroke-width="2"/>
+    
+    <!-- Letter N inside -->
+    <path d="M-20 10 L-20 60 L-10 60 L20 20 L20 60 L30 60 L30 10 L20 10 L-10 50 L-10 10 Z" fill="white"/>
+  </g>
+  
+  <!-- NotionStudy text -->
+  <g transform="translate(256, 350)">
+    <!-- Notion text (black) -->
+    <text x="-120" y="0" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#2D2D2D" text-anchor="start">Notion</text>
+    <!-- Study text (gray) -->
+    <text x="40" y="0" font-family="Arial, sans-serif" font-size="48" font-weight="normal" fill="#8FA8B2" text-anchor="start">Study</text>
+  </g>
+</svg>
