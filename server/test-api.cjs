@@ -39,21 +39,52 @@ app.get('/databases', async (req, res) => {
   try {
     console.log('🔍 Buscando todas las bases de datos compartidas...');
     
-    // Buscar todas las páginas para encontrar bases de datos
-    const response = await notion.search({
-      query: '',
-      page_size: 100,
-    });
-
-    console.log('📊 Resultados de búsqueda:', response.results.length);
-
-    const databaseIds = new Set();
     const databases = [];
+    let hasMore = true;
+    let nextCursor = undefined;
+    let totalResults = 0;
+    let allPages = [];
     
-    // Buscar páginas que pertenezcan a bases de datos
-    for (const item of response.results) {
+    // Buscar todas las páginas con paginación completa
+    while (hasMore) {
+      console.log(`📄 Obteniendo página ${Math.floor(totalResults/100) + 1} de búsqueda...`);
+      
+      const searchParams = {
+        query: '',
+        page_size: 100,
+        filter: {
+          value: 'page',
+          property: 'object'
+        }
+      };
+      
+      if (nextCursor) {
+        searchParams.start_cursor = nextCursor;
+      }
+      
+      const response = await notion.search(searchParams);
+      
+      console.log(`📊 Páginas obtenidas en esta búsqueda: ${response.results.length}`);
+      totalResults += response.results.length;
+      
+      allPages.push(...response.results);
+      
+      hasMore = response.has_more;
+      nextCursor = response.next_cursor;
+      
+      if (hasMore) {
+        console.log('📄 Hay más páginas en la búsqueda, continuando...');
+      }
+    }
+
+    console.log(`📊 Total páginas encontradas: ${allPages.length}`);
+    
+    // Agrupar páginas por base de datos
+    const databasePageCounts = new Map();
+    const databaseIds = new Set();
+    
+    for (const item of allPages) {
       if (item.object === 'page' && item.parent) {
-        // Verificar diferentes formatos de parent
         let databaseId = null;
         if (item.parent.type === 'database_id') {
           databaseId = item.parent.database_id;
@@ -63,41 +94,43 @@ app.get('/databases', async (req, res) => {
           databaseId = item.parent.database_id;
         }
         
-        if (databaseId && !databaseIds.has(databaseId)) {
+        if (databaseId) {
+          databasePageCounts.set(databaseId, (databasePageCounts.get(databaseId) || 0) + 1);
           databaseIds.add(databaseId);
-          
-          try {
-            console.log('🔍 Obteniendo info de base de datos:', databaseId);
-            const database = await notion.databases.retrieve({ database_id: databaseId });
-            
-            const title = database.title?.[0]?.plain_text || 'Sin título';
-            const icon = database.icon?.emoji || '📄';
-            
-            // Obtener conteo real de páginas usando search
-            const pagesInDb = response.results.filter((page) => 
-              page.object === 'page' &&
-              page.parent && 
-              page.parent.database_id === databaseId
-            );
-            
-            console.log('✅ Base de datos encontrada:', title, 'con', pagesInDb.length, 'páginas');
-            
-            databases.push({
-              id: database.id,
-              name: title,
-              icon: icon,
-              cardCount: pagesInDb.length,
-              lastSynced: new Date(database.last_edited_time),
-              source: 'notion',
-            });
-          } catch (dbError) {
-            console.error('❌ Error obteniendo base de datos:', databaseId, dbError.message);
-          }
         }
       }
     }
+    
+    console.log(`📊 Bases de datos únicas encontradas: ${databaseIds.size}`);
+    
+    // Obtener información de cada base de datos
+    for (const databaseId of databaseIds) {
+      try {
+        console.log('🔍 Obteniendo info de base de datos:', databaseId);
+        const database = await notion.databases.retrieve({ database_id: databaseId });
+        
+        const title = database.title?.[0]?.plain_text || 'Sin título';
+        const icon = database.icon?.emoji || '📄';
+        
+        // Usar el conteo real de páginas
+        const actualCount = databasePageCounts.get(databaseId) || 0;
+        
+        console.log('✅ Base de datos encontrada:', title, 'con', actualCount, 'páginas');
+        
+        databases.push({
+          id: database.id,
+          name: title,
+          icon: icon,
+          cardCount: actualCount,
+          lastSynced: new Date(database.last_edited_time),
+          source: 'notion',
+        });
+      } catch (dbError) {
+        console.error('❌ Error obteniendo base de datos:', databaseId, dbError.message);
+      }
+    }
 
-    console.log('📊 Total bases de datos encontradas:', databases.length);
+    console.log('📊 Total bases de datos procesadas:', databases.length);
     res.json(databases);
   } catch (error) {
     console.error('❌ Error general:', error);
@@ -111,24 +144,55 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
     const { databaseId } = req.params;
     console.log('🔍 Obteniendo flashcards para:', databaseId);
     
-    // Usar search en lugar de databases.query
-    const response = await notion.search({
-      query: '',
-      page_size: 100,
-    });
-
-    console.log('📊 Resultados de búsqueda:', response.results.length);
-
-    // Filtrar páginas que pertenecen a esta base de datos
-    const pagesInDb = response.results.filter((page) => 
-      page.object === 'page' &&
-      page.parent && 
-      page.parent.database_id === databaseId
-    );
-
-    console.log('📊 Páginas en la base de datos:', pagesInDb.length);
-
     const flashcards = [];
+    let hasMore = true;
+    let nextCursor = undefined;
+    let totalPages = 0;
+    let allPages = [];
+    
+    // Usar search con paginación completa para obtener TODAS las páginas
+    while (hasMore) {
+      console.log(`📄 Obteniendo página ${Math.floor(totalPages/100) + 1} de resultados...`);
+      
+      const searchParams = {
+        query: '',
+        page_size: 100, // Máximo permitido por Notion
+        filter: {
+          value: 'page',
+          property: 'object'
+        }
+      };
+      
+      if (nextCursor) {
+        searchParams.start_cursor = nextCursor;
+      }
+      
+      const response = await notion.search(searchParams);
+
+      console.log(`📊 Páginas obtenidas en esta consulta: ${response.results.length}`);
+      
+      // Filtrar páginas que pertenecen a esta base de datos específica
+      const pagesInThisDb = response.results.filter((page) => 
+        page.object === 'page' &&
+        page.parent && 
+        page.parent.database_id === databaseId
+      );
+      
+      console.log(`📊 Páginas de esta base de datos en esta consulta: ${pagesInThisDb.length}`);
+      
+      allPages.push(...pagesInThisDb);
+      totalPages += response.results.length;
+      
+      // Verificar si hay más páginas
+      hasMore = response.has_more;
+      nextCursor = response.next_cursor;
+      
+      if (hasMore) {
+        console.log('📄 Hay más páginas, continuando...');
+      }
+    }
+    
+    console.log(`📊 Total páginas de la base de datos encontradas: ${allPages.length}`);
     
     // Cache para páginas relacionadas para evitar llamadas duplicadas
     const relatedPagesCache = new Map();
@@ -160,8 +224,8 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
 
     // Procesar páginas en lotes para mejorar rendimiento
     const batchSize = 5;
-    for (let i = 0; i < pagesInDb.length; i += batchSize) {
-      const batch = pagesInDb.slice(i, i + batchSize);
+    for (let i = 0; i < allPages.length; i += batchSize) {
+      const batch = allPages.slice(i, i + batchSize);
       
       const batchPromises = batch.map(async (page) => {
         if (page.properties) {
@@ -312,26 +376,10 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
             }
           }
 
-          // Obtener contenido de la página de forma más eficiente
-          // OPTIMIZACIÓN: Solo obtener contenido cuando sea realmente necesario
-          // Por ahora, usar el título como contenido para mejorar velocidad
-          let content = title || 'Sin contenido disponible';
-          
-          // TODO: Implementar carga lazy del contenido cuando se abra la flashcard
-          // try {
-          //   const blocks = await notion.blocks.children.list({
-          //     block_id: page.id,
-          //     page_size: 3 // Solo los primeros 3 bloques
-          //   });
-          //   // ... procesar bloques
-          // } catch (contentError) {
-          //   console.error('Error obteniendo contenido:', contentError.message);
-          // }
-
           return {
             id: page.id,
             title,
-            content,
+            content: title || 'Sin contenido disponible', // Usar título como contenido inicial
             state,
             lastReviewed: null,
             notes,
@@ -350,10 +398,10 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
       const batchResults = await Promise.all(batchPromises);
       flashcards.push(...batchResults.filter(card => card !== null));
       
-      console.log(`📊 Procesado lote ${Math.floor(i/batchSize) + 1}/${Math.ceil(pagesInDb.length/batchSize)}`);
+      console.log(`📊 Procesado lote ${Math.floor(i/batchSize) + 1}/${Math.ceil(allPages.length/batchSize)}`);
     }
 
-    console.log('📊 Total flashcards:', flashcards.length);
+    console.log('📊 Total flashcards procesadas:', flashcards.length);
     console.log('📊 Estados:', {
       tocado: flashcards.filter(f => f.state === 'tocado').length,
       verde: flashcards.filter(f => f.state === 'verde').length,

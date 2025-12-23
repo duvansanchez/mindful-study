@@ -4,10 +4,11 @@ import { NotionService } from '@/services/notion';
 import { Database, Flashcard, KnowledgeState, Statistics } from '@/types';
 
 // Hook para obtener bases de datos
-export const useNotionDatabases = () => {
+export const useNotionDatabases = (enabled: boolean = true) => {
   return useQuery({
     queryKey: ['notion-databases'],
     queryFn: NotionService.getDatabases,
+    enabled: enabled,
     staleTime: 0, // Sin cache para debugging
     retry: 2,
   });

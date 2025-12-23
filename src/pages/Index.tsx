@@ -32,8 +32,11 @@ const Index = () => {
   const [editingGroup, setEditingGroup] = useState<DatabaseGroup | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<DatabaseGroup | null>(null);
 
-  // Notion hooks
-  const { data: databases = [], isLoading: databasesLoading, error: databasesError } = useNotionDatabases();
+  // Notion hooks - Solo cargar bases de datos cuando sea necesario
+  const { data: databases = [], isLoading: databasesLoading, error: databasesError } = useNotionDatabases(
+    // Solo cargar bases de datos cuando estemos en vista de grupo o necesitemos los datos
+    view === 'group-stats' || view === 'stats' || selectedDatabaseId !== null
+  );
   const { data: flashcards = [], isLoading: flashcardsLoading } = useNotionFlashcards(selectedDatabaseId);
   const { data: isConnected = false, isLoading: connectionLoading } = useNotionConnection();
   const updateFlashcardMutation = useUpdateFlashcardState();
@@ -483,98 +486,60 @@ const Index = () => {
                   Ver detalle
                 </button>
               </div>
-              <StatsOverview stats={overallStats} />
+              {/* Mostrar estadísticas simplificadas sin cargar todas las bases de datos */}
+              <div className="p-4 rounded-lg bg-card border border-border">
+                <p className="text-sm text-muted-foreground text-center">
+                  Las estadísticas detalladas están disponibles dentro de cada agrupación
+                </p>
+              </div>
             </section>
 
             {/* Database Groups */}
             {(groups.length > 0 || !groupsLoading) && (
               <section>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-medium text-foreground">Agrupaciones</h2>
+                  <h2 className="text-lg font-medium text-foreground">Agrupaciones de estudio</h2>
                   <CreateGroupDialog />
                 </div>
                 
-                {/* Solo mostrar grupos si las bases de datos ya se cargaron */}
-                {!databasesLoading && databases.length > 0 ? (
+                {groupsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Cargando agrupaciones...</span>
+                  </div>
+                ) : groups.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {groups.map(group => {
-                      const groupDatabases = databases.filter(db => group.databaseIds.includes(db.id));
+                      // Para mostrar las tarjetas de grupo necesitamos cargar las bases de datos bajo demanda
                       return (
                         <GroupCard
                           key={group.id}
                           group={group}
-                          databases={groupDatabases}
+                          databases={[]} // Las bases de datos se cargarán cuando se haga clic en el grupo
                           onClick={() => handleGroupClick(group)}
                           onEdit={setEditingGroup}
                           onDelete={setDeletingGroup}
                         />
                       );
                     })}
-                    {groups.length === 0 && !groupsLoading && (
-                      <div className="col-span-full text-center py-8 text-muted-foreground">
-                        <p className="mb-4">No tienes agrupaciones personalizadas aún</p>
-                        <CreateGroupDialog>
-                          <button className="text-primary hover:underline">
-                            Crear tu primera agrupación
-                          </button>
-                        </CreateGroupDialog>
-                      </div>
-                    )}
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-muted-foreground">Cargando agrupaciones...</span>
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Folder className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium mb-2">Organiza tus bases de datos</h3>
+                    <p className="mb-4 max-w-md mx-auto">
+                      Crea agrupaciones para organizar tus bases de datos de Notion por temas o proyectos.
+                    </p>
+                    <CreateGroupDialog>
+                      <button className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
+                        <Plus className="w-4 h-4" />
+                        Crear primera agrupación
+                      </button>
+                    </CreateGroupDialog>
                   </div>
                 )}
               </section>
             )}
-
-            {/* Databases */}
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium text-foreground">Bases de datos</h2>
-                <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  <Plus className="w-4 h-4" />
-                  Conectar
-                </button>
-              </div>
-              
-              {databasesLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-muted-foreground">Cargando bases de datos...</span>
-                </div>
-              ) : databasesError ? (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Error al cargar las bases de datos: {databasesError.message}
-                  </AlertDescription>
-                </Alert>
-              ) : databases.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No se encontraron bases de datos en Notion.</p>
-                  <p className="text-sm mt-2">Asegúrate de que tu integración tenga acceso a las bases de datos.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {databases.map(database => {
-                    // Usar el conteo cacheado si está disponible, sino el del servidor
-                    const actualCount = databaseCounts[database.id] ?? database.cardCount;
-                    const databaseWithCount = { ...database, cardCount: actualCount };
-                    
-                    return (
-                      <DatabaseCard
-                        key={database.id}
-                        database={databaseWithCount}
-                        onClick={() => handleDatabaseClick(database.id)}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </section>
           </div>
         )}
 
