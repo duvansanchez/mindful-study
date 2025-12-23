@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
-import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2 } from "lucide-react";
+import { NotionRenderer } from "./NotionRenderer";
+import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import { cn } from "@/lib/utils";
 import { useFlashcardContent } from "@/hooks/useNotion";
+import { useReviewNotes, useAddReviewNote, useDeleteReviewNote } from "@/hooks/useReviewNotes";
 
 interface FlashcardReviewProps {
   card: Flashcard;
   onStateChange: (state: KnowledgeState) => void;
   onNext: () => void;
   onClose: () => void;
-  onAddReviewNote: (note: string) => void;
   currentIndex: number;
   totalCards: number;
 }
@@ -22,7 +22,6 @@ export function FlashcardReview({
   onStateChange, 
   onNext, 
   onClose,
-  onAddReviewNote,
   currentIndex,
   totalCards
 }: FlashcardReviewProps) {
@@ -36,6 +35,11 @@ export function FlashcardReview({
     revealed ? card.id : null
   );
 
+  // Cargar notas de repaso
+  const { data: reviewNotes = [], isLoading: notesLoading } = useReviewNotes(card.id);
+  const addNoteMutation = useAddReviewNote();
+  const deleteNoteMutation = useDeleteReviewNote();
+
   const handleReveal = () => {
     setRevealed(true);
   };
@@ -48,11 +52,28 @@ export function FlashcardReview({
     onNext();
   };
 
-  const handleAddNote = () => {
-    if (noteText.trim()) {
-      onAddReviewNote(noteText.trim());
+  const handleAddNote = async () => {
+    if (!noteText.trim()) return;
+
+    try {
+      await addNoteMutation.mutateAsync({
+        flashcardId: card.id,
+        content: noteText.trim(),
+        databaseId: card.databaseId
+      });
+      
       setNoteText("");
       setShowNoteInput(false);
+    } catch (error) {
+      console.error('Error adding review note:', error);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      await deleteNoteMutation.mutateAsync(noteId);
+    } catch (error) {
+      console.error('Error deleting review note:', error);
     }
   };
 
@@ -89,11 +110,11 @@ export function FlashcardReview({
       </header>
 
       {/* Card content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 overflow-auto">
-        <div className="w-full max-w-2xl space-y-6">
+      <div className="flex-1 flex flex-col items-center justify-start px-4 sm:px-6 py-4 sm:py-8 overflow-auto">
+        <div className="w-full max-w-2xl space-y-4 sm:space-y-6">
           {/* Front of card - Title */}
           <div className="text-center animate-slide-up">
-            <h1 className="text-3xl font-semibold text-foreground mb-2">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-foreground mb-2">
               {card.title}
             </h1>
             <StateBadge state={card.state} size="sm" />
@@ -210,7 +231,7 @@ export function FlashcardReview({
             </button>
           ) : (
             <div className="animate-slide-up">
-              <div className="p-6 rounded-lg bg-card border border-border">
+              <div className="p-4 sm:p-6 rounded-lg bg-card border border-border">
                 <p className="text-sm text-muted-foreground mb-3">Contenido</p>
                 {contentLoading ? (
                   <div className="flex items-center justify-center py-8">
@@ -218,16 +239,70 @@ export function FlashcardReview({
                     <span className="ml-2 text-sm text-muted-foreground">Cargando contenido...</span>
                   </div>
                 ) : (
-                  <div className="prose prose-sm text-foreground max-w-none">
-                    {(detailedContent || card.content || 'Sin contenido disponible').split('\n').map((paragraph, i) => (
-                      <p key={i} className="mb-3 last:mb-0">{paragraph}</p>
-                    ))}
+                  <div className="text-foreground max-w-none">
+                    {/* Mostrar título también en el contenido revelado */}
+                    <div className="mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-border">
+                      <h2 className="text-xl sm:text-2xl font-semibold text-foreground mb-2">
+                        {card.title}
+                      </h2>
+                      <StateBadge state={card.state} size="sm" />
+                    </div>
+                    
+                    {detailedContent?.blocks ? (
+                      <NotionRenderer blocks={detailedContent.blocks} />
+                    ) : (
+                      <div className="prose prose-sm">
+                        {(detailedContent?.content || card.content || 'Sin contenido disponible').split('\n').map((paragraph, i) => (
+                          <p key={i} className="mb-3 last:mb-0">{paragraph}</p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
               {/* Review note section */}
-              <div className="mt-4 animate-fade-in">
+              <div className="mt-4 animate-fade-in space-y-4">
+                {/* Mostrar notas existentes */}
+                {reviewNotes.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <StickyNote className="w-4 h-4 text-muted-foreground" />
+                      <p className="text-sm font-medium text-foreground">
+                        Notas de repaso ({reviewNotes.length})
+                      </p>
+                    </div>
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {notesLoading ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Cargando notas...
+                        </div>
+                      ) : (
+                        reviewNotes.map((note) => (
+                          <div key={note.id} className="flex items-start gap-2 p-3 rounded-lg bg-secondary/30 border border-border">
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm text-foreground">{note.content}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteNote(note.id)}
+                              disabled={deleteNoteMutation.isPending}
+                              className="p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-colors"
+                              title="Eliminar nota"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Agregar nueva nota */}
                 {!showNoteInput ? (
                   <button
                     onClick={() => setShowNoteInput(true)}
@@ -262,10 +337,14 @@ export function FlashcardReview({
                       />
                       <button
                         onClick={handleAddNote}
-                        disabled={!noteText.trim()}
+                        disabled={!noteText.trim() || addNoteMutation.isPending}
                         className="px-3 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
                       >
-                        <Send className="w-4 h-4" />
+                        {addNoteMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </div>

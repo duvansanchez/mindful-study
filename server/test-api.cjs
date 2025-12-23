@@ -367,48 +367,223 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
   }
 });
 
+// Cache para bloques hijos para evitar llamadas repetidas
+const blockChildrenCache = new Map();
+
+// Función auxiliar para obtener bloques hijos recursivamente con cache
+async function getBlockChildren(blockId, depth = 0) {
+  if (depth > 2) return []; // Limitar a 2 niveles de profundidad para evitar lentitud
+  
+  // Verificar cache primero
+  const cacheKey = `${blockId}_${depth}`;
+  if (blockChildrenCache.has(cacheKey)) {
+    return blockChildrenCache.get(cacheKey);
+  }
+  
+  try {
+    const children = await notion.blocks.children.list({
+      block_id: blockId,
+    });
+    
+    const processedChildren = [];
+    
+    // Procesar solo los primeros 10 hijos para evitar lentitud
+    const limitedChildren = children.results.slice(0, 10);
+    
+    for (const child of limitedChildren) {
+      if ('type' in child) {
+        const processedChild = {
+          id: child.id,
+          type: child.type,
+          content: null,
+          children: []
+        };
+
+        // Procesar solo los tipos más comunes para velocidad
+        switch (child.type) {
+          case 'paragraph':
+            processedChild.content = {
+              rich_text: child.paragraph?.rich_text || []
+            };
+            break;
+          case 'bulleted_list_item':
+            processedChild.content = {
+              rich_text: child.bulleted_list_item?.rich_text || []
+            };
+            break;
+          case 'numbered_list_item':
+            processedChild.content = {
+              rich_text: child.numbered_list_item?.rich_text || []
+            };
+            break;
+          case 'to_do':
+            processedChild.content = {
+              rich_text: child.to_do?.rich_text || [],
+              checked: child.to_do?.checked || false
+            };
+            break;
+          case 'toggle':
+            processedChild.content = {
+              rich_text: child.toggle?.rich_text || []
+            };
+            // Solo obtener hijos si la profundidad es 0 (primer nivel)
+            if (depth === 0) {
+              processedChild.children = await getBlockChildren(child.id, depth + 1);
+            }
+            break;
+          default:
+            // Para otros tipos, solo obtener el texto básico
+            const richTextField = child[child.type]?.rich_text;
+            if (richTextField) {
+              processedChild.content = { rich_text: richTextField };
+            }
+            break;
+        }
+        
+        processedChildren.push(processedChild);
+      }
+    }
+    
+    // Guardar en cache por 5 minutos
+    blockChildrenCache.set(cacheKey, processedChildren);
+    setTimeout(() => blockChildrenCache.delete(cacheKey), 5 * 60 * 1000);
+    
+    return processedChildren;
+  } catch (error) {
+    console.error(`Error fetching children for block ${blockId}:`, error);
+    return [];
+  }
+}
+
 // Obtener contenido detallado de una flashcard específica
 app.get('/flashcards/:flashcardId/content', async (req, res) => {
   try {
     const { flashcardId } = req.params;
     console.log('🔍 Obteniendo contenido detallado para flashcard:', flashcardId);
     
+    const startTime = Date.now();
+    
     const blocks = await notion.blocks.children.list({
       block_id: flashcardId,
     });
 
-    let content = '';
+    // Procesar bloques SIN obtener hijos para máxima velocidad
+    const processedBlocks = [];
+    
     for (const block of blocks.results) {
       if ('type' in block) {
+        const processedBlock = {
+          id: block.id,
+          type: block.type,
+          content: null,
+          hasChildren: block.has_children || false
+        };
+
         switch (block.type) {
           case 'paragraph':
-            content += block.paragraph?.rich_text?.map((t) => t.plain_text).join('') + '\n\n';
+            processedBlock.content = {
+              rich_text: block.paragraph?.rich_text || []
+            };
             break;
           case 'heading_1':
-            content += '# ' + (block.heading_1?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n\n';
+            processedBlock.content = {
+              rich_text: block.heading_1?.rich_text || []
+            };
             break;
           case 'heading_2':
-            content += '## ' + (block.heading_2?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n\n';
+            processedBlock.content = {
+              rich_text: block.heading_2?.rich_text || []
+            };
             break;
           case 'heading_3':
-            content += '### ' + (block.heading_3?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n\n';
+            processedBlock.content = {
+              rich_text: block.heading_3?.rich_text || []
+            };
             break;
           case 'bulleted_list_item':
-            content += '- ' + (block.bulleted_list_item?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n';
+            processedBlock.content = {
+              rich_text: block.bulleted_list_item?.rich_text || []
+            };
             break;
           case 'numbered_list_item':
-            content += '1. ' + (block.numbered_list_item?.rich_text?.map((t) => t.plain_text).join('') || '') + '\n';
+            processedBlock.content = {
+              rich_text: block.numbered_list_item?.rich_text || []
+            };
+            break;
+          case 'toggle':
+            processedBlock.content = {
+              rich_text: block.toggle?.rich_text || []
+            };
+            // NO obtener hijos aquí, se cargarán bajo demanda
+            break;
+          case 'callout':
+            processedBlock.content = {
+              rich_text: block.callout?.rich_text || [],
+              icon: block.callout?.icon
+            };
+            break;
+          case 'quote':
+            processedBlock.content = {
+              rich_text: block.quote?.rich_text || []
+            };
+            break;
+          case 'code':
+            processedBlock.content = {
+              rich_text: block.code?.rich_text || [],
+              language: block.code?.language
+            };
+            break;
+          case 'divider':
+            processedBlock.content = {};
+            break;
+          case 'to_do':
+            processedBlock.content = {
+              rich_text: block.to_do?.rich_text || [],
+              checked: block.to_do?.checked || false
+            };
+            break;
+          default:
+            // Para tipos no reconocidos, intentar obtener rich_text genérico
+            const richTextField = block[block.type]?.rich_text;
+            if (richTextField) {
+              processedBlock.content = { rich_text: richTextField };
+            }
             break;
         }
+        
+        processedBlocks.push(processedBlock);
       }
     }
     
-    const finalContent = content.trim() || 'Sin contenido disponible';
-    console.log('✅ Contenido obtenido, longitud:', finalContent.length);
+    const endTime = Date.now();
+    console.log(`✅ Contenido estructurado obtenido en ${endTime - startTime}ms, bloques:`, processedBlocks.length);
     
-    res.json({ content: finalContent });
+    res.json({ 
+      blocks: processedBlocks,
+      // Mantener compatibilidad con el formato anterior
+      content: processedBlocks.map(block => {
+        if (!block.content?.rich_text) return '';
+        return block.content.rich_text.map(t => t.plain_text).join('');
+      }).join('\n')
+    });
   } catch (error) {
     console.error('❌ Error fetching flashcard content:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Nuevo endpoint para cargar hijos de un bloque bajo demanda
+app.get('/blocks/:blockId/children', async (req, res) => {
+  try {
+    const { blockId } = req.params;
+    console.log('🔍 Obteniendo hijos del bloque:', blockId);
+    
+    const children = await getBlockChildren(blockId, 0);
+    
+    console.log('✅ Hijos obtenidos:', children.length);
+    res.json({ children });
+  } catch (error) {
+    console.error('❌ Error fetching block children:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -416,6 +591,68 @@ app.get('/flashcards/:flashcardId/content', async (req, res) => {
 // Actualizar estado de flashcard (placeholder)
 app.put('/flashcards/:flashcardId/state', async (req, res) => {
   res.json({ success: true });
+});
+
+// ==================== ENDPOINTS DE NOTAS DE REPASO ====================
+
+// Obtener notas de repaso de una flashcard
+app.get('/flashcards/:flashcardId/notes', async (req, res) => {
+  try {
+    const { flashcardId } = req.params;
+    console.log('🔍 Obteniendo notas de repaso para flashcard:', flashcardId);
+    
+    const notes = await DatabaseService.getReviewNotes(flashcardId);
+    
+    console.log('✅ Notas obtenidas:', notes.length);
+    res.json(notes);
+  } catch (error) {
+    console.error('❌ Error obteniendo notas de repaso:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Agregar nueva nota de repaso
+app.post('/flashcards/:flashcardId/notes', async (req, res) => {
+  try {
+    const { flashcardId } = req.params;
+    const { content, databaseId } = req.body;
+    
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ error: 'El contenido de la nota es requerido' });
+    }
+    
+    console.log('📝 Agregando nota de repaso para flashcard:', flashcardId);
+    
+    const note = await DatabaseService.addReviewNote(
+      flashcardId, 
+      databaseId, 
+      content.trim()
+    );
+    
+    console.log('✅ Nota agregada:', note.id);
+    res.status(201).json(note);
+  } catch (error) {
+    console.error('❌ Error agregando nota de repaso:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar nota de repaso
+app.delete('/notes/:noteId', async (req, res) => {
+  try {
+    const { noteId } = req.params;
+    
+    console.log('🗑️ Eliminando nota de repaso:', noteId);
+    
+    // Agregar método para eliminar nota
+    await DatabaseService.deleteReviewNote(noteId);
+    
+    console.log('✅ Nota eliminada');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error eliminando nota de repaso:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ==================== ENDPOINTS DE AGRUPACIONES ====================
