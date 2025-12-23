@@ -399,8 +399,8 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header 
-          title="Knowledge Base" 
-          subtitle="Gestiona tu conocimiento"
+          title="NotionStudy" 
+          subtitle="Mindful Learning"
         />
         <main className="container max-w-4xl py-8 px-6">
           <Alert className="mb-6">
@@ -436,8 +436,8 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header 
-          title="Knowledge Base" 
-          subtitle="Gestiona tu conocimiento"
+          title="NotionStudy" 
+          subtitle="Mindful Learning"
         />
         <main className="container max-w-4xl py-8 px-6">
           <Alert className="mb-6">
@@ -458,8 +458,8 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header 
-        title="Knowledge Base" 
-        subtitle="Gestiona tu conocimiento"
+        title="NotionStudy" 
+        subtitle="Mindful Learning"
       />
 
       <main className="container max-w-4xl py-8 px-6">
