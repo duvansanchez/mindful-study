@@ -1,4 +1,4 @@
-import { DatabaseGroup } from '@/types';
+import { DatabaseGroup, Database } from '@/types';
 
 // URL base de la API local
 const API_BASE = '/api/notion';
@@ -19,6 +19,24 @@ export class GroupsService {
     }
   }
 
+  // Buscar bases de datos por nombre
+  static async searchDatabases(query: string, limit: number = 10): Promise<Database[]> {
+    try {
+      if (!query || query.trim().length === 0) {
+        return [];
+      }
+      
+      const response = await fetch(`${API_BASE}/databases/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error searching databases:', error);
+      return [];
+    }
+  }
+
   // Crear nueva agrupación
   static async createGroup(name: string, color: string = '#3B82F6', databaseIds: string[] = []): Promise<DatabaseGroup> {
     try {
@@ -30,7 +48,7 @@ export class GroupsService {
         body: JSON.stringify({
           name,
           color,
-          databaseIds: databaseIds.map(id => ({ id }))
+          databaseIds
         }),
       });
 
@@ -87,8 +105,22 @@ export class GroupsService {
     }
   }
 
+  // Obtener estadísticas rápidas de un grupo
+  static async getGroupStats(groupId: string): Promise<{ tocado: number; verde: number; solido: number; total: number }> {
+    try {
+      const response = await fetch(`${API_BASE}/groups/${groupId}/stats`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching group stats:', error);
+      return { tocado: 0, verde: 0, solido: 0, total: 0 };
+    }
+  }
+
   // Obtener bases de datos de una agrupación
-  static async getGroupDatabases(groupId: string): Promise<any[]> {
+  static async getGroupDatabases(groupId: string): Promise<Database[]> {
     try {
       const response = await fetch(`${API_BASE}/groups/${groupId}/databases`);
       if (!response.ok) {

@@ -57,46 +57,22 @@ export const useDeleteGroup = () => {
   });
 };
 
-// Hook para obtener estadísticas de múltiples bases de datos (para grupos)
-export const useGroupStats = (databaseIds: string[]) => {
+// Hook para buscar bases de datos
+export const useSearchDatabases = (query: string, enabled: boolean = true) => {
   return useQuery({
-    queryKey: ['group-stats', databaseIds],
-    queryFn: async () => {
-      if (!databaseIds || databaseIds.length === 0) {
-        return { tocado: 0, verde: 0, solido: 0, total: 0 };
-      }
-
-      // Obtener flashcards de todas las bases de datos del grupo
-      const allFlashcards = [];
-      for (const dbId of databaseIds) {
-        try {
-          const flashcards = await NotionService.getFlashcardsFromDatabase(dbId);
-          allFlashcards.push(...flashcards);
-        } catch (error) {
-          console.error(`Error fetching flashcards for database ${dbId}:`, error);
-        }
-      }
-
-      // Calcular estadísticas combinadas
-      const stats = { tocado: 0, verde: 0, solido: 0, total: allFlashcards.length };
-      
-      allFlashcards.forEach(card => {
-        switch (card.state) {
-          case 'Tocado':
-            stats.tocado++;
-            break;
-          case 'Verde':
-            stats.verde++;
-            break;
-          case 'Sólido':
-            stats.solido++;
-            break;
-        }
-      });
-
-      return stats;
-    },
-    enabled: databaseIds && databaseIds.length > 0,
+    queryKey: ['search-databases', query],
+    queryFn: () => GroupsService.searchDatabases(query, 10),
+    enabled: enabled && query.trim().length > 0,
+    staleTime: 30 * 1000, // 30 segundos
+    retry: 1,
+  });
+};
+// Hook para obtener estadísticas rápidas de un grupo
+export const useGroupStats = (groupId: string | null) => {
+  return useQuery({
+    queryKey: ['group-stats-fast', groupId],
+    queryFn: () => groupId ? GroupsService.getGroupStats(groupId) : Promise.resolve({ tocado: 0, verde: 0, solido: 0, total: 0 }),
+    enabled: !!groupId,
     staleTime: 2 * 60 * 1000, // 2 minutos
     retry: 1,
   });
