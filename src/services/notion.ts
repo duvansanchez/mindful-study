@@ -43,7 +43,7 @@ export class NotionService {
   // Obtener contenido detallado de una flashcard específica (lazy loading)
   static async getFlashcardContent(flashcardId: string): Promise<{ blocks?: unknown[]; content: string }> {
     try {
-      const response = await fetch(`${API_BASE}/flashcards/${flashcardId}/content`);
+      const response = await fetch(`/api/flashcards/${flashcardId}/content`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

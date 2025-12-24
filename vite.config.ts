@@ -16,6 +16,11 @@ export default defineConfig({
         target: 'http://localhost:3002',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      '/api/flashcards': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
       }
     }
   },
