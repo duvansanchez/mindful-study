@@ -397,6 +397,99 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
             relatedConcepts = relacionadosProperty.multi_select?.map((s) => s.name) || [];
           }
 
+          // Procesar TODAS las propiedades adicionales para información auxiliar
+          const auxiliaryInfo = {};
+          const excludedProps = ['Dominio', 'Nota Propia', 'Conceptos Relacionados', 'Ultima vez repasado', 'Último repaso', 'Last reviewed', 'Fecha repaso'];
+          
+          for (const [propName, propValue] of Object.entries(properties)) {
+            // Saltar propiedades ya procesadas, títulos y propiedades de sistema
+            if (excludedProps.includes(propName) || propValue.type === 'title' || !propValue) {
+              continue;
+            }
+            
+            let value = '';
+            switch (propValue.type) {
+              case 'rich_text':
+                value = propValue.rich_text?.map((t) => t.plain_text).join('') || '';
+                break;
+              case 'select':
+                value = propValue.select?.name || '';
+                break;
+              case 'multi_select':
+                value = propValue.multi_select?.map((s) => s.name).join(', ') || '';
+                break;
+              case 'date':
+                if (propValue.date?.start) {
+                  value = new Date(propValue.date.start).toLocaleDateString('es-ES');
+                }
+                break;
+              case 'number':
+                value = propValue.number?.toString() || '';
+                break;
+              case 'checkbox':
+                value = propValue.checkbox ? 'Sí' : 'No';
+                break;
+              case 'url':
+                value = propValue.url || '';
+                break;
+              case 'email':
+                value = propValue.email || '';
+                break;
+              case 'phone_number':
+                value = propValue.phone_number || '';
+                break;
+              case 'formula':
+                if (propValue.formula?.string) {
+                  value = propValue.formula.string;
+                } else if (propValue.formula?.number) {
+                  value = propValue.formula.number.toString();
+                } else if (propValue.formula?.boolean !== undefined) {
+                  value = propValue.formula.boolean ? 'Sí' : 'No';
+                } else if (propValue.formula?.date?.start) {
+                  value = new Date(propValue.formula.date.start).toLocaleDateString('es-ES');
+                }
+                break;
+              case 'rollup':
+                if (propValue.rollup?.array) {
+                  value = propValue.rollup.array.map(item => {
+                    if (item.rich_text) return item.rich_text.map(t => t.plain_text).join('');
+                    if (item.number) return item.number.toString();
+                    if (item.select) return item.select.name;
+                    return '';
+                  }).filter(v => v).join(', ');
+                }
+                break;
+              case 'relation':
+                // Para relaciones, mostrar que hay elementos relacionados
+                if (propValue.relation && propValue.relation.length > 0) {
+                  value = `${propValue.relation.length} elemento(s) relacionado(s)`;
+                }
+                break;
+              case 'people':
+                value = propValue.people?.map(person => person.name || 'Usuario').join(', ') || '';
+                break;
+              case 'files':
+                if (propValue.files && propValue.files.length > 0) {
+                  value = `${propValue.files.length} archivo(s)`;
+                }
+                break;
+              default:
+                // Para tipos no reconocidos, intentar obtener texto básico
+                if (propValue.plain_text) {
+                  value = propValue.plain_text;
+                }
+                break;
+            }
+            
+            // Solo agregar si tiene valor
+            if (value && value.trim()) {
+              auxiliaryInfo[propName] = {
+                type: propValue.type,
+                value: value.trim()
+              };
+            }
+          }
+
           return {
             id: page.id,
             title,
@@ -405,7 +498,7 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
             lastReviewed: null,
             notes,
             relatedConcepts,
-            auxiliaryInfo: {},
+            auxiliaryInfo,
             databaseId,
             createdAt: new Date(page.created_time),
             viewCount: 0,
