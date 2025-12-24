@@ -562,7 +562,7 @@ app.get('/flashcards/:flashcardId/content', async (req, res) => {
       block_id: flashcardId,
     });
 
-    // Procesar bloques SIN obtener hijos para máxima velocidad
+    // Procesar bloques principales SIN obtener hijos (para velocidad)
     const processedBlocks = [];
     
     for (const block of blocks.results) {
@@ -609,7 +609,6 @@ app.get('/flashcards/:flashcardId/content', async (req, res) => {
             processedBlock.content = {
               rich_text: block.toggle?.rich_text || []
             };
-            // NO obtener hijos aquí, se cargarán bajo demanda
             break;
           case 'callout':
             processedBlock.content = {
@@ -642,6 +641,8 @@ app.get('/flashcards/:flashcardId/content', async (req, res) => {
             const richTextField = block[block.type]?.rich_text;
             if (richTextField) {
               processedBlock.content = { rich_text: richTextField };
+            } else {
+              processedBlock.content = { rich_text: [] };
             }
             break;
         }
@@ -651,12 +652,7 @@ app.get('/flashcards/:flashcardId/content', async (req, res) => {
     }
     
     const endTime = Date.now();
-    console.log(`✅ Contenido estructurado obtenido en ${endTime - startTime}ms, bloques:`, processedBlocks.length);
-    console.log('🔍 Tipos de bloques principales:', processedBlocks.map(b => ({ 
-      type: b.type, 
-      hasChildren: b.hasChildren, 
-      text: b.content?.rich_text?.[0]?.plain_text?.substring(0, 30) 
-    })));
+    console.log(`✅ Contenido principal obtenido en ${endTime - startTime}ms, bloques:`, processedBlocks.length);
     
     res.json({ 
       blocks: processedBlocks,

@@ -29,6 +29,7 @@ export function FlashcardReview({
   const [showAuxiliary, setShowAuxiliary] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [showNotesPanel, setShowNotesPanel] = useState(false);
   
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
   const [updatingState, setUpdatingState] = useState(false);
@@ -114,7 +115,7 @@ export function FlashcardReview({
     }
   };
 
-  const quickNotes = ["definición formal", "ejemplo", "fórmula", "contexto"];
+  const quickNotes = ["No dominaba o no tenía en cuenta", "definición formal", "ejemplo", "fórmula", "contexto"];
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col">
@@ -146,14 +147,30 @@ export function FlashcardReview({
           {updatingState && (
             <Loader2 className="w-4 h-4 animate-spin text-muted-foreground ml-2" />
           )}
+          
+          {/* Botón para mostrar notas en pantallas pequeñas */}
+          <div className="lg:hidden relative">
+            <button
+              onClick={() => setShowNotesPanel(!showNotesPanel)}
+              className="p-2 rounded-lg hover:bg-secondary transition-colors"
+              title="Mostrar/ocultar notas"
+            >
+              <StickyNote className="w-4 h-4 text-muted-foreground" />
+            </button>
+            {reviewNotes.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {reviewNotes.length}
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Main content - Two columns */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left column - Flashcard content */}
-        <div className="flex-1 flex flex-col px-4 sm:px-6 py-4 sm:py-8 overflow-auto">
-          <div className="w-full max-w-4xl mx-auto space-y-4 sm:space-y-6">
+        <div className="flex-1 flex flex-col items-center justify-start px-4 sm:px-6 py-4 sm:py-8 overflow-auto">
+          <div className="w-full max-w-4xl space-y-4 sm:space-y-6">
             {/* Warning message about date field */}
             {lastReviewMessage && (
               <div className="animate-fade-in">
@@ -324,7 +341,7 @@ export function FlashcardReview({
         </div>
         
         {/* Right column - Review notes */}
-        <div className="w-80 border-l border-border bg-secondary/20 flex flex-col">
+        <div className={`w-80 border-l border-border bg-secondary/20 flex flex-col ${showNotesPanel ? 'flex' : 'hidden lg:flex'}`}>
           <div className="p-4 border-b border-border">
             <div className="flex items-center gap-2">
               <StickyNote className="w-4 h-4 text-muted-foreground" />
