@@ -151,10 +151,27 @@ app.get('/databases/search', async (req, res) => {
   }
 });
 
-// Bases de datos - detección automática
+// Cache para bases de datos (15 minutos de TTL)
+const databasesCache = new Map();
+const DATABASES_CACHE_TTL = 15 * 60 * 1000; // 15 minutos
+
+// Bases de datos - detección automática con cache
 app.get('/databases', async (req, res) => {
   try {
+    const { force_refresh } = req.query; // Parámetro para forzar actualización
+    
     console.log('🔍 Buscando todas las bases de datos compartidas...');
+    
+    // Verificar cache primero (a menos que sea refresh forzado)
+    const cacheKey = 'all_databases';
+    const cached = databasesCache.get(cacheKey);
+    
+    if (!force_refresh && cached && (Date.now() - cached.timestamp) < DATABASES_CACHE_TTL) {
+      console.log('⚡ Usando cache para bases de datos:', cached.databases.length);
+      return res.json(cached.databases);
+    }
+    
+    console.log(force_refresh ? '🔄 Sincronización forzada iniciada...' : '🔄 Cargando bases de datos...');
     
     const databases = [];
     let hasMore = true;
@@ -248,6 +265,15 @@ app.get('/databases', async (req, res) => {
     }
 
     console.log('📊 Total bases de datos procesadas:', databases.length);
+    
+    // Guardar en cache
+    databasesCache.set(cacheKey, {
+      databases,
+      timestamp: Date.now()
+    });
+    
+    console.log('💾 Bases de datos guardadas en cache por 15 minutos');
+    
     res.json(databases);
   } catch (error) {
     console.error('❌ Error general:', error);
@@ -255,21 +281,65 @@ app.get('/databases', async (req, res) => {
   }
 });
 
-// Obtener flashcards de una base de datos (SÚPER OPTIMIZADO)
+// Endpoint para sincronizar bases de datos manualmente
+app.post('/databases/sync', async (req, res) => {
+  try {
+    console.log('🔄 Sincronización manual de bases de datos iniciada...');
+    
+    // Limpiar cache
+    databasesCache.delete('all_databases');
+    
+    // Redirigir a la búsqueda con force_refresh
+    const syncUrl = `http://localhost:3002/databases?force_refresh=true`;
+    const response = await fetch(syncUrl);
+    const databases = await response.json();
+    
+    console.log('✅ Sincronización completada:', databases.length, 'bases de datos');
+    
+    res.json({ 
+      success: true, 
+      message: 'Bases de datos sincronizadas correctamente',
+      count: databases.length,
+      databases 
+    });
+  } catch (error) {
+    console.error('❌ Error en sincronización manual:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Cache para flashcards (5 minutos de TTL)
+const flashcardsCache = new Map();
+const FLASHCARDS_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+// Obtener flashcards de una base de datos (MÉTODO ORIGINAL QUE FUNCIONABA)
 app.get('/databases/:databaseId/flashcards', async (req, res) => {
   try {
     const { databaseId } = req.params;
-    console.log('🚀 Obteniendo flashcards OPTIMIZADO para:', databaseId);
+    console.log('🚀 Obteniendo flashcards para:', databaseId);
+    
+    // Verificar cache primero
+    const cacheKey = databaseId;
+    const cached = flashcardsCache.get(cacheKey);
+    
+    if (cached && (Date.now() - cached.timestamp) < FLASHCARDS_CACHE_TTL) {
+      console.log('⚡ Usando cache para flashcards:', cached.flashcards.length);
+      return res.json(cached.flashcards);
+    }
     
     const startTime = Date.now();
     const flashcards = [];
     let hasMore = true;
     let nextCursor = undefined;
-    let totalProcessed = 0;
+    let pagesProcessed = 0;
     
-    // Usar el endpoint directo de la base de datos (MUCHO más rápido)
+    console.log(`🎯 Buscando TODAS las flashcards de la base de datos ${databaseId}`);
+    
     while (hasMore) {
-      console.log(`📄 Obteniendo página ${Math.floor(totalProcessed/100) + 1} de resultados...`);
+      console.log(`📄 Página ${pagesProcessed + 1}...`);
       
       const response = await notion.search({
         query: '',
@@ -281,128 +351,102 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
         }
       });
       
-      // Filtrar páginas que pertenecen a esta base de datos específica
       const pagesInThisDb = response.results.filter((page) => 
         page.object === 'page' &&
         page.parent && 
         page.parent.database_id === databaseId
       );
       
-      console.log(`📊 Páginas de esta base de datos en esta consulta: ${pagesInThisDb.length}`);
+      console.log(`📊 Páginas totales en esta búsqueda: ${response.results.length}`);
+      console.log(`📊 Páginas de esta DB específica: ${pagesInThisDb.length}`);
       
-      // Procesar páginas en lotes pequeños para mejor rendimiento
-      const batchSize = 10;
-      for (let i = 0; i < pagesInThisDb.length; i += batchSize) {
-        const batch = pagesInThisDb.slice(i, i + batchSize);
-        
-        const batchPromises = batch.map(async (page) => {
-          if (page.properties) {
-            const properties = page.properties;
+      // Procesar TODAS las páginas encontradas de esta base de datos
+      const batchPromises = pagesInThisDb.map(async (page) => {
+        if (page.properties) {
+          const properties = page.properties;
 
-            // Buscar título (columna "Nombre")
-            const titleProperty = Object.values(properties).find((prop) => prop.type === 'title');
-            const title = titleProperty ? 
-              titleProperty.title?.map((t) => t.plain_text).join('') || 'Sin título' : 'Sin título';
+          // Buscar título (columna "Nombre")
+          const titleProperty = Object.values(properties).find((prop) => prop.type === 'title');
+          const title = titleProperty ? 
+            titleProperty.title?.map((t) => t.plain_text).join('') || 'Sin título' : 'Sin título';
 
-            // Buscar estado en la columna "Dominio" (OPTIMIZADO)
-            let state = 'tocado';
-            const dominioProperty = properties['Dominio'];
-            if (dominioProperty && dominioProperty.type === 'select' && dominioProperty.select) {
-              const dominioValue = dominioProperty.select.name;
-              switch (dominioValue?.toLowerCase()) {
-                case 'verde': state = 'verde'; break;
-                case 'solido':
-                case 'sólido': state = 'solido'; break;
-                default: state = 'tocado';
-              }
+          // Buscar estado en la columna "Dominio" (OPTIMIZADO)
+          let state = 'tocado';
+          const dominioProperty = properties['Dominio'];
+          if (dominioProperty && dominioProperty.type === 'select' && dominioProperty.select) {
+            const dominioValue = dominioProperty.select.name;
+            switch (dominioValue?.toLowerCase()) {
+              case 'verde': state = 'verde'; break;
+              case 'solido':
+              case 'sólido': state = 'solido'; break;
+              default: state = 'tocado';
             }
-
-            // Buscar notas en "Nota Propia" (OPTIMIZADO)
-            let notes = '';
-            const notaProperty = properties['Nota Propia'];
-            if (notaProperty && notaProperty.type === 'rich_text') {
-              notes = notaProperty.rich_text?.map((t) => t.plain_text).join('') || '';
-            }
-
-            // Conceptos relacionados (SIMPLIFICADO)
-            let relatedConcepts = [];
-            const relacionadosProperty = properties['Conceptos Relacionados'];
-            if (relacionadosProperty && relacionadosProperty.type === 'multi_select') {
-              relatedConcepts = relacionadosProperty.multi_select?.map((s) => s.name) || [];
-            }
-
-            // Solo propiedades esenciales para velocidad
-            const auxiliaryInfo = {};
-            const essentialProps = ['Fecha', 'Categoria', 'Tipo', 'Prioridad'];
-            
-            for (const propName of essentialProps) {
-              const propValue = properties[propName];
-              if (propValue) {
-                let value = '';
-                switch (propValue.type) {
-                  case 'rich_text':
-                    value = propValue.rich_text?.map((t) => t.plain_text).join('') || '';
-                    break;
-                  case 'select':
-                    value = propValue.select?.name || '';
-                    break;
-                  case 'date':
-                    if (propValue.date?.start) {
-                      value = new Date(propValue.date.start).toLocaleDateString('es-ES');
-                    }
-                    break;
-                }
-                
-                if (value && value.trim()) {
-                  auxiliaryInfo[propName] = {
-                    type: propValue.type,
-                    value: value.trim()
-                  };
-                }
-              }
-            }
-
-            return {
-              id: page.id,
-              title,
-              content: title || 'Sin contenido disponible',
-              state,
-              lastReviewed: null,
-              notes,
-              relatedConcepts,
-              auxiliaryInfo,
-              databaseId,
-              createdAt: new Date(page.created_time),
-              viewCount: 0,
-              reviewNotes: [],
-            };
           }
-          return null;
-        });
 
-        const batchResults = await Promise.all(batchPromises);
-        flashcards.push(...batchResults.filter(card => card !== null));
-        
-        console.log(`📊 Procesado lote ${Math.floor(i/batchSize) + 1}/${Math.ceil(pagesInThisDb.length/batchSize)}`);
-      }
+          // Buscar notas en "Nota Propia" (OPTIMIZADO)
+          let notes = '';
+          const notaProperty = properties['Nota Propia'];
+          if (notaProperty && notaProperty.type === 'rich_text') {
+            notes = notaProperty.rich_text?.map((t) => t.plain_text).join('') || '';
+          }
+
+          // Conceptos relacionados (SIMPLIFICADO)
+          let relatedConcepts = [];
+          const relacionadosProperty = properties['Conceptos Relacionados'];
+          if (relacionadosProperty && relacionadosProperty.type === 'multi_select') {
+            relatedConcepts = relacionadosProperty.multi_select?.map((s) => s.name) || [];
+          }
+
+          return {
+            id: page.id,
+            title,
+            content: title || 'Sin contenido disponible',
+            state,
+            lastReviewed: null,
+            notes,
+            relatedConcepts,
+            auxiliaryInfo: {},
+            databaseId,
+            createdAt: new Date(page.created_time),
+            viewCount: 0,
+            reviewNotes: [],
+          };
+        }
+        return null;
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      const validResults = batchResults.filter(card => card !== null);
+      flashcards.push(...validResults);
       
-      totalProcessed += response.results.length;
+      pagesProcessed++;
       hasMore = response.has_more;
       nextCursor = response.next_cursor;
       
-      // Límite de seguridad para velocidad
-      if (flashcards.length >= 500) {
-        console.log(`⚠️ Límite de 500 flashcards alcanzado para velocidad`);
+      console.log(`📊 Flashcards de esta DB encontradas en esta página: ${validResults.length}`);
+      console.log(`📊 Total flashcards de esta DB hasta ahora: ${flashcards.length}`);
+      console.log(`📄 ¿Hay más páginas en Notion?: ${response.has_more}`);
+      
+      // CRÍTICO: Continuar hasta que Notion diga que no hay más páginas
+      if (!response.has_more) {
+        console.log(`🏁 FINAL: Búsqueda completa terminada.`);
+        console.log(`📊 Total flashcards encontradas para esta DB: ${flashcards.length}`);
         break;
       }
     }
     
     const endTime = Date.now();
-    console.log(`🚀 OPTIMIZADO: ${flashcards.length} flashcards procesadas en ${endTime - startTime}ms`);
+    console.log(`🚀 COMPLETADO: ${flashcards.length} flashcards procesadas en ${endTime - startTime}ms`);
     console.log('📊 Estados:', {
       tocado: flashcards.filter(f => f.state === 'tocado').length,
       verde: flashcards.filter(f => f.state === 'verde').length,
       solido: flashcards.filter(f => f.state === 'solido').length,
+    });
+    
+    // Guardar en cache
+    flashcardsCache.set(cacheKey, {
+      flashcards,
+      timestamp: Date.now()
     });
     
     res.json(flashcards);
@@ -723,39 +767,57 @@ app.put('/flashcards/:flashcardId/state', async (req, res) => {
     
     console.log('🔄 Actualizando estado de flashcard:', flashcardId, 'a:', state);
     
-    // Responder inmediatamente al cliente
-    res.json({ 
-      success: true, 
-      updated: ['Dominio']
-    });
-    
-    // Actualizar en Notion de forma asíncrona (no bloquear la respuesta)
-    setImmediate(async () => {
-      try {
-        let dominioValue = 'Tocado';
-        switch (state) {
-          case 'tocado': dominioValue = 'Tocado'; break;
-          case 'verde': dominioValue = 'Verde'; break;
-          case 'solido': dominioValue = 'Sólido'; break;
-        }
-        
-        await notion.pages.update({
-          page_id: flashcardId,
-          properties: {
-            'Dominio': {
-              select: { name: dominioValue }
-            }
-          }
+    // Verificar si existe la columna "Dominio" antes de actualizar
+    try {
+      const page = await notion.pages.retrieve({ page_id: flashcardId });
+      const properties = page.properties;
+      
+      console.log('🔍 Propiedades disponibles:', Object.keys(properties));
+      console.log('🔍 Buscando columna "Dominio":', properties['Dominio'] ? 'ENCONTRADA' : 'NO ENCONTRADA');
+      
+      if (!properties['Dominio']) {
+        console.log('⚠️ Columna "Dominio" no encontrada - enviando mensaje de error');
+        return res.json({ 
+          success: false, 
+          updated: [],
+          dominioMessage: 'Columna "Dominio" no encontrada en la base de datos. Para usar el sistema de estados de conocimiento, agrega una columna de tipo "Select" con el nombre "Dominio" y opciones: Tocado, Verde, Sólido a tu base de datos de Notion.'
         });
-        
-        console.log('✅ Estado actualizado en Notion (async)');
-        
-        // Invalidar cache para esta página
-        pagePropertiesCache.delete(flashcardId);
-      } catch (error) {
-        console.error('❌ Error actualizando estado en Notion (async):', error);
       }
-    });
+      
+      console.log('✅ Columna "Dominio" encontrada, procediendo con la actualización');
+      
+      // Solo si la columna existe, proceder con la actualización
+      let dominioValue = 'Tocado';
+      switch (state) {
+        case 'tocado': dominioValue = 'Tocado'; break;
+        case 'verde': dominioValue = 'Verde'; break;
+        case 'solido': dominioValue = 'Sólido'; break;
+      }
+      
+      await notion.pages.update({
+        page_id: flashcardId,
+        properties: {
+          'Dominio': {
+            select: { name: dominioValue }
+          }
+        }
+      });
+      
+      console.log('✅ Estado actualizado en Notion exitosamente');
+      
+      // Invalidar cache para esta página
+      pagePropertiesCache.delete(flashcardId);
+      
+      // Responder con éxito
+      res.json({ 
+        success: true, 
+        updated: ['Dominio']
+      });
+      
+    } catch (error) {
+      console.error('❌ Error verificando propiedades de página:', error);
+      res.status(500).json({ error: 'Error verificando estructura de la base de datos' });
+    }
     
   } catch (error) {
     console.error('❌ Error en endpoint de estado:', error);

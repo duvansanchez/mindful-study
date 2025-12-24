@@ -62,7 +62,7 @@ export class NotionService {
   }
 
   // Actualizar el estado de una flashcard en Notion
-  static async updateFlashcardState(flashcardId: string, newState: KnowledgeState): Promise<{ success: boolean; lastReviewMessage?: string; updated?: string[] }> {
+  static async updateFlashcardState(flashcardId: string, newState: KnowledgeState): Promise<{ success: boolean; lastReviewMessage?: string; dominioMessage?: string; updated?: string[] }> {
     try {
       console.log('🔄 NotionService: Enviando actualización de estado:', { flashcardId, newState });
       
@@ -81,7 +81,12 @@ export class NotionService {
       }
       
       const result = await response.json();
-      console.log('✅ NotionService: Resultado:', result);
+      console.log('✅ NotionService: Resultado completo:', result);
+      
+      if (result.dominioMessage) {
+        console.log('⚠️ NotionService: Mensaje de Dominio detectado:', result.dominioMessage);
+      }
+      
       return result;
     } catch (error) {
       console.error('❌ NotionService: Error updating flashcard state:', error);

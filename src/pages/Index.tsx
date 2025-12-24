@@ -198,16 +198,22 @@ const Index = () => {
         newState,
       });
       
-      // Update local state
-      setReviewCards(prev => prev.map(c => 
-        c.id === currentCard.id ? { ...c, state: newState } : c
-      ));
+      // Update local state only if successful
+      if (result.success) {
+        setReviewCards(prev => prev.map(c => 
+          c.id === currentCard.id ? { ...c, state: newState } : c
+        ));
+      }
       
-      // Retornar solo el resultado del cambio de estado (sin mensaje de fecha)
-      return { success: result.success, updated: result.updated };
+      // Retornar el resultado completo incluyendo mensajes de error
+      return { 
+        success: result.success, 
+        updated: result.updated,
+        dominioMessage: result.dominioMessage 
+      };
     } catch (error) {
       console.error('Error updating flashcard state:', error);
-      throw error;
+      return { success: false };
     }
   };
 
