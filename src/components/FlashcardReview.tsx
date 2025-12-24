@@ -35,6 +35,7 @@ export function FlashcardReview({
   const [showNotesPanel, setShowNotesPanel] = useState(false);
   
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
+  const [dominioMessage, setDominioMessage] = useState<string | null>(null);
   const [updatingState, setUpdatingState] = useState(false);
   const [updatingReviewDate, setUpdatingReviewDate] = useState(false);
 
@@ -63,7 +64,18 @@ export function FlashcardReview({
     
     setUpdatingState(true);
     try {
-      await onStateChange(newState);
+      console.log('🔄 Cambiando estado a:', newState);
+      const result = await onStateChange(newState);
+      console.log('📡 Resultado recibido:', result);
+      
+      // Verificar si hay mensaje de error sobre la columna Dominio
+      if (!result.success && result.dominioMessage) {
+        console.log('⚠️ Mostrando mensaje de error de Dominio:', result.dominioMessage);
+        setDominioMessage(result.dominioMessage);
+      } else {
+        console.log('✅ Actualización exitosa o sin mensaje de error');
+        setDominioMessage(null);
+      }
     } finally {
       setUpdatingState(false);
     }
@@ -91,6 +103,7 @@ export function FlashcardReview({
       setShowNoteInput(false);
       setNoteText("");
       setLastReviewMessage(null);
+      setDominioMessage(null);
     } finally {
       setUpdatingReviewDate(false);
       onNext();
@@ -160,6 +173,7 @@ export function FlashcardReview({
     setShowNoteInput(false);
     setNoteText("");
     setLastReviewMessage(null);
+    setDominioMessage(null);
     lastKeyPressRef.current = null;
   }, [card.id]);
 
@@ -258,6 +272,23 @@ export function FlashcardReview({
                     </p>
                     <p className="text-sm text-yellow-700 dark:text-yellow-300">
                       {lastReviewMessage}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Warning message about Dominio field */}
+            {dominioMessage && (
+              <div className="animate-fade-in">
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">
+                      Columna "Dominio" no encontrada
+                    </p>
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      {dominioMessage}
                     </p>
                   </div>
                 </div>
