@@ -63,7 +63,7 @@ const ToggleBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
     }
   }, [block.hasChildren, block.id, loaded]);
 
-  const getToggleStyle = () => {
+  const getHeaderStyle = () => {
     switch (block.type) {
       case 'heading_1':
         return "text-2xl font-bold mt-6 mb-3";
@@ -71,29 +71,82 @@ const ToggleBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
         return "text-xl font-semibold mt-5 mb-2";
       case 'heading_3':
         return "text-lg font-medium mt-4 mb-2";
+      case 'bulleted_list_item':
+        return "ml-4";
+      case 'numbered_list_item':
+        return "ml-4";
       default:
         return "font-medium";
     }
   };
 
-  return (
-    <div className="my-2">
-      <div
-        onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 hover:bg-muted p-2 rounded w-full text-left border border-transparent hover:border-border cursor-pointer ${getToggleStyle()}`}
-      >
-        <span className={`text-muted-foreground transition-transform ${isOpen ? 'rotate-90' : ''}`}>
-          ▶
-        </span>
-        <RichTextRenderer richText={block.content?.rich_text || []} />
-        {block.hasChildren && (
-          <span className="text-xs text-muted-foreground ml-auto font-normal">
-            {loading ? 'Cargando...' : loaded ? `${children.length} elementos` : 'Expandir'}
+  const renderHeader = () => {
+    const richText = block.content?.rich_text || [];
+    
+    if (block.type === 'bulleted_list_item') {
+      return (
+        <div className="flex items-start gap-2">
+          <span className="text-foreground mt-1.5 text-sm">•</span>
+          <div className="flex-1">
+            <RichTextRenderer richText={richText} />
+          </div>
+        </div>
+      );
+    }
+    
+    if (block.type === 'numbered_list_item') {
+      return (
+        <div className="flex items-start gap-2">
+          <span className="text-foreground mt-1.5 text-sm">1.</span>
+          <div className="flex-1">
+            <RichTextRenderer richText={richText} />
+          </div>
+        </div>
+      );
+    }
+    
+    return <RichTextRenderer richText={richText} />;
+  };
+
+  // Solo mostrar como toggle expandible si es realmente un toggle
+  if (block.type === 'toggle') {
+    return (
+      <div className="my-2">
+        <div
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-start gap-2 hover:bg-muted p-2 rounded cursor-pointer font-medium"
+        >
+          <span className={`text-muted-foreground transition-transform ${isOpen ? 'rotate-90' : ''}`}>
+            ▶
           </span>
+          <div className="flex-1">
+            <RichTextRenderer richText={block.content?.rich_text || []} />
+          </div>
+        </div>
+        {isOpen && (
+          <div className="ml-6 mt-2 space-y-2">
+            {loading ? (
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
+                Cargando contenido...
+              </div>
+            ) : children.length > 0 ? (
+              <NotionRenderer blocks={children} />
+            ) : null}
+          </div>
         )}
       </div>
-      {isOpen && (
-        <div className="ml-6 mt-2 space-y-1 border-l-2 border-muted pl-4">
+    );
+  }
+
+  // Para otros tipos con hijos, mostrar el contenido directamente y luego los hijos
+  return (
+    <div className="my-2">
+      <div className={getHeaderStyle()}>
+        {renderHeader()}
+      </div>
+      {block.hasChildren && (
+        <div className="ml-6 mt-2 space-y-2">
           {loading ? (
             <div className="text-sm text-muted-foreground flex items-center gap-2">
               <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
@@ -101,9 +154,7 @@ const ToggleBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
             </div>
           ) : children.length > 0 ? (
             <NotionRenderer blocks={children} />
-          ) : (
-            <div className="text-sm text-muted-foreground">Sin contenido</div>
-          )}
+          ) : null}
         </div>
       )}
     </div>
@@ -228,19 +279,13 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
   }
 
   return (
-    <div className="notion-content space-y-2">
+    <div className="notion-content space-y-3">
       {blocks.map((block) => {
-        // Permitir bloques sin rich_text para toggles y otros tipos especiales
-        if (!block.content?.rich_text && block.type !== 'toggle' && block.type !== 'divider') {
-          return null;
-        }
-
         const richText = block.content?.rich_text || [];
         const key = block.id;
 
         switch (block.type) {
           case 'paragraph':
-            // Si tiene hijos, renderizar como toggle
             if (block.hasChildren) {
               return <ToggleBlock key={key} block={block} />;
             }
@@ -251,7 +296,6 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
             );
 
           case 'heading_1':
-            // Si tiene hijos, renderizar como toggle
             if (block.hasChildren) {
               return <ToggleBlock key={key} block={block} />;
             }
@@ -262,7 +306,6 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
             );
 
           case 'heading_2':
-            // Si tiene hijos, renderizar como toggle
             if (block.hasChildren) {
               return <ToggleBlock key={key} block={block} />;
             }
@@ -273,7 +316,6 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
             );
 
           case 'heading_3':
-            // Si tiene hijos, renderizar como toggle
             if (block.hasChildren) {
               return <ToggleBlock key={key} block={block} />;
             }
@@ -284,8 +326,11 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
             );
 
           case 'bulleted_list_item':
+            if (block.hasChildren) {
+              return <ToggleBlock key={key} block={block} />;
+            }
             return (
-              <div key={key} className="flex items-start gap-2 ml-4">
+              <div key={key} className="flex items-start gap-2 ml-4 my-1">
                 <span className="text-foreground mt-1.5 text-sm">•</span>
                 <div className="flex-1 leading-relaxed whitespace-pre-wrap">
                   <RichTextRenderer richText={richText} />
@@ -294,8 +339,11 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
             );
 
           case 'numbered_list_item':
+            if (block.hasChildren) {
+              return <ToggleBlock key={key} block={block} />;
+            }
             return (
-              <div key={key} className="flex items-start gap-2 ml-4">
+              <div key={key} className="flex items-start gap-2 ml-4 my-1">
                 <span className="text-foreground mt-1.5 text-sm">1.</span>
                 <div className="flex-1 leading-relaxed whitespace-pre-wrap">
                   <RichTextRenderer richText={richText} />
@@ -323,8 +371,8 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
 
           case 'callout':
             return (
-              <div key={key} className="flex gap-3 p-4 bg-muted rounded-lg border-l-4 border-blue-500">
-                {block.content.icon && (
+              <div key={key} className="flex gap-3 p-4 bg-muted rounded-lg border-l-4 border-blue-500 my-3">
+                {block.content?.icon && (
                   <span className="text-lg">
                     {typeof block.content.icon === 'string' ? block.content.icon : '💡'}
                   </span>
@@ -337,14 +385,14 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
 
           case 'quote':
             return (
-              <blockquote key={key} className="border-l-4 border-muted-foreground pl-4 italic text-muted-foreground whitespace-pre-wrap">
+              <blockquote key={key} className="border-l-4 border-muted-foreground pl-4 italic text-muted-foreground whitespace-pre-wrap my-3">
                 <RichTextRenderer richText={richText} />
               </blockquote>
             );
 
           case 'code':
             return (
-              <pre key={key} className="bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre">
+              <pre key={key} className="bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre my-3">
                 <code className="text-sm font-mono">
                   <RichTextRenderer richText={richText} />
                 </code>
@@ -354,12 +402,27 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
           case 'divider':
             return <hr key={key} className="my-6 border-border" />;
 
-          default:
+          case 'column_list':
+          case 'column':
+            if (block.hasChildren) {
+              return <ToggleBlock key={key} block={block} />;
+            }
             return (
               <div key={key} className="leading-relaxed whitespace-pre-wrap">
                 <RichTextRenderer richText={richText} />
               </div>
             );
+
+          default:
+            // Para tipos desconocidos, mostrar el contenido si existe
+            if (richText.length > 0) {
+              return (
+                <div key={key} className="leading-relaxed whitespace-pre-wrap">
+                  <RichTextRenderer richText={richText} />
+                </div>
+              );
+            }
+            return null;
         }
       })}
     </div>
