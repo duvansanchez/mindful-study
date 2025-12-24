@@ -233,6 +233,13 @@ const Index = () => {
     }
   };
 
+  const handlePreviousCard = () => {
+    // Ir a la tarjeta anterior si no estamos en la primera
+    if (currentCardIndex > 0) {
+      setCurrentCardIndex(prev => prev - 1);
+    }
+  };
+
   const handleCloseReview = () => {
     setView('home');
     setSelectedDatabaseId(null);
@@ -529,6 +536,7 @@ const Index = () => {
           card={reviewCards[currentCardIndex]}
           onStateChange={handleStateChange}
           onNext={handleNextCard}
+          onPrevious={handlePreviousCard}
           onClose={handleCloseReview}
           currentIndex={currentCardIndex}
           totalCards={reviewCards.length}

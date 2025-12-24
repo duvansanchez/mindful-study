@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
+import type { NotionBlock } from "./NotionRenderer";
 import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
@@ -14,6 +15,7 @@ interface FlashcardReviewProps {
   totalCards: number;
   onClose: () => void;
   onNext: () => void;
+  onPrevious?: () => void;
   onStateChange: (state: KnowledgeState) => void;
 }
 
@@ -23,6 +25,7 @@ export function FlashcardReview({
   totalCards, 
   onClose, 
   onNext, 
+  onPrevious,
   onStateChange 
 }: FlashcardReviewProps) {
   const [revealed, setRevealed] = useState(false);
@@ -34,6 +37,10 @@ export function FlashcardReview({
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
   const [updatingState, setUpdatingState] = useState(false);
   const [updatingReviewDate, setUpdatingReviewDate] = useState(false);
+
+  // Estado para detectar doble clic en flechas
+  const lastKeyPressRef = useRef<{ key: string; time: number } | null>(null);
+  const DOUBLE_CLICK_THRESHOLD = 500; // 500ms para detectar doble clic
 
   const { 
     data: detailedContent, 
@@ -47,9 +54,9 @@ export function FlashcardReview({
   const addNoteMutation = useAddReviewNote();
   const deleteNoteMutation = useDeleteReviewNote();
 
-  const handleReveal = () => {
+  const handleReveal = useCallback(() => {
     setRevealed(true);
-  };
+  }, []);
 
   const handleStateChange = async (newState: KnowledgeState) => {
     if (updatingState) return;
@@ -62,7 +69,7 @@ export function FlashcardReview({
     }
   };
 
-  const handleNext = async () => {
+  const handleNext = useCallback(async () => {
     if (updatingReviewDate) return;
     
     setUpdatingReviewDate(true);
@@ -88,7 +95,73 @@ export function FlashcardReview({
       setUpdatingReviewDate(false);
       onNext();
     }
-  };
+  }, [card.id, updatingReviewDate, onNext]);
+
+  // Manejar navegación con teclado (doble clic en flechas, Enter simple para revelar)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Solo procesar si no estamos escribiendo en un input/textarea
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const currentTime = Date.now();
+      const key = event.key;
+
+      // Enter simple para revelar contenido
+      if (key === 'Enter' && !revealed) {
+        event.preventDefault();
+        console.log('🎯 Enter - Revelar contenido');
+        handleReveal();
+        return;
+      }
+
+      // Doble clic para navegación con flechas
+      if (key === 'ArrowRight' || key === 'ArrowLeft') {
+        event.preventDefault();
+
+        // Verificar si es el mismo key presionado dentro del threshold
+        if (
+          lastKeyPressRef.current &&
+          lastKeyPressRef.current.key === key &&
+          currentTime - lastKeyPressRef.current.time < DOUBLE_CLICK_THRESHOLD
+        ) {
+          // Doble clic detectado
+          if (key === 'ArrowRight' && onNext) {
+            console.log('🎯 Doble clic flecha derecha - Siguiente flashcard');
+            handleNext();
+          } else if (key === 'ArrowLeft' && onPrevious && currentIndex > 0) {
+            console.log('🎯 Doble clic flecha izquierda - Flashcard anterior');
+            onPrevious();
+          }
+          
+          // Resetear el último key press para evitar triple clicks
+          lastKeyPressRef.current = null;
+        } else {
+          // Primer clic, guardar el tiempo y key
+          lastKeyPressRef.current = { key, time: currentTime };
+        }
+      }
+    };
+
+    // Agregar event listener
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onNext, onPrevious, currentIndex, handleNext, revealed, handleReveal]);
+
+  // Resetear estado cuando cambia la flashcard
+  useEffect(() => {
+    setRevealed(false);
+    setShowAuxiliary(false);
+    setShowNoteInput(false);
+    setNoteText("");
+    setLastReviewMessage(null);
+    lastKeyPressRef.current = null;
+  }, [card.id]);
 
   const handleAddNote = async () => {
     if (!noteText.trim()) return;
@@ -130,6 +203,9 @@ export function FlashcardReview({
           </button>
           <div className="text-sm text-muted-foreground">
             {currentIndex + 1} de {totalCards}
+          </div>
+          <div className="text-xs text-muted-foreground/70 hidden sm:block">
+            ⏎ revelar | Doble clic ← → navegar
           </div>
         </div>
         
@@ -309,7 +385,7 @@ export function FlashcardReview({
                       </div>
                       
                       {detailedContent?.blocks ? (
-                        <NotionRenderer blocks={detailedContent.blocks} />
+                        <NotionRenderer blocks={detailedContent.blocks as NotionBlock[]} />
                       ) : (
                         <div className="prose prose-sm">
                           {(detailedContent?.content || card.content || 'Sin contenido disponible').split('\n').map((paragraph, i) => (

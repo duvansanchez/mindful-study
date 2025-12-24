@@ -33,6 +33,8 @@ interface NotionBlock {
   hasChildren?: boolean;
 }
 
+export type { NotionBlock };
+
 interface NotionRendererProps {
   blocks: NotionBlock[];
 }
