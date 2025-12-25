@@ -29,7 +29,12 @@ export function FlashcardReview({
   onStateChange 
 }: FlashcardReviewProps) {
   const [revealed, setRevealed] = useState(false);
-  const [showAuxiliary, setShowAuxiliary] = useState(false);
+  // Estado para mantener la preferencia de información adicional durante la sesión
+  const [showAuxiliary, setShowAuxiliary] = useState(() => {
+    // Recuperar la preferencia guardada en localStorage
+    const saved = localStorage.getItem('flashcard-show-auxiliary');
+    return saved === 'true';
+  });
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [showNotesPanel, setShowNotesPanel] = useState(false);
@@ -39,9 +44,8 @@ export function FlashcardReview({
   const [updatingState, setUpdatingState] = useState(false);
   const [updatingReviewDate, setUpdatingReviewDate] = useState(false);
 
-  // Estado para detectar doble clic en flechas
+  // Estado para navegación con teclado
   const lastKeyPressRef = useRef<{ key: string; time: number } | null>(null);
-  const DOUBLE_CLICK_THRESHOLD = 500; // 500ms para detectar doble clic
 
   const { 
     data: detailedContent, 
@@ -58,6 +62,14 @@ export function FlashcardReview({
   const handleReveal = useCallback(() => {
     setRevealed(true);
   }, []);
+
+  // Función para manejar el cambio de preferencia de información adicional
+  const handleToggleAuxiliary = () => {
+    const newValue = !showAuxiliary;
+    setShowAuxiliary(newValue);
+    // Guardar la preferencia en localStorage para mantenerla durante la sesión
+    localStorage.setItem('flashcard-show-auxiliary', newValue.toString());
+  };
 
   const handleStateChange = async (newState: KnowledgeState) => {
     if (updatingState) return;
@@ -97,9 +109,9 @@ export function FlashcardReview({
         setLastReviewMessage(result.lastReviewMessage);
       }
       
-      // Resetear estado del componente
+      // Resetear estado del componente (EXCEPTO showAuxiliary que se mantiene)
       setRevealed(false);
-      setShowAuxiliary(false);
+      // NO resetear showAuxiliary - mantener la preferencia del usuario
       setShowNoteInput(false);
       setNoteText("");
       setLastReviewMessage(null);
@@ -110,7 +122,7 @@ export function FlashcardReview({
     }
   }, [card.id, updatingReviewDate, onNext]);
 
-  // Manejar navegación con teclado (doble clic en flechas, Enter simple para revelar)
+  // Manejar navegación con teclado (flechas simples, Enter para revelar)
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Solo procesar si no estamos escribiendo en un input/textarea
@@ -129,30 +141,42 @@ export function FlashcardReview({
         return;
       }
 
-      // Doble clic para navegación con flechas
+      // Atajos para cambiar estados de conocimiento
+      if (key === '1' || key === '2' || key === '3') {
+        event.preventDefault();
+        let newState: KnowledgeState;
+        
+        switch (key) {
+          case '1':
+            newState = 'tocado';
+            console.log('🎯 Tecla 1 - Cambiar a Tocado');
+            break;
+          case '2':
+            newState = 'verde';
+            console.log('🎯 Tecla 2 - Cambiar a Verde');
+            break;
+          case '3':
+            newState = 'solido';
+            console.log('🎯 Tecla 3 - Cambiar a Sólido');
+            break;
+          default:
+            return;
+        }
+        
+        handleStateChange(newState);
+        return;
+      }
+
+      // Navegación simple con flechas (un solo clic)
       if (key === 'ArrowRight' || key === 'ArrowLeft') {
         event.preventDefault();
 
-        // Verificar si es el mismo key presionado dentro del threshold
-        if (
-          lastKeyPressRef.current &&
-          lastKeyPressRef.current.key === key &&
-          currentTime - lastKeyPressRef.current.time < DOUBLE_CLICK_THRESHOLD
-        ) {
-          // Doble clic detectado
-          if (key === 'ArrowRight' && onNext) {
-            console.log('🎯 Doble clic flecha derecha - Siguiente flashcard');
-            handleNext();
-          } else if (key === 'ArrowLeft' && onPrevious && currentIndex > 0) {
-            console.log('🎯 Doble clic flecha izquierda - Flashcard anterior');
-            onPrevious();
-          }
-          
-          // Resetear el último key press para evitar triple clicks
-          lastKeyPressRef.current = null;
-        } else {
-          // Primer clic, guardar el tiempo y key
-          lastKeyPressRef.current = { key, time: currentTime };
+        if (key === 'ArrowRight' && onNext) {
+          console.log('🎯 Flecha derecha - Siguiente flashcard');
+          handleNext();
+        } else if (key === 'ArrowLeft' && onPrevious && currentIndex > 0) {
+          console.log('🎯 Flecha izquierda - Flashcard anterior');
+          onPrevious();
         }
       }
     };
@@ -166,10 +190,10 @@ export function FlashcardReview({
     };
   }, [onNext, onPrevious, currentIndex, handleNext, revealed, handleReveal]);
 
-  // Resetear estado cuando cambia la flashcard
+  // Resetear estado cuando cambia la flashcard (EXCEPTO showAuxiliary que se mantiene)
   useEffect(() => {
     setRevealed(false);
-    setShowAuxiliary(false);
+    // NO resetear showAuxiliary - mantener la preferencia del usuario
     setShowNoteInput(false);
     setNoteText("");
     setLastReviewMessage(null);
@@ -202,7 +226,7 @@ export function FlashcardReview({
     }
   };
 
-  const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar", "definición formal", "ejemplo", "fórmula", "contexto"];
+  const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar", "Sinónimo", "definición formal", "ejemplo", "fórmula", "contexto"];
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col">
@@ -219,7 +243,7 @@ export function FlashcardReview({
             {currentIndex + 1} de {totalCards}
           </div>
           <div className="text-xs text-muted-foreground/70 hidden sm:block">
-            ⏎ revelar | Doble clic ← → navegar
+            ⏎ revelar | ← → navegar | 1️⃣2️⃣3️⃣ estados
           </div>
         </div>
         
@@ -303,18 +327,17 @@ export function FlashcardReview({
               <StateBadge state={card.state} size="sm" />
             </div>
 
-            {/* Auxiliary info toggle */}
-            {!revealed && (
-              <div className="animate-fade-in">
-                <button
-                  onClick={() => setShowAuxiliary(!showAuxiliary)}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showAuxiliary ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  Información adicional
-                </button>
+            {/* Auxiliary info toggle - Always available */}
+            <div className="animate-fade-in">
+              <button
+                onClick={handleToggleAuxiliary}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showAuxiliary ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Información adicional
+              </button>
 
-                {showAuxiliary && (
+              {showAuxiliary && (
                   <div className="mt-4 p-4 rounded-lg bg-card border border-border space-y-4 animate-fade-in">
                     {card.notes && (
                       <div className="flex items-start gap-3">
@@ -386,7 +409,6 @@ export function FlashcardReview({
                   </div>
                 )}
               </div>
-            )}
 
             {/* Reveal button or content */}
             {!revealed ? (
