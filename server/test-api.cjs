@@ -460,9 +460,33 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
                 }
                 break;
               case 'relation':
-                // Para relaciones, mostrar que hay elementos relacionados
+                // Para relaciones, obtener los nombres de las páginas relacionadas
                 if (propValue.relation && propValue.relation.length > 0) {
-                  value = `${propValue.relation.length} elemento(s) relacionado(s)`;
+                  try {
+                    const relationNames = [];
+                    for (const relation of propValue.relation) {
+                      if (relation.id) {
+                        try {
+                          const relatedPage = await notion.pages.retrieve({ page_id: relation.id });
+                          // Obtener el título de la página relacionada
+                          const titleProperty = Object.values(relatedPage.properties).find(prop => prop.type === 'title');
+                          if (titleProperty && titleProperty.title && titleProperty.title.length > 0) {
+                            const title = titleProperty.title.map(t => t.plain_text).join('');
+                            relationNames.push(title);
+                          } else {
+                            relationNames.push('Sin título');
+                          }
+                        } catch (error) {
+                          console.error('Error obteniendo página relacionada:', error);
+                          relationNames.push('Página no accesible');
+                        }
+                      }
+                    }
+                    value = relationNames.length > 0 ? relationNames.join(', ') : `${propValue.relation.length} elemento(s) relacionado(s)`;
+                  } catch (error) {
+                    console.error('Error procesando relaciones:', error);
+                    value = `${propValue.relation.length} elemento(s) relacionado(s)`;
+                  }
                 }
                 break;
               case 'people':
@@ -653,6 +677,13 @@ async function getBlockChildren(blockId, depth = 0) {
             break;
           case 'divider':
             processedChild.content = {};
+            break;
+          case 'image':
+            processedChild.content = {
+              file: child.image?.file || null,
+              external: child.image?.external || null,
+              caption: child.image?.caption || []
+            };
             break;
           case 'table':
             console.log('🔍 TABLA DETECTADA EN HIJOS:', child.table);
