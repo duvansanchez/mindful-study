@@ -654,6 +654,24 @@ async function getBlockChildren(blockId, depth = 0) {
           case 'divider':
             processedChild.content = {};
             break;
+          case 'table':
+            console.log('🔍 TABLA DETECTADA EN HIJOS:', child.table);
+            processedChild.content = {
+              table_width: child.table?.table_width || 0,
+              has_column_header: child.table?.has_column_header || false,
+              has_row_header: child.table?.has_row_header || false
+            };
+            // Las tablas siempre necesitan cargar sus filas
+            if (child.has_children) {
+              processedChild.children = await getBlockChildren(child.id, depth + 1);
+            }
+            break;
+          case 'table_row':
+            console.log('🔍 FILA DE TABLA DETECTADA EN HIJOS:', child.table_row);
+            processedChild.content = {
+              cells: child.table_row?.cells || []
+            };
+            break;
           default:
             // Para otros tipos, intentar obtener el texto básico
             console.log(`⚠️ Tipo de bloque no reconocido: ${child.type}`);
@@ -780,8 +798,23 @@ app.get('/flashcards/:flashcardId/content', async (req, res) => {
               caption: block.image?.caption || []
             };
             break;
+          case 'table':
+            console.log('🔍 TABLA DETECTADA:', block.table);
+            processedBlock.content = {
+              table_width: block.table?.table_width || 0,
+              has_column_header: block.table?.has_column_header || false,
+              has_row_header: block.table?.has_row_header || false
+            };
+            break;
+          case 'table_row':
+            console.log('🔍 FILA DE TABLA DETECTADA:', block.table_row);
+            processedBlock.content = {
+              cells: block.table_row?.cells || []
+            };
+            break;
           default:
             // Para tipos no reconocidos, intentar obtener rich_text genérico
+            console.log('⚠️ TIPO NO RECONOCIDO:', block.type, block);
             const richTextField = block[block.type]?.rich_text;
             if (richTextField) {
               processedBlock.content = { rich_text: richTextField };

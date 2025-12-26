@@ -20,6 +20,22 @@ interface RichText {
   href?: string | null;
 }
 
+interface TableContent {
+  table_width?: number;
+  has_column_header?: boolean;
+  has_row_header?: boolean;
+}
+
+interface TableRowContent {
+  cells: RichText[][];
+}
+
+interface ImageContent {
+  file?: { url: string } | null;
+  external?: { url: string } | null;
+  caption?: RichText[];
+}
+
 interface NotionBlock {
   id: string;
   type: string;
@@ -28,6 +44,13 @@ interface NotionBlock {
     icon?: unknown;
     language?: string;
     checked?: boolean;
+    table_width?: number;
+    has_column_header?: boolean;
+    has_row_header?: boolean;
+    cells?: RichText[][];
+    file?: { url: string } | null;
+    external?: { url: string } | null;
+    caption?: RichText[];
   } | null;
   children?: NotionBlock[];
   hasChildren?: boolean;
@@ -38,6 +61,89 @@ export type { NotionBlock };
 interface NotionRendererProps {
   blocks: NotionBlock[];
 }
+
+// Componente para renderizar tablas
+const TableBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
+  const [rows, setRows] = useState<NotionBlock[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  console.log('🔍 TableBlock montado:', block);
+
+  // Cargar filas de la tabla
+  React.useEffect(() => {
+    if (block.hasChildren && !loaded) {
+      console.log('🔍 Cargando filas de tabla para bloque:', block.id);
+      setLoading(true);
+      fetch(`/api/blocks/${block.id}/children`)
+        .then(response => {
+          console.log('🔍 Respuesta de API para filas:', response.status);
+          return response.json();
+        })
+        .then(data => {
+          console.log('🔍 Datos de filas recibidos:', data);
+          setRows(data.children || []);
+          setLoaded(true);
+        })
+        .catch(error => {
+          console.error('❌ Error loading table rows:', error);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [block.hasChildren, block.id, loaded]);
+
+  if (loading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 my-4">
+        <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
+        Cargando tabla...
+      </div>
+    );
+  }
+
+  if (!rows.length) {
+    return null;
+  }
+
+  const tableContent = block.content as TableContent;
+  const hasColumnHeader = tableContent?.has_column_header || false;
+  const hasRowHeader = tableContent?.has_row_header || false;
+
+  return (
+    <div className="my-4 overflow-x-auto">
+      <table className="min-w-full border-collapse border border-border rounded-lg">
+        <tbody>
+          {rows.map((row, rowIndex) => {
+            const cells = (row.content as TableRowContent)?.cells || [];
+            const isHeaderRow = hasColumnHeader && rowIndex === 0;
+            
+            return (
+              <tr key={row.id} className={isHeaderRow ? "bg-muted" : ""}>
+                {cells.map((cell: RichText[], cellIndex: number) => {
+                  const isHeaderCell = hasRowHeader && cellIndex === 0;
+                  const CellComponent = isHeaderRow || isHeaderCell ? 'th' : 'td';
+                  
+                  return (
+                    <CellComponent
+                      key={cellIndex}
+                      className={`border border-border px-3 py-2 text-left ${
+                        isHeaderRow || isHeaderCell ? 'font-semibold' : ''
+                      }`}
+                    >
+                      <RichTextRenderer richText={cell} />
+                    </CellComponent>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 // Componente para toggle con carga automática optimizada
 const ToggleBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
@@ -406,7 +512,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
 
           case 'image':
             // Procesar imágenes de Notion
-            { const imageData = block.content as any;
+            { const imageData = block.content as ImageContent;
             let imageUrl = '';
             let caption = '';
             
@@ -419,7 +525,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
             
             // Obtener caption si existe
             if (imageData?.caption && Array.isArray(imageData.caption)) {
-              caption = imageData.caption.map((c: any) => c.plain_text).join('');
+              caption = imageData.caption.map((c: RichText) => c.plain_text).join('');
             }
             
             if (!imageUrl) {
@@ -464,6 +570,17 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
                 <RichTextRenderer richText={richText} />
               </div>
             );
+
+          case 'table':
+            console.log('🔍 RENDERIZANDO TABLA:', block);
+            if (block.hasChildren) {
+              return <TableBlock key={key} block={block} />;
+            }
+            return null;
+
+          case 'table_row':
+            // Las filas de tabla se procesan dentro del componente TableBlock
+            return null;
 
           default:
             // Para tipos desconocidos, mostrar el contenido si existe

@@ -169,22 +169,8 @@ const Index = () => {
     setView('overview');
   };
 
-  const handleStartReview = (selectedStates: KnowledgeState[]) => {
-    const filteredCards = flashcards
-      .filter(card => selectedStates.includes(card.state))
-      .sort((a, b) => {
-        // Ordenar por "menos visto primero"
-        if (a.viewCount !== b.viewCount) {
-          return a.viewCount - b.viewCount;
-        }
-        // Si tienen el mismo viewCount, ordenar por última revisión (más antiguo primero)
-        if (!a.lastReviewed && !b.lastReviewed) return 0;
-        if (!a.lastReviewed) return -1;
-        if (!b.lastReviewed) return 1;
-        return a.lastReviewed.getTime() - b.lastReviewed.getTime();
-      });
-    
-    setReviewCards(filteredCards);
+  const handleStartReview = (selectedCards: Flashcard[]) => {
+    setReviewCards(selectedCards);
     setCurrentCardIndex(0);
     setView('review');
   };
@@ -529,6 +515,7 @@ const Index = () => {
         <ReviewSetup
           stats={reviewSetupStats}
           databaseName={selectedDatabase.name}
+          flashcards={flashcards}
           onStart={handleStartReview}
           onCancel={() => {
             setView('mode-selection');

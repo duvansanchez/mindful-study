@@ -3,7 +3,7 @@ import { KnowledgeState } from "@/types";
 
 interface StateBadgeProps {
   state: KnowledgeState;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   onClick?: () => void;
   active?: boolean;
   showLabel?: boolean;
@@ -24,6 +24,7 @@ const stateDescriptions: Record<KnowledgeState, string> = {
 
 export function StateBadge({ state, size = 'md', onClick, active = true, showLabel = true, disabled = false }: StateBadgeProps) {
   const sizeClasses = {
+    xs: 'px-1.5 py-0.5 text-xs',
     sm: 'px-2 py-0.5 text-xs',
     md: 'px-3 py-1 text-sm',
     lg: 'px-4 py-1.5 text-base',

@@ -1,17 +1,21 @@
 import { useState } from "react";
-import { KnowledgeState, Statistics } from "@/types";
+import { KnowledgeState, Statistics, Flashcard } from "@/types";
 import { StateBadge } from "./StateBadge";
-import { Play } from "lucide-react";
+import { FlashcardFilters } from "./FlashcardFilters";
+import { Play, Filter } from "lucide-react";
 
 interface ReviewSetupProps {
   stats: Statistics;
   databaseName: string;
-  onStart: (selectedStates: KnowledgeState[]) => void;
+  flashcards: Flashcard[];
+  onStart: (selectedCards: Flashcard[]) => void;
   onCancel: () => void;
 }
 
-export function ReviewSetup({ stats, databaseName, onStart, onCancel }: ReviewSetupProps) {
+export function ReviewSetup({ stats, databaseName, flashcards, onStart, onCancel }: ReviewSetupProps) {
   const [selectedStates, setSelectedStates] = useState<KnowledgeState[]>(['tocado', 'verde']);
+  const [filteredCards, setFilteredCards] = useState<Flashcard[]>(flashcards);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const toggleState = (state: KnowledgeState) => {
     setSelectedStates(prev => 
@@ -21,17 +25,64 @@ export function ReviewSetup({ stats, databaseName, onStart, onCancel }: ReviewSe
     );
   };
 
-  const totalSelected = selectedStates.reduce((acc, state) => acc + stats[state], 0);
+  // Aplicar filtros de estado a las tarjetas ya filtradas por filtros avanzados
+  const finalFilteredCards = filteredCards.filter(card => selectedStates.includes(card.state));
+  
+  // Calcular estadísticas de las tarjetas filtradas
+  const filteredStats = {
+    tocado: filteredCards.filter(c => c.state === 'tocado').length,
+    verde: filteredCards.filter(c => c.state === 'verde').length,
+    solido: filteredCards.filter(c => c.state === 'solido').length,
+    total: filteredCards.length
+  };
+
+  const totalSelected = finalFilteredCards.length;
+
+  const handleStart = () => {
+    // Ordenar por menos visto primero (por fecha de creación como proxy)
+    const sortedCards = [...finalFilteredCards].sort((a, b) => 
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    onStart(sortedCards);
+  };
 
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-md p-6 rounded-xl bg-card border border-border shadow-lg animate-slide-up">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 rounded-xl bg-card border border-border shadow-lg animate-slide-up">
         <h2 className="text-xl font-semibold text-foreground mb-1">
           Iniciar repaso
         </h2>
         <p className="text-sm text-muted-foreground mb-6">
           {databaseName}
         </p>
+
+        {/* Filtros avanzados */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-foreground">Filtros avanzados</h3>
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Filter className="w-4 h-4" />
+              {showAdvancedFilters ? 'Ocultar' : 'Mostrar'} filtros
+            </button>
+          </div>
+          
+          {showAdvancedFilters && (
+            <FlashcardFilters
+              flashcards={flashcards}
+              onFilterChange={setFilteredCards}
+              className="mb-4"
+            />
+          )}
+          
+          {filteredCards.length !== flashcards.length && (
+            <div className="text-sm text-muted-foreground mb-4 p-3 bg-secondary/50 rounded-lg">
+              📊 Mostrando {filteredCards.length} de {flashcards.length} tarjetas después de aplicar filtros
+            </div>
+          )}
+        </div>
 
         <div className="space-y-4 mb-6">
           <p className="text-sm text-muted-foreground">
@@ -43,11 +94,12 @@ export function ReviewSetup({ stats, databaseName, onStart, onCancel }: ReviewSe
               <button
                 key={state}
                 onClick={() => toggleState(state)}
+                disabled={filteredStats[state] === 0}
                 className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
                   selectedStates.includes(state)
                     ? 'border-foreground/20 bg-secondary'
                     : 'border-border hover:border-muted-foreground/20'
-                }`}
+                } ${filteredStats[state] === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
@@ -64,7 +116,7 @@ export function ReviewSetup({ stats, databaseName, onStart, onCancel }: ReviewSe
                   <StateBadge state={state} size="sm" />
                 </div>
                 <span className="text-sm text-muted-foreground">
-                  {stats[state]} tarjetas
+                  {filteredStats[state]} tarjetas
                 </span>
               </button>
             ))}
@@ -86,12 +138,12 @@ export function ReviewSetup({ stats, databaseName, onStart, onCancel }: ReviewSe
             Cancelar
           </button>
           <button
-            onClick={() => onStart(selectedStates)}
+            onClick={handleStart}
             disabled={totalSelected === 0}
             className="flex-1 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Play className="w-4 h-4" />
-            Comenzar
+            Comenzar ({totalSelected})
           </button>
         </div>
       </div>
