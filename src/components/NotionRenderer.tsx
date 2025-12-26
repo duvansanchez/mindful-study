@@ -544,11 +544,12 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
                   className="max-w-full h-auto rounded-lg shadow-sm"
                   loading="lazy"
                   onError={(e) => {
+                    console.error('Error cargando imagen:', imageUrl);
                     const target = e.target as HTMLImageElement;
                     target.style.display = 'none';
                     const parent = target.parentElement;
                     if (parent) {
-                      parent.innerHTML = '<div class="p-4 bg-muted rounded-lg text-center text-muted-foreground">📷 Error cargando imagen</div>';
+                      parent.innerHTML = `<div class="p-4 bg-muted rounded-lg text-center text-muted-foreground">📷 Error cargando imagen<br><small class="text-xs opacity-70">URL: ${imageUrl.substring(0, 50)}...</small></div>`;
                     }
                   }}
                 />
