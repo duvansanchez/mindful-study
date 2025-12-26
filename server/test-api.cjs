@@ -773,6 +773,13 @@ app.get('/flashcards/:flashcardId/content', async (req, res) => {
               checked: block.to_do?.checked || false
             };
             break;
+          case 'image':
+            processedBlock.content = {
+              file: block.image?.file || null,
+              external: block.image?.external || null,
+              caption: block.image?.caption || []
+            };
+            break;
           default:
             // Para tipos no reconocidos, intentar obtener rich_text genérico
             const richTextField = block[block.type]?.rich_text;

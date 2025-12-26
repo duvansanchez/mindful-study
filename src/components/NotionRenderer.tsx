@@ -404,6 +404,56 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
           case 'divider':
             return <hr key={key} className="my-6 border-border" />;
 
+          case 'image':
+            // Procesar imágenes de Notion
+            { const imageData = block.content as any;
+            let imageUrl = '';
+            let caption = '';
+            
+            // Obtener URL de la imagen según el tipo
+            if (imageData?.file?.url) {
+              imageUrl = imageData.file.url;
+            } else if (imageData?.external?.url) {
+              imageUrl = imageData.external.url;
+            }
+            
+            // Obtener caption si existe
+            if (imageData?.caption && Array.isArray(imageData.caption)) {
+              caption = imageData.caption.map((c: any) => c.plain_text).join('');
+            }
+            
+            if (!imageUrl) {
+              return (
+                <div key={key} className="p-4 bg-muted rounded-lg text-center text-muted-foreground my-3">
+                  📷 Imagen no disponible
+                </div>
+              );
+            }
+            
+            return (
+              <div key={key} className="my-4">
+                <img 
+                  src={imageUrl}
+                  alt={caption || 'Imagen de Notion'}
+                  className="max-w-full h-auto rounded-lg shadow-sm"
+                  loading="lazy"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      parent.innerHTML = '<div class="p-4 bg-muted rounded-lg text-center text-muted-foreground">📷 Error cargando imagen</div>';
+                    }
+                  }}
+                />
+                {caption && (
+                  <p className="text-sm text-muted-foreground text-center mt-2 italic">
+                    {caption}
+                  </p>
+                )}
+              </div>
+            ); }
+
           case 'column_list':
           case 'column':
             if (block.hasChildren) {
