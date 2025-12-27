@@ -464,6 +464,78 @@ class DatabaseService {
       throw error;
     }
   }
+
+  // ==================== TRACKING DE ESTUDIO ====================
+  
+  static async recordStudySession(flashcardId, databaseId, groupId, previousState, newState, studyDurationSeconds = 0, reviewNotes = null) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      
+      request.input('FlashcardId', sql.NVarChar, flashcardId);
+      request.input('DatabaseId', sql.NVarChar, databaseId);
+      request.input('GroupId', sql.UniqueIdentifier, groupId || null);
+      request.input('PreviousState', sql.NVarChar, previousState);
+      request.input('NewState', sql.NVarChar, newState);
+      request.input('StudyDurationSeconds', sql.Int, studyDurationSeconds || 0);
+      request.input('ReviewNotes', sql.NVarChar, reviewNotes || null);
+
+      await request.execute('app.RecordStudySession');
+      return true;
+    } catch (error) {
+      console.error('Error recording study session:', error);
+      throw error;
+    }
+  }
+
+  static async getStudyStats(groupId = null, period = 'day', offset = 0, databaseId = null) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      
+      request.input('GroupId', sql.UniqueIdentifier, groupId || null);
+      request.input('DatabaseId', sql.NVarChar, databaseId || null);
+      request.input('PeriodType', sql.NVarChar, period);
+      request.input('PeriodOffset', sql.Int, offset || 0);
+
+      const result = await request.query(`
+        SELECT * FROM app.GetStudyStatsByPeriod(@GroupId, @DatabaseId, @PeriodType, @PeriodOffset)
+      `);
+
+      return result.recordset[0] || {
+        FlashcardsStudied: 0,
+        TotalStudyTimeSeconds: 0,
+        StateChangesTocado: 0,
+        StateChangesToVerde: 0,
+        StateChangesToSolido: 0,
+        StudyDays: 0
+      };
+    } catch (error) {
+      console.error('Error getting study stats:', error);
+      throw error;
+    }
+  }
+
+  static async getLastStudyDate(groupId) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      
+      request.input('GroupId', sql.UniqueIdentifier, groupId);
+
+      const result = await request.query(`
+        SELECT TOP 1 StudiedAt
+        FROM app.StudySessions
+        WHERE GroupId = @GroupId
+        ORDER BY StudiedAt DESC
+      `);
+
+      return result.recordset[0]?.StudiedAt || null;
+    } catch (error) {
+      console.error('Error getting last study date:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = {
