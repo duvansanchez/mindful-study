@@ -226,7 +226,7 @@ export function FlashcardReview({
     }
   };
 
-  const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar", "Sinónimo", "definición formal", "ejemplo", "fórmula", "contexto", "Explicación de relación"];
+  const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar o tener en cuenta", "Sinónimo", "definición formal", "ejemplo", "fórmula", "contexto", "Explicación de relación"];
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col">

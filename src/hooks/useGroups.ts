@@ -73,7 +73,8 @@ export const useGroupStats = (groupId: string | null) => {
     queryKey: ['group-stats-fast', groupId],
     queryFn: () => groupId ? GroupsService.getGroupStats(groupId) : Promise.resolve({ tocado: 0, verde: 0, solido: 0, total: 0 }),
     enabled: !!groupId,
-    staleTime: 2 * 60 * 1000, // 2 minutos
+    staleTime: 0, // Sin cache para que siempre refetch cuando se solicite
+    cacheTime: 0, // No mantener en cache
     retry: 1,
   });
 };

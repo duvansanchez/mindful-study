@@ -1221,7 +1221,7 @@ app.get('/groups/:groupId/stats', async (req, res) => {
     
     const stats = { tocado: 0, verde: 0, solido: 0, total: 0 };
     
-    // Procesar bases de datos en paralelo usando el endpoint directo (MUY rápido)
+    // Procesar bases de datos en paralelo usando consulta directa
     const statsPromises = group.databaseIds.map(async (dbId) => {
       try {
         console.log('📊 Procesando estadísticas de base de datos:', dbId);
@@ -1231,7 +1231,7 @@ app.get('/groups/:groupId/stats', async (req, res) => {
         let hasMore = true;
         let nextCursor = undefined;
         
-        // Usar el endpoint que sabemos que funciona pero optimizado
+        // Usar consulta directa a la base de datos
         while (hasMore) {
           const response = await notion.search({
             query: '',
@@ -1274,8 +1274,14 @@ app.get('/groups/:groupId/stats', async (req, res) => {
           hasMore = response.has_more;
           nextCursor = response.next_cursor;
           
-          // Solo procesar 1 página por DB para velocidad extrema
-          break;
+          // Si no encontramos páginas en esta respuesta, salir para evitar bucle infinito
+          if (pagesInThisDb.length === 0 && response.results.length > 0) {
+            // Continuar buscando si hay más páginas pero ninguna de esta DB
+            continue;
+          } else if (pagesInThisDb.length === 0) {
+            // No hay más páginas relevantes
+            break;
+          }
         }
         
         const endTime = Date.now();
@@ -1447,6 +1453,98 @@ app.post('/study-events', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Error registrando evento:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint para registrar sesión de estudio
+app.post('/study-session', async (req, res) => {
+  try {
+    const { 
+      flashcardId, 
+      databaseId, 
+      groupId, 
+      previousState, 
+      newState, 
+      studyDurationSeconds, 
+      reviewNotes 
+    } = req.body;
+
+    console.log('📊 Registrando sesión de estudio:', { flashcardId, previousState, newState });
+
+    // Usar DatabaseService en lugar de pool directo
+    await DatabaseService.recordStudySession(
+      flashcardId,
+      databaseId,
+      groupId,
+      previousState,
+      newState,
+      studyDurationSeconds || 0,
+      reviewNotes || null
+    );
+
+    console.log('✅ Sesión de estudio registrada');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error registrando sesión de estudio:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint para obtener estadísticas de estudio por período
+app.get('/study-stats/:groupId', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { period = 'day', offset = '0', databaseId } = req.query;
+
+    console.log('📊 Obteniendo estadísticas de estudio:', { groupId, period, offset });
+
+    const stats = await DatabaseService.getStudyStats(
+      groupId,
+      period,
+      parseInt(offset) || 0,
+      databaseId || null
+    );
+
+    console.log('✅ Estadísticas obtenidas:', stats);
+    res.json(stats);
+  } catch (error) {
+    console.error('❌ Error obteniendo estadísticas de estudio:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint para obtener estadísticas globales (sin grupo específico)
+app.get('/study-stats', async (req, res) => {
+  try {
+    const { period = 'day', offset = '0', databaseId } = req.query;
+
+    console.log('📊 Obteniendo estadísticas globales:', { period, offset });
+
+    const stats = await DatabaseService.getStudyStats(
+      null,
+      period,
+      parseInt(offset) || 0,
+      databaseId || null
+    );
+
+    console.log('✅ Estadísticas globales obtenidas:', stats);
+    res.json(stats);
+  } catch (error) {
+    console.error('❌ Error obteniendo estadísticas globales:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint para obtener última fecha de estudio de un grupo
+app.get('/last-study/:groupId', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    const lastStudied = await DatabaseService.getLastStudyDate(groupId);
+    res.json({ lastStudied });
+  } catch (error) {
+    console.error('❌ Error obteniendo última fecha de estudio:', error);
     res.status(500).json({ error: error.message });
   }
 });

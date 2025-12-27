@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { DatabaseCard } from "@/components/DatabaseCard";
 import { GroupCard } from "@/components/GroupCard";
-import { StatsOverview } from "@/components/StatsOverview";
-import { DetailedStatsCard } from "@/components/DetailedStatsCard";
+import { StatsView } from "@/components/StatsView";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
 import { OverviewMode } from "@/components/OverviewMode";
@@ -12,9 +11,10 @@ import { NotionSetup } from "@/components/NotionSetup";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { EditGroupDialog } from "@/components/EditGroupDialog";
 import { DeleteGroupDialog } from "@/components/DeleteGroupDialog";
-import { useNotionDatabases, useNotionFlashcards, useNotionConnection, useNotionStats, useFilteredFlashcards, useUpdateFlashcardState, useUpdateFlashcardReviewDate } from "@/hooks/useNotion";
-import { useGroups, useGroupStats } from "@/hooks/useGroups";
-import { KnowledgeState, Flashcard, DatabaseGroup, Statistics } from "@/types";
+import { useNotionDatabases, useNotionFlashcards, useNotionConnection, useNotionStats, useUpdateFlashcardState, useUpdateFlashcardReviewDate } from "@/hooks/useNotion";
+import { useGroups } from "@/hooks/useGroups";
+import { useRecordStudySession } from "@/hooks/useStudyTracking";
+import { KnowledgeState, Flashcard, DatabaseGroup } from "@/types";
 import { Plus, BarChart3, ArrowLeft, AlertCircle, Loader2, Wifi, WifiOff, Folder } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -27,117 +27,25 @@ const Index = () => {
   const [reviewCards, setReviewCards] = useState<Flashcard[]>([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [databaseCounts, setDatabaseCounts] = useState<Record<string, number>>({});
+  const [studyStartTime, setStudyStartTime] = useState<Date | null>(null);
   
   // Estados para los diálogos de agrupaciones
   const [editingGroup, setEditingGroup] = useState<DatabaseGroup | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<DatabaseGroup | null>(null);
 
   // Notion hooks - Solo cargar bases de datos cuando sea necesario
-  const { data: databases = [], isLoading: databasesLoading, error: databasesError } = useNotionDatabases(
-    // Solo cargar bases de datos cuando estemos en vista de grupo o necesitemos los datos
+  const { data: databases = [], isLoading: databasesLoading } = useNotionDatabases(
+    // Solo cargar bases de datos cuando estemos en vista de grupo, estadísticas o necesitemos los datos
     view === 'group-stats' || view === 'stats' || selectedDatabaseId !== null
   );
-  const { data: flashcards = [], isLoading: flashcardsLoading } = useNotionFlashcards(selectedDatabaseId);
+  const { data: flashcards = [] } = useNotionFlashcards(selectedDatabaseId);
   const { data: isConnected = false, isLoading: connectionLoading } = useNotionConnection();
   const updateFlashcardMutation = useUpdateFlashcardState();
   const updateReviewDateMutation = useUpdateFlashcardReviewDate();
+  const recordStudySession = useRecordStudySession();
 
   // Groups hooks
   const { data: groups = [], isLoading: groupsLoading } = useGroups();
-
-  // Componente para la vista de estadísticas del grupo
-  const GroupStatsView = ({ selectedGroup, databases, databaseCounts, onBack, onEditGroup, onDatabaseClick }) => {
-    // Usar el hook optimizado para estadísticas
-    const { data: groupStats = { tocado: 0, verde: 0, solido: 0, total: 0 }, isLoading: isLoadingStats, refetch } = useGroupStats(selectedGroup?.id);
-
-    
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <button 
-          onClick={onBack}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Volver
-        </button>
-        
-        {/* Título del grupo */}
-        <div className="flex items-center gap-3">
-          <div 
-            className="w-12 h-12 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: `${selectedGroup.color}20` }}
-          >
-            <Folder className="w-6 h-6" style={{ color: selectedGroup.color }} />
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">{selectedGroup.name}</h2>
-            <p className="text-sm text-muted-foreground">
-              {databases.filter(db => selectedGroup.databaseIds.includes(db.id)).length} bases de datos
-            </p>
-          </div>
-        </div>
-
-        {/* Estadísticas generales del grupo */}
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium text-foreground">Estadísticas del grupo</h3>
-          <button
-            onClick={() => refetch()}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            disabled={isLoadingStats}
-          >
-            {isLoadingStats ? 'Sincronizando...' : 'Sincronizar'}
-          </button>
-        </div>
-        
-        {isLoadingStats ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-muted-foreground">Cargando estadísticas...</span>
-          </div>
-        ) : (
-          <StatsOverview stats={groupStats} />
-        )}
-
-        {/* Bases de datos del grupo */}
-        <section>
-          <h3 className="text-lg font-medium text-foreground mb-4">Bases de datos</h3>
-          {databasesLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-muted-foreground">Cargando bases de datos...</span>
-            </div>
-          ) : databases.filter(db => selectedGroup.databaseIds.includes(db.id)).length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {databases
-                .filter(db => selectedGroup.databaseIds.includes(db.id))
-                .map(database => {
-                  const actualCount = databaseCounts[database.id] ?? database.cardCount;
-                  const databaseWithCount = { ...database, cardCount: actualCount };
-                  
-                  return (
-                    <DatabaseCard
-                      key={database.id}
-                      database={databaseWithCount}
-                      onClick={() => onDatabaseClick(database.id)}
-                    />
-                  );
-                })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>Esta agrupación no tiene bases de datos asociadas.</p>
-              <button 
-                onClick={() => onEditGroup(selectedGroup)}
-                className="mt-2 text-primary hover:underline"
-              >
-                Agregar bases de datos
-              </button>
-            </div>
-          )}
-        </section>
-      </div>
-    );
-  };
 
   // Update database count when flashcards are loaded
   useEffect(() => {
@@ -152,7 +60,6 @@ const Index = () => {
   // Calculate stats with real flashcard data
   const flashcardsStats = useNotionStats(flashcards);
   const reviewSetupStats = useNotionStats(flashcards);
-  const overallStats = flashcardsStats;
 
   const selectedDatabase = databases.find(db => db.id === selectedDatabaseId);
 
@@ -161,7 +68,7 @@ const Index = () => {
     setView('mode-selection');
   };
 
-  const handleStartActiveReview = (selectedStates: KnowledgeState[]) => {
+  const handleStartActiveReview = () => {
     setView('review-setup');
   };
 
@@ -172,11 +79,18 @@ const Index = () => {
   const handleStartReview = (selectedCards: Flashcard[]) => {
     setReviewCards(selectedCards);
     setCurrentCardIndex(0);
+    setStudyStartTime(new Date()); // Iniciar tracking de tiempo
     setView('review');
   };
 
   const handleStateChange = async (newState: KnowledgeState) => {
     const currentCard = reviewCards[currentCardIndex];
+    const previousState = currentCard.state;
+    
+    // Registrar tiempo de inicio si no existe
+    if (!studyStartTime) {
+      setStudyStartTime(new Date());
+    }
     
     try {
       const result = await updateFlashcardMutation.mutateAsync({
@@ -189,6 +103,36 @@ const Index = () => {
         setReviewCards(prev => prev.map(c => 
           c.id === currentCard.id ? { ...c, state: newState } : c
         ));
+
+        // Solo registrar el cambio de estado si es diferente
+        if (previousState !== newState) {
+          const studyDuration = studyStartTime 
+            ? Math.floor((new Date().getTime() - studyStartTime.getTime()) / 1000)
+            : 0;
+
+          // Encontrar el grupo al que pertenece esta base de datos
+          const currentGroup = groups.find(group => 
+            group.databaseIds.includes(currentCard.databaseId)
+          );
+
+          console.log('📊 Registrando cambio de estado:', {
+            flashcardId: currentCard.id,
+            databaseId: currentCard.databaseId,
+            groupId: currentGroup?.id,
+            previousState,
+            newState,
+            studyDurationSeconds: studyDuration,
+          });
+
+          recordStudySession.mutate({
+            flashcardId: currentCard.id,
+            databaseId: currentCard.databaseId,
+            groupId: currentGroup?.id,
+            previousState,
+            newState,
+            studyDurationSeconds: studyDuration,
+          });
+        }
       }
       
       // Retornar el resultado completo incluyendo mensajes de error
@@ -210,6 +154,35 @@ const Index = () => {
       try {
         console.log('📅 Actualizando fecha de repaso al pasar a siguiente tarjeta:', currentCard.id);
         await updateReviewDateMutation.mutateAsync(currentCard.id);
+
+        // Registrar sesión de estudio AQUÍ - cada vez que pasas una flashcard
+        const studyDuration = studyStartTime 
+          ? Math.floor((new Date().getTime() - studyStartTime.getTime()) / 1000)
+          : 0;
+
+        // Encontrar el grupo al que pertenece esta base de datos
+        const currentGroup = groups.find(group => 
+          group.databaseIds.includes(currentCard.databaseId)
+        );
+
+        console.log('📊 Registrando sesión de estudio al pasar flashcard:', {
+          flashcardId: currentCard.id,
+          databaseId: currentCard.databaseId,
+          groupId: currentGroup?.id,
+          previousState: currentCard.state, // El estado actual (puede haber cambiado)
+          newState: currentCard.state, // Mismo estado (solo estamos pasando la tarjeta)
+          studyDurationSeconds: studyDuration,
+        });
+
+        recordStudySession.mutate({
+          flashcardId: currentCard.id,
+          databaseId: currentCard.databaseId,
+          groupId: currentGroup?.id,
+          previousState: currentCard.state,
+          newState: currentCard.state, // Mismo estado, solo registramos que se estudió
+          studyDurationSeconds: studyDuration,
+        });
+
       } catch (error) {
         console.error('Error updating review date:', error);
         // No bloquear el flujo si falla la actualización de fecha
@@ -219,9 +192,12 @@ const Index = () => {
     // Pasar a la siguiente tarjeta o terminar el repaso
     if (currentCardIndex < reviewCards.length - 1) {
       setCurrentCardIndex(prev => prev + 1);
+      setStudyStartTime(new Date()); // Reiniciar tiempo para la nueva tarjeta
     } else {
+      // Es la última tarjeta, terminar el repaso
       setView('home');
       setSelectedDatabaseId(null);
+      setStudyStartTime(null);
     }
   };
 
@@ -233,10 +209,38 @@ const Index = () => {
   };
 
   const handleCloseReview = () => {
+    // Registrar la tarjeta actual antes de cerrar si hay una
+    const currentCard = reviewCards[currentCardIndex];
+    if (currentCard && studyStartTime) {
+      const studyDuration = Math.floor((new Date().getTime() - studyStartTime.getTime()) / 1000);
+      const currentGroup = groups.find(group => 
+        group.databaseIds.includes(currentCard.databaseId)
+      );
+
+      console.log('📊 Registrando sesión de estudio al cerrar repaso:', {
+        flashcardId: currentCard.id,
+        databaseId: currentCard.databaseId,
+        groupId: currentGroup?.id,
+        previousState: currentCard.state,
+        newState: currentCard.state,
+        studyDurationSeconds: studyDuration,
+      });
+
+      recordStudySession.mutate({
+        flashcardId: currentCard.id,
+        databaseId: currentCard.databaseId,
+        groupId: currentGroup?.id,
+        previousState: currentCard.state,
+        newState: currentCard.state,
+        studyDurationSeconds: studyDuration,
+      });
+    }
+
     setView('home');
     setSelectedDatabaseId(null);
     setReviewCards([]);
     setCurrentCardIndex(0);
+    setStudyStartTime(null);
   };
 
   const handleCloseModeSelection = () => {
@@ -252,50 +256,6 @@ const Index = () => {
   const handleGroupClick = (group: DatabaseGroup) => {
     setSelectedGroup(group);
     setView('group-stats');
-  };
-
-  // Helper functions for stats
-  const getStatsForDatabase = (databaseId: string): Statistics => {
-    // In a real implementation, you'd fetch flashcards for this database
-    return { tocado: 0, verde: 0, solido: 0, total: 0 };
-  };
-
-  const getStatsForGroup = (databaseIds: string[]): Statistics => {
-    // Calcular estadísticas combinadas de todas las bases de datos del grupo
-    const totalStats = { tocado: 0, verde: 0, solido: 0, total: 0 };
-    
-    // Por ahora, usar datos mock basados en las bases de datos conocidas
-    // En una implementación real, necesitarías obtener las flashcards de cada base de datos
-    const mockStatsPerDatabase = {
-      '2c576585-c8ed-8120-961b-e9ad0498e162': { tocado: 5, verde: 8, solido: 4, total: 17 }, // Conceptos - Terminos
-      '2c576585-c8ed-8134-9eff-e346521d15e5': { tocado: 1, verde: 1, solido: 0, total: 2 },   // Artículos
-      '2c576585-c8ed-8161-8637-dd175fe3e2ba': { tocado: 3, verde: 4, solido: 2, total: 9 }    // Conocimiento
-    };
-    
-    databaseIds.forEach(dbId => {
-      const dbStats = mockStatsPerDatabase[dbId];
-      if (dbStats) {
-        totalStats.tocado += dbStats.tocado;
-        totalStats.verde += dbStats.verde;
-        totalStats.solido += dbStats.solido;
-        totalStats.total += dbStats.total;
-      }
-    });
-    
-    return totalStats;
-  };
-
-  const getLastReviewedForGroup = (databaseIds: string[]): Date | null => {
-    // Mock: simular última revisión hace algunos días
-    if (databaseIds.length > 0) {
-      return new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000); // Últimos 7 días
-    }
-    return null;
-  };
-
-  const getReviewedThisWeekForGroup = (databaseIds: string[]): number => {
-    // Mock: simular tarjetas revisadas esta semana
-    return Math.floor(Math.random() * 20) + 5; // Entre 5 y 25 tarjetas
   };
 
   // Show setup if no token is configured
@@ -379,23 +339,19 @@ const Index = () => {
               Conectado a Notion
             </div>
 
-            {/* Overall Stats */}
+            {/* Quick Actions */}
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium text-foreground">Estado general</h2>
+                <h2 className="text-lg font-medium text-foreground">Acciones rápidas</h2>
+              </div>
+              <div className="flex gap-3">
                 <button 
                   onClick={() => setView('stats')}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
                 >
                   <BarChart3 className="w-4 h-4" />
-                  Ver detalle
+                  Ver estadísticas
                 </button>
-              </div>
-              {/* Mostrar estadísticas simplificadas sin cargar todas las bases de datos */}
-              <div className="p-4 rounded-lg bg-card border border-border">
-                <p className="text-sm text-muted-foreground text-center">
-                  Las estadísticas detalladas están disponibles dentro de cada agrupación
-                </p>
               </div>
             </section>
 
@@ -415,7 +371,7 @@ const Index = () => {
                 ) : groups.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {groups.map(group => {
-                      // Para mostrar las tarjetas de grupo necesitamos cargar las bases de datos bajo demanda
+                      // Para mostrar las tarjetas de grupo sin cargar estadísticas pesadas
                       return (
                         <GroupCard
                           key={group.id}
@@ -449,44 +405,71 @@ const Index = () => {
         )}
 
         {view === 'stats' && (
-          <div className="space-y-6 animate-fade-in">
-            <button 
-              onClick={() => setView('home')}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              ← Volver
-            </button>
-            
-            <h2 className="text-xl font-semibold text-foreground">Estadísticas detalladas</h2>
-            
-            <StatsOverview stats={overallStats} title="Vista general" />
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {databases.map(database => (
-                <div key={database.id} className="p-4 rounded-lg bg-card border border-border">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-lg">{database.icon}</span>
-                    <h3 className="font-medium text-foreground">{database.name}</h3>
-                  </div>
-                  <StatsOverview stats={getStatsForDatabase(database.id)} />
-                </div>
-              ))}
-            </div>
-          </div>
+          <StatsView onBack={() => setView('home')} />
         )}
 
         {view === 'group-stats' && selectedGroup && (
-          <GroupStatsView 
-            selectedGroup={selectedGroup}
-            databases={databases}
-            databaseCounts={databaseCounts}
-            onBack={() => {
-              setView('home');
-              setSelectedGroup(null);
-            }}
-            onEditGroup={setEditingGroup}
-            onDatabaseClick={handleDatabaseClick}
-          />
+          <div className="space-y-6 animate-fade-in">
+            <button 
+              onClick={() => {
+                setView('home');
+                setSelectedGroup(null);
+              }}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Volver
+            </button>
+            
+            {/* Título del grupo */}
+            <div className="flex items-center gap-3">
+              <div 
+                className="w-12 h-12 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: `${selectedGroup.color}20` }}
+              >
+                <Folder className="w-6 h-6" style={{ color: selectedGroup.color }} />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">{selectedGroup.name}</h2>
+                <p className="text-sm text-muted-foreground">
+                  {databases.filter(db => selectedGroup.databaseIds.includes(db.id)).length} bases de datos
+                </p>
+              </div>
+            </div>
+
+            {/* Bases de datos del grupo */}
+            <section>
+              <h3 className="text-lg font-medium text-foreground mb-4">Bases de datos</h3>
+              {databases.filter(db => selectedGroup.databaseIds.includes(db.id)).length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {databases
+                    .filter(db => selectedGroup.databaseIds.includes(db.id))
+                    .map(database => {
+                      const actualCount = databaseCounts[database.id] ?? database.cardCount;
+                      const databaseWithCount = { ...database, cardCount: actualCount };
+                      
+                      return (
+                        <DatabaseCard
+                          key={database.id}
+                          database={databaseWithCount}
+                          onClick={() => handleDatabaseClick(database.id)}
+                        />
+                      );
+                    })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Esta agrupación no tiene bases de datos asociadas.</p>
+                  <button 
+                    onClick={() => setEditingGroup(selectedGroup)}
+                    className="mt-2 text-primary hover:underline"
+                  >
+                    Agregar bases de datos
+                  </button>
+                </div>
+              )}
+            </section>
+          </div>
         )}
       </main>
 
