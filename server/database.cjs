@@ -536,6 +536,26 @@ class DatabaseService {
       throw error;
     }
   }
+
+  static async getFlashcardReviewCount(flashcardId) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      
+      request.input('FlashcardId', sql.NVarChar, flashcardId);
+
+      const result = await request.query(`
+        SELECT COUNT(*) as ReviewCount
+        FROM app.StudySessions
+        WHERE FlashcardId = @FlashcardId
+      `);
+
+      return result.recordset[0]?.ReviewCount || 0;
+    } catch (error) {
+      console.error('Error getting flashcard review count:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = {

@@ -44,6 +44,8 @@ export const useRecordStudySession = () => {
       // Invalidar estadísticas relacionadas
       queryClient.invalidateQueries({ queryKey: ['study-stats'] });
       queryClient.invalidateQueries({ queryKey: ['last-study', variables.groupId] });
+      // Invalidar el conteo de repasos para la flashcard específica
+      queryClient.invalidateQueries({ queryKey: ['flashcard-review-count', variables.flashcardId] });
     },
     onError: (error) => {
       console.error('Error recording study session:', error);
@@ -123,4 +125,25 @@ export const useMultiPeriodStats = (groupId?: string, databaseId?: string) => {
       ]);
     }
   };
+};
+
+// Hook para obtener el conteo de repasos de una flashcard específica
+export const useFlashcardReviewCount = (flashcardId?: string) => {
+  return useQuery({
+    queryKey: ['flashcard-review-count', flashcardId],
+    queryFn: async (): Promise<number> => {
+      if (!flashcardId) return 0;
+
+      const response = await fetch(`/api/flashcards/${flashcardId}/review-count`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.reviewCount || 0;
+    },
+    enabled: !!flashcardId,
+    staleTime: 0, // No cache - always fetch fresh data
+  });
 };
