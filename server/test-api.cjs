@@ -1549,6 +1549,23 @@ app.get('/last-study/:groupId', async (req, res) => {
   }
 });
 
+// Endpoint para obtener el número de veces que se ha repasado una flashcard
+app.get('/flashcards/:flashcardId/review-count', async (req, res) => {
+  try {
+    const { flashcardId } = req.params;
+
+    console.log('📊 Obteniendo conteo de repasos para flashcard:', flashcardId);
+
+    const reviewCount = await DatabaseService.getFlashcardReviewCount(flashcardId);
+    
+    console.log('✅ Conteo de repasos obtenido:', reviewCount);
+    res.json({ reviewCount });
+  } catch (error) {
+    console.error('❌ Error obteniendo conteo de repasos:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`🚀 Test API server running at http://localhost:${port}`);
 });

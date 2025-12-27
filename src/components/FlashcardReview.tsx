@@ -3,11 +3,12 @@ import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
 import type { NotionBlock } from "./NotionRenderer";
-import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFlashcardContent } from "@/hooks/useNotion";
 import { useReviewNotes, useAddReviewNote, useDeleteReviewNote } from "@/hooks/useReviewNotes";
+import { useFlashcardReviewCount } from "@/hooks/useStudyTracking";
 
 interface FlashcardReviewProps {
   card: Flashcard;
@@ -58,6 +59,9 @@ export function FlashcardReview({
   const { data: reviewNotes = [], isLoading: notesLoading } = useReviewNotes(card.id);
   const addNoteMutation = useAddReviewNote();
   const deleteNoteMutation = useDeleteReviewNote();
+
+  // Cargar conteo de repasos
+  const { data: reviewCount = 0, isLoading: reviewCountLoading } = useFlashcardReviewCount(card.id);
 
   const handleReveal = useCallback(() => {
     setRevealed(true);
@@ -261,6 +265,14 @@ export function FlashcardReview({
           {updatingState && (
             <Loader2 className="w-4 h-4 animate-spin text-muted-foreground ml-2" />
           )}
+          
+          {/* Review count display */}
+          <div className="flex items-center gap-1 ml-4 px-2 py-1 rounded-md bg-secondary/50 text-secondary-foreground">
+            <RotateCcw className="w-3 h-3" />
+            <span className="text-xs font-medium">
+              {reviewCountLoading ? '...' : reviewCount}
+            </span>
+          </div>
           
           {/* Botón para mostrar notas en pantallas pequeñas */}
           <div className="lg:hidden relative">
