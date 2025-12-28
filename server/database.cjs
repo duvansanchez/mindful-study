@@ -576,6 +576,33 @@ class DatabaseService {
       throw error;
     }
   }
+
+  static async getNotesCountByDatabase(databaseId) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      
+      request.input('DatabaseId', sql.NVarChar, databaseId);
+
+      const result = await request.query(`
+        SELECT FlashcardId, COUNT(*) as NotesCount
+        FROM app.ReviewNotes
+        WHERE NotionDatabaseId = @DatabaseId
+        GROUP BY FlashcardId
+      `);
+
+      // Convertir a objeto para fácil lookup
+      const notesCounts = {};
+      result.recordset.forEach(row => {
+        notesCounts[row.FlashcardId] = row.NotesCount;
+      });
+
+      return notesCounts;
+    } catch (error) {
+      console.error('Error getting notes count by database:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = {

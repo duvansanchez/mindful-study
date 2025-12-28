@@ -1592,6 +1592,23 @@ app.get('/flashcards/:flashcardId/review-count', async (req, res) => {
   }
 });
 
+// Endpoint para obtener conteos de notas de repaso por base de datos
+app.get('/databases/:databaseId/notes-count', async (req, res) => {
+  try {
+    const { databaseId } = req.params;
+
+    console.log('📊 Obteniendo conteos de notas para base de datos:', databaseId);
+
+    const notesCounts = await DatabaseService.getNotesCountByDatabase(databaseId);
+    
+    console.log('✅ Conteos de notas obtenidos:', Object.keys(notesCounts).length, 'flashcards');
+    res.json(notesCounts);
+  } catch (error) {
+    console.error('❌ Error obteniendo conteos de notas:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`🚀 Test API server running at http://localhost:${port}`);
 });

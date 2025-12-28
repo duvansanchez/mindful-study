@@ -2,19 +2,21 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
-import { X, Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, Filter, ArrowUpDown, ChevronDown } from "lucide-react";
+import { Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, Filter, ArrowUpDown, ChevronDown } from "lucide-react";
 import { useFlashcardContent } from "@/hooks/useNotion";
 import { useReviewNotes } from "@/hooks/useReviewNotes";
+import { useNotesCountByDatabase } from "@/hooks/useStudyTracking";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
 interface OverviewModeProps {
   flashcards: Flashcard[];
   databaseName: string;
+  databaseId: string;
   onClose: () => void;
 }
 
-type FilterState = 'all' | KnowledgeState;
+type FilterState = 'all' | KnowledgeState | 'with-notes' | 'without-notes';
 type SortOption = 'priority' | 'alphabetical' | 'created';
 
 interface FlashcardOverviewCardProps {
@@ -162,12 +164,14 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
   );
 };
 
-export function OverviewMode({ flashcards, databaseName, onClose }: OverviewModeProps) {
-  const [revealedCount, setRevealedCount] = useState(0);
+export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: OverviewModeProps) {
   const [filterState, setFilterState] = useState<FilterState>('all');
   const [sortOption, setSortOption] = useState<SortOption>('priority');
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
+
+  // Obtener conteos de notas de repaso
+  const { data: notesCounts = {} } = useNotesCountByDatabase(databaseId);
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -185,9 +189,15 @@ export function OverviewMode({ flashcards, databaseName, onClose }: OverviewMode
   const filteredAndSortedCards = useMemo(() => {
     let filtered = flashcards;
 
-    // Aplicar filtro por estado
+    // Aplicar filtro por estado o notas
     if (filterState !== 'all') {
-      filtered = flashcards.filter(card => card.state === filterState);
+      if (filterState === 'with-notes') {
+        filtered = flashcards.filter(card => notesCounts[card.id] > 0);
+      } else if (filterState === 'without-notes') {
+        filtered = flashcards.filter(card => !notesCounts[card.id] || notesCounts[card.id] === 0);
+      } else {
+        filtered = flashcards.filter(card => card.state === filterState);
+      }
     }
 
     // Aplicar ordenamiento
@@ -210,14 +220,16 @@ export function OverviewMode({ flashcards, databaseName, onClose }: OverviewMode
     });
 
     return sorted;
-  }, [flashcards, filterState, sortOption]);
+  }, [flashcards, filterState, sortOption, notesCounts]);
 
-  // Contar tarjetas por estado
+  // Contar tarjetas por estado y notas
   const stats = {
     tocado: flashcards.filter(c => c.state === 'tocado').length,
     verde: flashcards.filter(c => c.state === 'verde').length,
     solido: flashcards.filter(c => c.state === 'solido').length,
     total: flashcards.length,
+    withNotes: flashcards.filter(c => notesCounts[c.id] > 0).length,
+    withoutNotes: flashcards.filter(c => !notesCounts[c.id] || notesCounts[c.id] === 0).length,
   };
 
   const getFilterLabel = (filter: FilterState) => {
@@ -226,16 +238,9 @@ export function OverviewMode({ flashcards, databaseName, onClose }: OverviewMode
       case 'tocado': return 'Tocado';
       case 'verde': return 'Verde';
       case 'solido': return 'Sólido';
+      case 'with-notes': return 'Con notas';
+      case 'without-notes': return 'Sin notas';
       default: return 'Todas';
-    }
-  };
-
-  const getSortLabel = (sort: SortOption) => {
-    switch (sort) {
-      case 'priority': return 'Por prioridad';
-      case 'alphabetical': return 'Alfabético';
-      case 'created': return 'Más recientes';
-      default: return 'Por prioridad';
     }
   };
 
@@ -313,7 +318,8 @@ export function OverviewMode({ flashcards, databaseName, onClose }: OverviewMode
                 </button>
                 
                 {showFilters && (
-                  <div className="absolute top-full left-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-10 min-w-[140px]">
+                  <div className="absolute top-full left-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-10 min-w-[160px]">
+                    {/* Filtros por estado */}
                     {(['all', 'tocado', 'verde', 'solido'] as FilterState[]).map((state) => (
                       <button
                         key={state}
@@ -321,7 +327,7 @@ export function OverviewMode({ flashcards, databaseName, onClose }: OverviewMode
                           setFilterState(state);
                           setShowFilters(false);
                         }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors ${
                           filterState === state ? 'bg-secondary text-secondary-foreground' : 'text-foreground'
                         }`}
                       >
@@ -337,6 +343,29 @@ export function OverviewMode({ flashcards, databaseName, onClose }: OverviewMode
                             {stats.total}
                           </span>
                         )}
+                      </button>
+                    ))}
+                    
+                    {/* Separador */}
+                    <div className="border-t border-border my-1"></div>
+                    
+                    {/* Filtros por notas */}
+                    {(['with-notes', 'without-notes'] as FilterState[]).map((noteFilter) => (
+                      <button
+                        key={noteFilter}
+                        onClick={() => {
+                          setFilterState(noteFilter);
+                          setShowFilters(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors last:rounded-b-lg ${
+                          filterState === noteFilter ? 'bg-secondary text-secondary-foreground' : 'text-foreground'
+                        }`}
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        {getFilterLabel(noteFilter)}
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {noteFilter === 'with-notes' ? stats.withNotes : stats.withoutNotes}
+                        </span>
                       </button>
                     ))}
                   </div>

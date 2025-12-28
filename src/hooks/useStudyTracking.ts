@@ -147,3 +147,23 @@ export const useFlashcardReviewCount = (flashcardId?: string) => {
     staleTime: 0, // No cache - always fetch fresh data
   });
 };
+
+// Hook para obtener conteos de notas de repaso por base de datos
+export const useNotesCountByDatabase = (databaseId?: string) => {
+  return useQuery({
+    queryKey: ['notes-count-by-database', databaseId],
+    queryFn: async (): Promise<Record<string, number>> => {
+      if (!databaseId) return {};
+
+      const response = await fetch(`/api/databases/${databaseId}/notes-count`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return response.json();
+    },
+    enabled: !!databaseId,
+    staleTime: 60000, // Cache por 1 minuto
+  });
+};

@@ -489,6 +489,7 @@ const Index = () => {
         <OverviewMode
           flashcards={flashcards}
           databaseName={selectedDatabase.name}
+          databaseId={selectedDatabase.id}
           onClose={handleCloseOverview}
         />
       )}
@@ -498,6 +499,7 @@ const Index = () => {
         <ReviewSetup
           stats={reviewSetupStats}
           databaseName={selectedDatabase.name}
+          databaseId={selectedDatabase.id}
           flashcards={flashcards}
           onStart={handleStartReview}
           onCancel={() => {
