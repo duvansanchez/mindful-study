@@ -77,4 +77,29 @@ export class ReviewNotesService {
       throw error;
     }
   }
+
+  // Actualizar nota de repaso
+  static async updateReviewNote(noteId: string, content: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE}/notes/${noteId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.success;
+    } catch (error) {
+      console.error('Error updating review note:', error);
+      throw error;
+    }
+  }
 }

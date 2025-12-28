@@ -47,3 +47,25 @@ export const useDeleteReviewNote = () => {
     },
   });
 };
+
+// Hook para actualizar nota de repaso
+export const useUpdateReviewNote = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ noteId, content }: { noteId: string; content: string }) => 
+      ReviewNotesService.updateReviewNote(noteId, content),
+    onSuccess: (_, variables) => {
+      // Actualizar todas las caches de notas para reflejar el cambio
+      queryClient.setQueriesData(
+        { queryKey: ['review-notes'] },
+        (oldNotes: ReviewNote[] = []) => 
+          oldNotes.map(note => 
+            note.id === variables.noteId 
+              ? { ...note, content: variables.content }
+              : note
+          )
+      );
+    },
+  });
+};
