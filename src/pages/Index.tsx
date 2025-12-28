@@ -28,6 +28,7 @@ const Index = () => {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [databaseCounts, setDatabaseCounts] = useState<Record<string, number>>({});
   const [studyStartTime, setStudyStartTime] = useState<Date | null>(null);
+  const [previousView, setPreviousView] = useState<View>('home'); // Para recordar de dónde venía
   
   // Estados para los diálogos de agrupaciones
   const [editingGroup, setEditingGroup] = useState<DatabaseGroup | null>(null);
@@ -99,6 +100,7 @@ const Index = () => {
 
   const handleDatabaseClick = (databaseId: string) => {
     setSelectedDatabaseId(databaseId);
+    setPreviousView(view); // Recordar de dónde venía
     setView('mode-selection');
   };
 
@@ -270,7 +272,8 @@ const Index = () => {
       });
     }
 
-    setView('home');
+    // Regresar a la vista anterior
+    setView(previousView);
     setSelectedDatabaseId(null);
     setReviewCards([]);
     setCurrentCardIndex(0);
@@ -278,12 +281,14 @@ const Index = () => {
   };
 
   const handleCloseModeSelection = () => {
-    setView('home');
+    // Regresar a la vista anterior
+    setView(previousView);
     setSelectedDatabaseId(null);
   };
 
   const handleCloseOverview = () => {
-    setView('home');
+    // Regresar a la vista anterior
+    setView(previousView);
     setSelectedDatabaseId(null);
   };
 
