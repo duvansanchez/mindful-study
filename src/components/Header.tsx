@@ -1,5 +1,6 @@
 import { Settings, RefreshCw } from "lucide-react";
 import { useDatabaseSync } from "@/hooks/useDatabaseSync";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface HeaderProps {
   title: string;
@@ -46,6 +47,8 @@ export function Header({ title, subtitle }: HeaderProps) {
             {syncMutation.isPending ? 'Sincronizando...' : 'Sincronizar'}
           </span>
         </button>
+        
+        <ThemeToggle />
         
         <button className="p-2 rounded-lg hover:bg-secondary transition-colors">
           <Settings className="w-5 h-5 text-muted-foreground" />
