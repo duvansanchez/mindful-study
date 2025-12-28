@@ -3,11 +3,11 @@ import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
 import type { NotionBlock } from "./NotionRenderer";
-import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFlashcardContent } from "@/hooks/useNotion";
-import { useReviewNotes, useAddReviewNote, useDeleteReviewNote } from "@/hooks/useReviewNotes";
+import { useReviewNotes, useAddReviewNote, useDeleteReviewNote, useUpdateReviewNote } from "@/hooks/useReviewNotes";
 import { useFlashcardReviewCount } from "@/hooks/useStudyTracking";
 
 interface FlashcardReviewProps {
@@ -40,6 +40,10 @@ export function FlashcardReview({
   const [noteText, setNoteText] = useState("");
   const [showNotesPanel, setShowNotesPanel] = useState(false);
   
+  // Estados para edición de notas
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState("");
+  
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
   const [dominioMessage, setDominioMessage] = useState<string | null>(null);
   const [updatingState, setUpdatingState] = useState(false);
@@ -59,6 +63,7 @@ export function FlashcardReview({
   const { data: reviewNotes = [], isLoading: notesLoading } = useReviewNotes(card.id);
   const addNoteMutation = useAddReviewNote();
   const deleteNoteMutation = useDeleteReviewNote();
+  const updateNoteMutation = useUpdateReviewNote();
 
   // Cargar conteo de repasos
   const { data: reviewCount = 0, isLoading: reviewCountLoading } = useFlashcardReviewCount(card.id);
@@ -200,6 +205,8 @@ export function FlashcardReview({
     // NO resetear showAuxiliary - mantener la preferencia del usuario
     setShowNoteInput(false);
     setNoteText("");
+    setEditingNoteId(null);
+    setEditingNoteText("");
     setLastReviewMessage(null);
     setDominioMessage(null);
     lastKeyPressRef.current = null;
@@ -227,6 +234,32 @@ export function FlashcardReview({
       await deleteNoteMutation.mutateAsync(noteId);
     } catch (error) {
       console.error('Error deleting review note:', error);
+    }
+  };
+
+  const handleStartEditNote = (noteId: string, currentContent: string) => {
+    setEditingNoteId(noteId);
+    setEditingNoteText(currentContent);
+  };
+
+  const handleCancelEditNote = () => {
+    setEditingNoteId(null);
+    setEditingNoteText("");
+  };
+
+  const handleSaveEditNote = async () => {
+    if (!editingNoteId || !editingNoteText.trim()) return;
+
+    try {
+      await updateNoteMutation.mutateAsync({
+        noteId: editingNoteId,
+        content: editingNoteText.trim()
+      });
+      
+      setEditingNoteId(null);
+      setEditingNoteText("");
+    } catch (error) {
+      console.error('Error updating review note:', error);
     }
   };
 
@@ -505,19 +538,100 @@ export function FlashcardReview({
                   <div key={note.id} className="p-3 rounded-lg bg-background border border-border shadow-sm">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 space-y-2">
-                        <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{note.content}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
-                        </p>
+                        {editingNoteId === note.id ? (
+                          // Modo edición
+                          <div className="space-y-2">
+                            <textarea
+                              value={editingNoteText}
+                              onChange={(e) => {
+                                setEditingNoteText(e.target.value);
+                                // Auto-resize del textarea
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = Math.min(target.scrollHeight, 200) + 'px';
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSaveEditNote();
+                                } else if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  handleCancelEditNote();
+                                }
+                              }}
+                              onFocus={(e) => {
+                                // Auto-resize al hacer focus
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = Math.min(target.scrollHeight, 200) + 'px';
+                              }}
+                              className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:border-primary/50 focus:outline-none transition-colors resize-none min-h-[80px] max-h-[200px]"
+                              autoFocus
+                              placeholder="Edita tu nota... (Shift+Enter para nueva línea, Enter para guardar, Esc para cancelar)"
+                              rows={3}
+                              style={{
+                                height: 'auto',
+                                minHeight: '80px'
+                              }}
+                            />
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                onClick={handleCancelEditNote}
+                                className="px-3 py-1.5 text-xs rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-1"
+                                title="Cancelar edición (Esc)"
+                              >
+                                <XIcon className="w-3 h-3" />
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={handleSaveEditNote}
+                                disabled={!editingNoteText.trim() || updateNoteMutation.isPending}
+                                className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center gap-1"
+                                title="Guardar cambios (Enter)"
+                              >
+                                {updateNoteMutation.isPending ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    Guardando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-3 h-3" />
+                                    Guardar
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          // Modo visualización
+                          <>
+                            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
+                            </p>
+                          </>
+                        )}
                       </div>
-                      <button
-                        onClick={() => handleDeleteNote(note.id)}
-                        disabled={deleteNoteMutation.isPending}
-                        className="p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-colors flex-shrink-0"
-                        title="Eliminar nota"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                      {editingNoteId !== note.id && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleStartEditNote(note.id, note.content)}
+                            className="p-1 rounded hover:bg-secondary/50 hover:text-foreground transition-colors flex-shrink-0"
+                            title="Editar nota"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteNote(note.id)}
+                            disabled={deleteNoteMutation.isPending}
+                            className="p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-colors flex-shrink-0"
+                            title="Eliminar nota"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))

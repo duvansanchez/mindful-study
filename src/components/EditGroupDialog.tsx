@@ -8,23 +8,13 @@ import { useUpdateGroup } from "@/hooks/useGroups";
 import { useNotionDatabases } from "@/hooks/useNotion";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatabaseGroup } from "@/types";
+import { ColorPicker } from "@/components/ColorPicker";
 
 interface EditGroupDialogProps {
   group: DatabaseGroup | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-const colors = [
-  { name: 'Azul', value: '#3B82F6' },
-  { name: 'Verde', value: '#10B981' },
-  { name: 'Púrpura', value: '#8B5CF6' },
-  { name: 'Naranja', value: '#F59E0B' },
-  { name: 'Rojo', value: '#EF4444' },
-  { name: 'Rosa', value: '#EC4899' },
-  { name: 'Índigo', value: '#6366F1' },
-  { name: 'Teal', value: '#14B8A6' },
-];
 
 export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogProps) {
   const [name, setName] = useState('');
@@ -104,25 +94,10 @@ export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogPr
           </div>
 
           {/* Color */}
-          <div className="space-y-2">
-            <Label>Color</Label>
-            <div className="flex flex-wrap gap-2">
-              {colors.map((color) => (
-                <button
-                  key={color.value}
-                  type="button"
-                  onClick={() => setSelectedColor(color.value)}
-                  className={`w-8 h-8 rounded-full border-2 transition-all ${
-                    selectedColor === color.value
-                      ? 'border-foreground scale-110'
-                      : 'border-border hover:scale-105'
-                  }`}
-                  style={{ backgroundColor: color.value }}
-                  title={color.name}
-                />
-              ))}
-            </div>
-          </div>
+          <ColorPicker
+            selectedColor={selectedColor}
+            onColorChange={setSelectedColor}
+          />
 
           {/* Bases de datos */}
           <div className="space-y-2">

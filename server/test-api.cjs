@@ -1201,6 +1201,32 @@ app.delete('/notes/:noteId', async (req, res) => {
   }
 });
 
+// Actualizar nota de repaso
+app.put('/notes/:noteId', async (req, res) => {
+  try {
+    const { noteId } = req.params;
+    const { content } = req.body;
+    
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ error: 'El contenido de la nota es requerido' });
+    }
+    
+    console.log('✏️ Actualizando nota de repaso:', noteId);
+    
+    const updated = await DatabaseService.updateReviewNote(noteId, content.trim());
+    
+    if (updated) {
+      console.log('✅ Nota actualizada');
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Nota no encontrada' });
+    }
+  } catch (error) {
+    console.error('❌ Error actualizando nota de repaso:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== ENDPOINTS DE AGRUPACIONES ====================
 
 // Obtener estadísticas rápidas de un grupo (SÚPER optimizado)

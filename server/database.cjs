@@ -465,6 +465,26 @@ class DatabaseService {
     }
   }
 
+  // Actualizar nota de repaso
+  static async updateReviewNote(noteId, newContent) {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('noteId', sql.UniqueIdentifier, noteId)
+        .input('newContent', sql.NVarChar(sql.MAX), newContent)
+        .query(`
+          UPDATE app.ReviewNotes 
+          SET NoteContent = @newContent
+          WHERE Id = @noteId
+        `);
+      
+      return result.rowsAffected[0] > 0;
+    } catch (error) {
+      console.error('Error actualizando nota de repaso:', error);
+      throw error;
+    }
+  }
+
   // ==================== TRACKING DE ESTUDIO ====================
   
   static async recordStudySession(flashcardId, databaseId, groupId, previousState, newState, studyDurationSeconds = 0, reviewNotes = null) {
