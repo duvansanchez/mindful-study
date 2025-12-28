@@ -7,12 +7,13 @@ import { Play, Filter } from "lucide-react";
 interface ReviewSetupProps {
   stats: Statistics;
   databaseName: string;
+  databaseId: string;
   flashcards: Flashcard[];
   onStart: (selectedCards: Flashcard[]) => void;
   onCancel: () => void;
 }
 
-export function ReviewSetup({ stats, databaseName, flashcards, onStart, onCancel }: ReviewSetupProps) {
+export function ReviewSetup({ stats, databaseName, databaseId, flashcards, onStart, onCancel }: ReviewSetupProps) {
   const [selectedStates, setSelectedStates] = useState<KnowledgeState[]>(['tocado', 'verde']);
   const [filteredCards, setFilteredCards] = useState<Flashcard[]>(flashcards);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -73,6 +74,7 @@ export function ReviewSetup({ stats, databaseName, flashcards, onStart, onCancel
             <FlashcardFilters
               flashcards={flashcards}
               onFilterChange={setFilteredCards}
+              databaseId={databaseId}
               className="mb-4"
             />
           )}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Flashcard, KnowledgeState } from '@/types';
-import { Filter, X, ChevronDown } from 'lucide-react';
+import { Filter, X, ChevronDown, MessageSquare } from 'lucide-react';
 import { StateBadge } from './StateBadge';
+import { useNotesCountByDatabase } from '@/hooks/useStudyTracking';
 
 interface FilterOption {
   column: string;
@@ -18,17 +19,22 @@ interface ActiveFilter {
 interface FlashcardFiltersProps {
   flashcards: Flashcard[];
   onFilterChange: (filteredCards: Flashcard[]) => void;
+  databaseId?: string; // Agregar databaseId para obtener conteos de notas
   className?: string;
 }
 
 export const FlashcardFilters: React.FC<FlashcardFiltersProps> = ({
   flashcards,
   onFilterChange,
+  databaseId,
   className = ""
 }) => {
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [availableFilters, setAvailableFilters] = useState<Record<string, FilterOption[]>>({});
+
+  // Obtener conteos de notas de repaso
+  const { data: notesCounts = {} } = useNotesCountByDatabase(databaseId);
 
   // Analizar las flashcards para extraer opciones de filtro disponibles
   useEffect(() => {
@@ -54,6 +60,29 @@ export const FlashcardFilters: React.FC<FlashcardFiltersProps> = ({
       }
     });
 
+    // Agregar filtro por notas de repaso
+    if (Object.keys(notesCounts).length > 0) {
+      filterOptions['Notas de repaso'] = new Map();
+      let withNotes = 0;
+      let withoutNotes = 0;
+
+      flashcards.forEach(card => {
+        const hasNotes = notesCounts[card.id] > 0;
+        if (hasNotes) {
+          withNotes++;
+        } else {
+          withoutNotes++;
+        }
+      });
+
+      if (withNotes > 0) {
+        filterOptions['Notas de repaso'].set('Con notas', withNotes);
+      }
+      if (withoutNotes > 0) {
+        filterOptions['Notas de repaso'].set('Sin notas', withoutNotes);
+      }
+    }
+
     // Convertir a formato de opciones
     const formattedFilters: Record<string, FilterOption[]> = {};
     Object.entries(filterOptions).forEach(([column, valueMap]) => {
@@ -63,7 +92,7 @@ export const FlashcardFilters: React.FC<FlashcardFiltersProps> = ({
     });
 
     setAvailableFilters(formattedFilters);
-  }, [flashcards]);
+  }, [flashcards, notesCounts]);
 
   // Aplicar filtros cuando cambien
   useEffect(() => {
@@ -78,6 +107,16 @@ export const FlashcardFilters: React.FC<FlashcardFiltersProps> = ({
           return card.state === filter.value;
         }
         
+        if (filter.column === 'Notas de repaso') {
+          const hasNotes = notesCounts[card.id] > 0;
+          if (filter.value === 'Con notas') {
+            return hasNotes;
+          } else if (filter.value === 'Sin notas') {
+            return !hasNotes;
+          }
+          return false;
+        }
+        
         if (card.auxiliaryInfo && card.auxiliaryInfo[filter.column]) {
           return card.auxiliaryInfo[filter.column].value === filter.value;
         }
@@ -87,7 +126,7 @@ export const FlashcardFilters: React.FC<FlashcardFiltersProps> = ({
     });
 
     onFilterChange(filtered);
-  }, [activeFilters, flashcards, onFilterChange]);
+  }, [activeFilters, flashcards, notesCounts, onFilterChange]);
 
   const addFilter = (column: string, value: string) => {
     // Evitar duplicados
@@ -96,6 +135,8 @@ export const FlashcardFilters: React.FC<FlashcardFiltersProps> = ({
 
     const label = column === 'Dominio' ? 
       `${column}: ${value}` : 
+      column === 'Notas de repaso' ?
+      `${value}` :
       `${column}: ${value}`;
 
     setActiveFilters(prev => [...prev, { column, value, label }]);
@@ -156,6 +197,11 @@ export const FlashcardFilters: React.FC<FlashcardFiltersProps> = ({
             >
               {filter.column === 'Dominio' ? (
                 <StateBadge state={filter.value as KnowledgeState} size="xs" />
+              ) : filter.column === 'Notas de repaso' ? (
+                <div className="flex items-center gap-1">
+                  <MessageSquare className="w-3 h-3" />
+                  <span>{filter.label}</span>
+                </div>
               ) : (
                 <span>{filter.label}</span>
               )}
@@ -188,6 +234,11 @@ export const FlashcardFilters: React.FC<FlashcardFiltersProps> = ({
                       <>
                         <StateBadge state={option.value as KnowledgeState} size="xs" />
                         <span>{getStateLabel(option.value as KnowledgeState)}</span>
+                      </>
+                    ) : column === 'Notas de repaso' ? (
+                      <>
+                        <MessageSquare className="w-4 h-4" />
+                        <span>{option.value}</span>
                       </>
                     ) : (
                       <span>{option.value}</span>
