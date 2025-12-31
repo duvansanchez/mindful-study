@@ -26,6 +26,19 @@ interface FlashcardOverviewCardProps {
 const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) => {
   const [isRevealed, setIsRevealed] = useState(false);
   
+  // Función para renderizar texto con formato markdown básico (negrita)
+  const renderFormattedText = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        // Texto en negrita
+        const boldText = part.slice(2, -2);
+        return <strong key={index} className="font-semibold text-foreground">{boldText}</strong>;
+      }
+      return part;
+    });
+  };
+  
   // Lazy loading del contenido solo cuando se revela
   const { data: detailedContent, isLoading: contentLoading } = useFlashcardContent(
     isRevealed ? card.id : null
@@ -88,9 +101,9 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
             <div className="space-y-2 max-h-32 overflow-y-auto">
               {reviewNotes.slice(0, 3).map((note) => (
                 <div key={note.id} className="p-2 rounded bg-secondary/50 border border-border/30">
-                  <p className="text-xs text-foreground leading-relaxed mb-1 whitespace-pre-wrap">
-                    {note.content}
-                  </p>
+                  <div className="text-xs text-foreground leading-relaxed mb-1 whitespace-pre-wrap">
+                    {renderFormattedText(note.content)}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
                   </p>

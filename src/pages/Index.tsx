@@ -35,7 +35,7 @@ const Index = () => {
   const [deletingGroup, setDeletingGroup] = useState<DatabaseGroup | null>(null);
 
   // Notion hooks - Solo cargar bases de datos cuando sea necesario
-  const { data: databases = [] } = useNotionDatabases(
+  const { data: databases = [], isLoading: databasesLoading } = useNotionDatabases(
     // Solo cargar bases de datos cuando estemos en vista de grupo, estadísticas o necesitemos los datos
     view === 'group-detail' || view === 'stats' || selectedDatabaseId !== null
   );
@@ -389,6 +389,7 @@ const Index = () => {
           <GroupDetailView
             group={selectedGroup}
             databases={databases}
+            databasesLoading={databasesLoading}
             onBack={() => setView('groups')}
             onDatabaseClick={handleDatabaseClick}
             onEditGroup={setEditingGroup}

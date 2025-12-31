@@ -89,13 +89,12 @@ export function FlashcardReview({
       const result = await onStateChange(newState);
       console.log('📡 Resultado recibido:', result);
       
-      // Verificar si hay mensaje de error sobre la columna Dominio
-      if (!result.success && result.dominioMessage) {
-        console.log('⚠️ Mostrando mensaje de error de Dominio:', result.dominioMessage);
-        setDominioMessage(result.dominioMessage);
-      } else {
-        console.log('✅ Actualización exitosa o sin mensaje de error');
-        setDominioMessage(null);
+      // Limpiar mensaje de error si la operación fue exitosa
+      setDominioMessage(null);
+    } catch (error: any) {
+      console.error('❌ Error cambiando estado:', error);
+      if (error?.dominioMessage) {
+        setDominioMessage(error.dominioMessage);
       }
     } finally {
       setUpdatingState(false);
@@ -264,6 +263,19 @@ export function FlashcardReview({
   };
 
   const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar o tener en cuenta", "Sinónimo", "definición formal", "ejemplo", "fórmula", "contexto", "Explicación de relación"];
+
+  // Función para renderizar texto con formato markdown básico (negrita)
+  const renderFormattedText = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        // Texto en negrita
+        const boldText = part.slice(2, -2);
+        return <strong key={index} className="font-semibold text-foreground">{boldText}</strong>;
+      }
+      return part;
+    });
+  };
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col">
@@ -606,7 +618,9 @@ export function FlashcardReview({
                         ) : (
                           // Modo visualización
                           <>
-                            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                            <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                              {renderFormattedText(note.content)}
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
                             </p>
@@ -661,10 +675,10 @@ export function FlashcardReview({
                       <button
                         key={quick}
                         onClick={() => {
-                          const formattedQuick = `${quick}: `;
+                          const formattedQuick = `**${quick}**: `;
                           setNoteText(noteText ? `${noteText}\n${formattedQuick}` : formattedQuick);
                         }}
-                        className="px-2 py-1 text-xs rounded bg-secondary border border-border hover:border-primary/50 hover:text-primary transition-colors"
+                        className="px-2 py-1 text-xs rounded bg-secondary border border-border hover:border-primary/50 hover:text-primary transition-colors font-medium"
                       >
                         {quick}
                       </button>
