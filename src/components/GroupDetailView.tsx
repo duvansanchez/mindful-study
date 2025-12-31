@@ -10,12 +10,14 @@ import {
   Settings,
   TrendingUp,
   Calendar,
-  Target
+  Target,
+  Loader2
 } from 'lucide-react';
 
 interface GroupDetailViewProps {
   group: DatabaseGroup;
   databases: Database[];
+  databasesLoading?: boolean;
   onBack: () => void;
   onDatabaseClick: (databaseId: string) => void;
   onEditGroup: (group: DatabaseGroup) => void;
@@ -25,6 +27,7 @@ interface GroupDetailViewProps {
 export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
   group,
   databases,
+  databasesLoading = false,
   onBack,
   onDatabaseClick,
   onEditGroup,
@@ -132,7 +135,12 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
           </span>
         </div>
         
-        {groupDatabases.length > 0 ? (
+        {databasesLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <span className="ml-3 text-muted-foreground">Cargando bases de datos...</span>
+          </div>
+        ) : groupDatabases.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {groupDatabases.map(database => {
               const actualCount = databaseCounts[database.id] ?? database.cardCount;

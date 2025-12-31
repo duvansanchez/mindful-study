@@ -286,15 +286,112 @@ app.post('/databases/sync', async (req, res) => {
   try {
     console.log('🔄 Sincronización manual de bases de datos iniciada...');
     
-    // Limpiar cache
-    databasesCache.delete('all_databases');
+    // Limpiar TODOS los caches
+    databasesCache.clear();
+    console.log('🗑️ Cache de bases de datos limpiado completamente');
     
-    // Redirigir a la búsqueda con force_refresh
-    const syncUrl = `http://localhost:3002/databases?force_refresh=true`;
-    const response = await fetch(syncUrl);
-    const databases = await response.json();
+    // Hacer la búsqueda directamente (sin usar fetch interno)
+    const databases = [];
+    let hasMore = true;
+    let nextCursor = undefined;
+    let totalResults = 0;
+    let allPages = [];
     
-    console.log('✅ Sincronización completada:', databases.length, 'bases de datos');
+    // Buscar todas las páginas con paginación completa
+    while (hasMore) {
+      console.log(`📄 Obteniendo página ${Math.floor(totalResults/100) + 1} de búsqueda...`);
+      
+      const searchParams = {
+        query: '',
+        page_size: 100,
+        filter: {
+          value: 'page',
+          property: 'object'
+        }
+      };
+      
+      if (nextCursor) {
+        searchParams.start_cursor = nextCursor;
+      }
+      
+      const response = await notion.search(searchParams);
+      
+      console.log(`📊 Páginas obtenidas en esta búsqueda: ${response.results.length}`);
+      totalResults += response.results.length;
+      
+      allPages.push(...response.results);
+      
+      hasMore = response.has_more;
+      nextCursor = response.next_cursor;
+      
+      if (hasMore) {
+        console.log('📄 Hay más páginas en la búsqueda, continuando...');
+      }
+    }
+
+    console.log(`📊 Total páginas encontradas: ${allPages.length}`);
+    
+    // Agrupar páginas por base de datos
+    const databasePageCounts = new Map();
+    const databaseIds = new Set();
+    
+    for (const item of allPages) {
+      if (item.object === 'page' && item.parent) {
+        let databaseId = null;
+        if (item.parent.type === 'database_id') {
+          databaseId = item.parent.database_id;
+        } else if (item.parent.type === 'data_source_id' && item.parent.database_id) {
+          databaseId = item.parent.database_id;
+        } else if (item.parent.database_id) {
+          databaseId = item.parent.database_id;
+        }
+        
+        if (databaseId) {
+          databasePageCounts.set(databaseId, (databasePageCounts.get(databaseId) || 0) + 1);
+          databaseIds.add(databaseId);
+        }
+      }
+    }
+    
+    console.log(`📊 Bases de datos únicas encontradas: ${databaseIds.size}`);
+    
+    // Obtener información de cada base de datos
+    for (const databaseId of databaseIds) {
+      try {
+        console.log('🔍 Obteniendo info de base de datos:', databaseId);
+        const database = await notion.databases.retrieve({ database_id: databaseId });
+        
+        const title = database.title?.[0]?.plain_text || 'Sin título';
+        const icon = database.icon?.emoji || '📄';
+        
+        // Usar el conteo real de páginas
+        const actualCount = databasePageCounts.get(databaseId) || 0;
+        
+        console.log('✅ Base de datos encontrada:', title, 'con', actualCount, 'páginas');
+        
+        databases.push({
+          id: database.id,
+          name: title,
+          icon: icon,
+          cardCount: actualCount,
+          lastSynced: new Date(database.last_edited_time),
+          source: 'notion',
+        });
+      } catch (dbError) {
+        console.error('❌ Error obteniendo base de datos:', databaseId, dbError.message);
+      }
+    }
+
+    console.log('📊 Total bases de datos procesadas:', databases.length);
+    
+    // Guardar en cache con timestamp nuevo
+    const cacheKey = 'all_databases';
+    databasesCache.set(cacheKey, {
+      databases,
+      timestamp: Date.now()
+    });
+    
+    console.log('💾 Bases de datos guardadas en cache actualizado');
     
     res.json({ 
       success: true, 
@@ -578,7 +675,7 @@ const blockChildrenCache = new Map();
 
 // Función auxiliar para obtener bloques hijos recursivamente con cache
 async function getBlockChildren(blockId, depth = 0) {
-  if (depth > 2) return []; // Limitar a 2 niveles de profundidad para evitar lentitud
+  if (depth > 5) return []; // Aumentar a 5 niveles de profundidad para contenido completo
   
   // Verificar cache primero
   const cacheKey = `${blockId}_${depth}`;
@@ -589,19 +686,34 @@ async function getBlockChildren(blockId, depth = 0) {
   try {
     console.log(`🔍 Obteniendo hijos del bloque ${blockId} (profundidad: ${depth})`);
     
-    const children = await notion.blocks.children.list({
-      block_id: blockId,
-    });
+    let allChildren = [];
+    let hasMore = true;
+    let nextCursor = undefined;
     
-    console.log(`📊 Hijos encontrados: ${children.results.length}`);
-    console.log('🔍 Tipos de hijos:', children.results.map(c => c.type));
+    // Obtener TODOS los hijos con paginación
+    while (hasMore) {
+      const children = await notion.blocks.children.list({
+        block_id: blockId,
+        page_size: 100,
+        start_cursor: nextCursor
+      });
+      
+      allChildren.push(...children.results);
+      hasMore = children.has_more;
+      nextCursor = children.next_cursor;
+      
+      console.log(`📊 Hijos obtenidos en esta página: ${children.results.length}, total: ${allChildren.length}`);
+      
+      if (!hasMore) break;
+    }
+    
+    console.log(`📊 Total hijos encontrados: ${allChildren.length}`);
+    console.log('🔍 Tipos de hijos:', allChildren.map(c => c.type));
     
     const processedChildren = [];
     
-    // Procesar solo los primeros 20 hijos para evitar lentitud
-    const limitedChildren = children.results.slice(0, 20);
-    
-    for (const child of limitedChildren) {
+    // Procesar TODOS los hijos para contenido completo
+    for (const child of allChildren) {
       if ('type' in child) {
         const processedChild = {
           id: child.id,
@@ -744,20 +856,38 @@ app.get('/flashcards/:flashcardId/content', async (req, res) => {
     
     const startTime = Date.now();
     
-    const blocks = await notion.blocks.children.list({
-      block_id: flashcardId,
-    });
+    // Obtener TODOS los bloques con paginación
+    let allBlocks = [];
+    let hasMore = true;
+    let nextCursor = undefined;
+    
+    while (hasMore) {
+      const blocks = await notion.blocks.children.list({
+        block_id: flashcardId,
+        page_size: 100,
+        start_cursor: nextCursor
+      });
+      
+      allBlocks.push(...blocks.results);
+      hasMore = blocks.has_more;
+      nextCursor = blocks.next_cursor;
+      
+      console.log(`📊 Bloques obtenidos en esta página: ${blocks.results.length}, total: ${allBlocks.length}`);
+      
+      if (!hasMore) break;
+    }
 
-    // Procesar bloques principales SIN obtener hijos (para velocidad)
+    // Procesar bloques principales Y cargar hijos automáticamente para contenido completo
     const processedBlocks = [];
     
-    for (const block of blocks.results) {
+    for (const block of allBlocks) {
       if ('type' in block) {
         const processedBlock = {
           id: block.id,
           type: block.type,
           content: null,
-          hasChildren: block.has_children || false
+          hasChildren: block.has_children || false,
+          children: [] // Inicializar array de hijos
         };
 
         switch (block.type) {
@@ -855,12 +985,24 @@ app.get('/flashcards/:flashcardId/content', async (req, res) => {
             break;
         }
         
+        // CARGAR HIJOS AUTOMÁTICAMENTE para contenido completo
+        if (block.has_children) {
+          console.log(`🔍 Cargando hijos automáticamente para bloque ${block.type}:`, block.id);
+          try {
+            processedBlock.children = await getBlockChildren(block.id, 0);
+            console.log(`✅ Hijos cargados: ${processedBlock.children.length}`);
+          } catch (error) {
+            console.error(`❌ Error cargando hijos para ${block.id}:`, error);
+            processedBlock.children = [];
+          }
+        }
+        
         processedBlocks.push(processedBlock);
       }
     }
     
     const endTime = Date.now();
-    console.log(`✅ Contenido principal obtenido en ${endTime - startTime}ms, bloques:`, processedBlocks.length);
+    console.log(`✅ Contenido COMPLETO obtenido en ${endTime - startTime}ms, bloques:`, processedBlocks.length);
     
     res.json({ 
       blocks: processedBlocks,

@@ -64,15 +64,15 @@ interface NotionRendererProps {
 
 // Componente para renderizar tablas
 const TableBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
-  const [rows, setRows] = useState<NotionBlock[]>([]);
+  const [rows, setRows] = useState<NotionBlock[]>(block.children || []);
   const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(!!block.children?.length);
 
   console.log('🔍 TableBlock montado:', block);
 
-  // Cargar filas de la tabla
+  // Cargar filas solo si no vienen ya cargadas del servidor
   React.useEffect(() => {
-    if (block.hasChildren && !loaded) {
+    if (block.hasChildren && !loaded && !block.children?.length) {
       console.log('🔍 Cargando filas de tabla para bloque:', block.id);
       setLoading(true);
       fetch(`/api/blocks/${block.id}/children`)
@@ -92,7 +92,7 @@ const TableBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
           setLoading(false);
         });
     }
-  }, [block.hasChildren, block.id, loaded]);
+  }, [block.hasChildren, block.id, loaded, block.children?.length]);
 
   if (loading) {
     return (
@@ -148,13 +148,13 @@ const TableBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
 // Componente para toggle con carga automática optimizada
 const ToggleBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
   const [isOpen, setIsOpen] = useState(true); // Abierto por defecto
-  const [children, setChildren] = useState<NotionBlock[]>([]);
+  const [children, setChildren] = useState<NotionBlock[]>(block.children || []);
   const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(!!block.children?.length);
 
-  // Cargar contenido automáticamente al montar el componente
+  // Cargar contenido solo si no viene ya cargado del servidor
   React.useEffect(() => {
-    if (block.hasChildren && !loaded) {
+    if (block.hasChildren && !loaded && !block.children?.length) {
       setLoading(true);
       fetch(`/api/blocks/${block.id}/children`)
         .then(response => response.json())
@@ -169,7 +169,7 @@ const ToggleBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
           setLoading(false);
         });
     }
-  }, [block.hasChildren, block.id, loaded]);
+  }, [block.hasChildren, block.id, loaded, block.children?.length]);
 
   const getHeaderStyle = () => {
     switch (block.type) {
@@ -262,7 +262,14 @@ const ToggleBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
             </div>
           ) : children.length > 0 ? (
             <NotionRenderer blocks={children} />
-          ) : null}
+          ) : (
+            // Si no hay hijos cargados pero debería haberlos, mostrar mensaje
+            !loaded && (
+              <div className="text-sm text-muted-foreground">
+                Contenido anidado disponible
+              </div>
+            )
+          )}
         </div>
       )}
     </div>
