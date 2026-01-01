@@ -2,10 +2,13 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
-import { Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, Filter, ArrowUpDown, ChevronDown } from "lucide-react";
+import { Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, Filter, ArrowUpDown, ChevronDown, Bookmark } from "lucide-react";
 import { useFlashcardContent } from "@/hooks/useNotion";
 import { useReviewNotes } from "@/hooks/useReviewNotes";
 import { useNotesCountByDatabase } from "@/hooks/useStudyTracking";
+import { useReferencePoints, useCreateReferencePoint, useTextSelection } from "@/hooks/useReferencePoints";
+import { ReferencePointsPanel } from "./ReferencePointsPanel";
+import { CreateReferencePointDialog } from "./CreateReferencePointDialog";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -25,6 +28,12 @@ interface FlashcardOverviewCardProps {
 
 const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) => {
   const [isRevealed, setIsRevealed] = useState(false);
+  const [showCreateReferenceDialog, setShowCreateReferenceDialog] = useState(false);
+  const [selectedTextForReference, setSelectedTextForReference] = useState("");
+  const [selectionContext, setSelectionContext] = useState<{
+    contextBefore: string;
+    contextAfter: string;
+  } | null>(null);
   
   // Función para renderizar texto con formato markdown básico (negrita)
   const renderFormattedText = (text: string) => {
@@ -47,8 +56,90 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
   // Cargar notas de repaso (siempre visibles en vista general)
   const { data: reviewNotes = [], isLoading: notesLoading } = useReviewNotes(card.id);
 
+  // Cargar puntos de referencia
+  const { data: referencePoints = [], isLoading: referencePointsLoading } = useReferencePoints(card.id);
+  const createReferencePointMutation = useCreateReferencePoint();
+  const { handleTextSelection, clearSelection } = useTextSelection();
+
   const handleToggleContent = () => {
     setIsRevealed(!isRevealed);
+  };
+
+  // Funciones para puntos de referencia
+  const handleTextSelectionForReference = () => {
+    const selectionData = handleTextSelection();
+    if (selectionData) {
+      setSelectedTextForReference(selectionData.text);
+      setSelectionContext({
+        contextBefore: selectionData.contextBefore,
+        contextAfter: selectionData.contextAfter
+      });
+      setShowCreateReferenceDialog(true);
+    }
+  };
+
+  const handleCreateReferencePoint = async (data: {
+    referenceName: string;
+    category: string;
+    color: string;
+  }) => {
+    try {
+      await createReferencePointMutation.mutateAsync({
+        flashcardId: card.id,
+        data: {
+          selectedText: selectedTextForReference,
+          referenceName: data.referenceName,
+          databaseId: card.databaseId,
+          category: data.category,
+          color: data.color,
+          contextBefore: selectionContext?.contextBefore,
+          contextAfter: selectionContext?.contextAfter,
+        }
+      });
+
+      setShowCreateReferenceDialog(false);
+      setSelectedTextForReference("");
+      setSelectionContext(null);
+      clearSelection();
+    } catch (error) {
+      console.error('Error creating reference point:', error);
+    }
+  };
+
+  const handleNavigateToReference = (referencePoint: { selectedText: string; color: string }) => {
+    // Buscar el texto en el contenido y hacer scroll
+    const textToFind = referencePoint.selectedText;
+    
+    setTimeout(() => {
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.textContent && node.textContent.includes(textToFind)) {
+          const element = node.parentElement;
+          if (element) {
+            element.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center' 
+            });
+            
+            const originalBg = element.style.backgroundColor;
+            element.style.backgroundColor = referencePoint.color + '40';
+            element.style.transition = 'background-color 0.3s ease';
+            
+            setTimeout(() => {
+              element.style.backgroundColor = originalBg;
+            }, 2000);
+            
+            break;
+          }
+        }
+      }
+    }, 100);
   };
 
   return (
@@ -83,43 +174,97 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
           </div>
         )}
 
-        {/* Notas de repaso (siempre visibles) */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground font-medium">
-              Notas de repaso ({reviewNotes.length})
-            </span>
-          </div>
-          
-          {notesLoading ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground p-2">
-              <div className="animate-spin rounded-full h-3 w-3 border-b border-muted-foreground"></div>
-              Cargando notas...
+        {/* Notas de repaso y puntos de referencia */}
+        <div className="space-y-4">
+          {/* Notas de repaso */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground font-medium">
+                Notas de repaso ({reviewNotes.length})
+              </span>
             </div>
-          ) : reviewNotes.length > 0 ? (
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {reviewNotes.slice(0, 3).map((note) => (
-                <div key={note.id} className="p-2 rounded bg-secondary/50 border border-border/30">
-                  <div className="text-xs text-foreground leading-relaxed mb-1 whitespace-pre-wrap">
-                    {renderFormattedText(note.content)}
+            
+            {notesLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground p-2">
+                <div className="animate-spin rounded-full h-3 w-3 border-b border-muted-foreground"></div>
+                Cargando notas...
+              </div>
+            ) : reviewNotes.length > 0 ? (
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {reviewNotes.slice(0, 3).map((note) => (
+                  <div key={note.id} className="p-2 rounded bg-secondary/50 border border-border/30">
+                    <div className="text-xs text-foreground leading-relaxed mb-1 whitespace-pre-wrap">
+                      {renderFormattedText(note.content)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
+                ))}
+                {reviewNotes.length > 3 && (
+                  <p className="text-xs text-muted-foreground text-center py-1">
+                    +{reviewNotes.length - 3} notas más
                   </p>
-                </div>
-              ))}
-              {reviewNotes.length > 3 && (
-                <p className="text-xs text-muted-foreground text-center py-1">
-                  +{reviewNotes.length - 3} notas más
-                </p>
-              )}
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic p-2">
+                Sin notas de repaso registradas
+              </p>
+            )}
+          </div>
+
+          {/* Puntos de referencia */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Bookmark className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground font-medium">
+                Puntos de referencia ({referencePoints.length})
+              </span>
             </div>
-          ) : (
-            <p className="text-xs text-muted-foreground italic p-2">
-              Sin notas de repaso registradas
-            </p>
-          )}
+            
+            {referencePointsLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground p-2">
+                <div className="animate-spin rounded-full h-3 w-3 border-b border-muted-foreground"></div>
+                Cargando puntos...
+              </div>
+            ) : referencePoints.length > 0 ? (
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {referencePoints.slice(0, 3).map((point) => (
+                  <div key={point.id} className="p-2 rounded bg-secondary/50 border border-border/30">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div 
+                        className="w-2 h-2 rounded-full flex-shrink-0" 
+                        style={{ backgroundColor: point.color }}
+                      />
+                      <span className="text-xs font-medium text-foreground truncate">
+                        {point.referenceName}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground leading-relaxed mb-1 line-clamp-2">
+                      "{point.selectedText}"
+                    </div>
+                    <button
+                      onClick={() => handleNavigateToReference(point)}
+                      className="text-xs text-primary hover:text-primary/80 transition-colors"
+                    >
+                      Ir al texto
+                    </button>
+                  </div>
+                ))}
+                {referencePoints.length > 3 && (
+                  <p className="text-xs text-muted-foreground text-center py-1">
+                    +{referencePoints.length - 3} puntos más
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic p-2">
+                Sin puntos de referencia creados
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -154,8 +299,24 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
             ) : (
               <div className="text-sm text-foreground">
                 {detailedContent?.blocks ? (
-                  <div className="notion-content">
-                    <NotionRenderer blocks={detailedContent.blocks as never} />
+                  <div className="space-y-4">
+                    <div className="notion-content">
+                      <NotionRenderer blocks={detailedContent.blocks as never} />
+                    </div>
+                    
+                    {/* Botón para crear punto de referencia */}
+                    <div className="p-3 bg-muted/50 rounded-lg border border-dashed border-border">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                        <Bookmark className="w-4 h-4" />
+                        <span>Selecciona texto para crear un punto de referencia</span>
+                      </div>
+                      <button
+                        onClick={handleTextSelectionForReference}
+                        className="px-3 py-2 text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors"
+                      >
+                        Crear punto de referencia
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="prose prose-sm max-w-none">
@@ -173,6 +334,15 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
           </div>
         </div>
       )}
+
+      {/* Create Reference Point Dialog */}
+      <CreateReferencePointDialog
+        open={showCreateReferenceDialog}
+        onOpenChange={setShowCreateReferenceDialog}
+        selectedText={selectedTextForReference}
+        onCreateReferencePoint={handleCreateReferencePoint}
+        isCreating={createReferencePointMutation.isPending}
+      />
     </div>
   );
 };

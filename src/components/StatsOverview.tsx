@@ -1,14 +1,31 @@
 import { Statistics } from "@/types";
 import { StateBadge } from "./StateBadge";
+import { Loader2 } from "lucide-react";
 
 interface StatsOverviewProps {
   stats: Statistics;
   title?: string;
+  isLoading?: boolean;
 }
 
-export function StatsOverview({ stats, title }: StatsOverviewProps) {
+export function StatsOverview({ stats, title, isLoading = false }: StatsOverviewProps) {
   const percentage = (value: number) => 
     stats.total > 0 ? Math.round((value / stats.total) * 100) : 0;
+
+  if (isLoading) {
+    return (
+      <div className="p-5 rounded-xl bg-card border border-border animate-fade-in">
+        {title && (
+          <h3 className="text-sm font-medium text-muted-foreground mb-4">{title}</h3>
+        )}
+        
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mr-3" />
+          <span className="text-muted-foreground">Calculando estadísticas...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-5 rounded-xl bg-card border border-border animate-fade-in">

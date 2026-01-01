@@ -603,6 +603,165 @@ class DatabaseService {
       throw error;
     }
   }
+
+  // ==================== PUNTOS DE REFERENCIA ====================
+
+  // Crear punto de referencia
+  static async createReferencePoint(flashcardId, databaseId, selectedText, referenceName, options = {}) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      
+      request.input('FlashcardId', sql.NVarChar, flashcardId);
+      request.input('DatabaseId', sql.NVarChar, databaseId);
+      request.input('SelectedText', sql.NVarChar, selectedText);
+      request.input('ReferenceName', sql.NVarChar, referenceName);
+      request.input('TextPosition', sql.Int, options.textPosition || null);
+      request.input('BlockId', sql.NVarChar, options.blockId || null);
+      request.input('ContextBefore', sql.NVarChar, options.contextBefore || null);
+      request.input('ContextAfter', sql.NVarChar, options.contextAfter || null);
+      request.input('Category', sql.NVarChar, options.category || 'general');
+      request.input('Color', sql.NVarChar, options.color || '#3B82F6');
+
+      const result = await request.query(`
+        INSERT INTO ReferencePoints 
+        (flashcard_id, database_id, selected_text, reference_name, text_position, block_id, context_before, context_after, category, color)
+        OUTPUT INSERTED.*
+        VALUES (@FlashcardId, @DatabaseId, @SelectedText, @ReferenceName, @TextPosition, @BlockId, @ContextBefore, @ContextAfter, @Category, @Color)
+      `);
+
+      return result.recordset[0];
+    } catch (error) {
+      console.error('Error creating reference point:', error);
+      throw error;
+    }
+  }
+
+  // Obtener puntos de referencia de una flashcard
+  static async getReferencePoints(flashcardId) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      
+      request.input('FlashcardId', sql.NVarChar, flashcardId);
+
+      const result = await request.query(`
+        SELECT * FROM ReferencePoints
+        WHERE flashcard_id = @FlashcardId
+        ORDER BY created_at ASC
+      `);
+
+      return result.recordset.map(row => ({
+        id: row.id,
+        flashcardId: row.flashcard_id,
+        databaseId: row.database_id,
+        selectedText: row.selected_text,
+        referenceName: row.reference_name,
+        textPosition: row.text_position,
+        blockId: row.block_id,
+        contextBefore: row.context_before,
+        contextAfter: row.context_after,
+        category: row.category,
+        color: row.color,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+    } catch (error) {
+      console.error('Error getting reference points:', error);
+      throw error;
+    }
+  }
+
+  // Actualizar punto de referencia
+  static async updateReferencePoint(referenceId, updates) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      
+      request.input('ReferenceId', sql.Int, referenceId);
+      
+      const updateFields = [];
+      const allowedFields = ['referenceName', 'category', 'color'];
+      
+      if (updates.referenceName !== undefined) {
+        request.input('ReferenceName', sql.NVarChar, updates.referenceName);
+        updateFields.push('reference_name = @ReferenceName');
+      }
+      if (updates.category !== undefined) {
+        request.input('Category', sql.NVarChar, updates.category);
+        updateFields.push('category = @Category');
+      }
+      if (updates.color !== undefined) {
+        request.input('Color', sql.NVarChar, updates.color);
+        updateFields.push('color = @Color');
+      }
+
+      if (updateFields.length === 0) {
+        throw new Error('No valid fields to update');
+      }
+
+      updateFields.push('updated_at = GETDATE()');
+
+      const result = await request.query(`
+        UPDATE ReferencePoints 
+        SET ${updateFields.join(', ')}
+        WHERE id = @ReferenceId
+      `);
+
+      return result.rowsAffected[0] > 0;
+    } catch (error) {
+      console.error('Error updating reference point:', error);
+      throw error;
+    }
+  }
+
+  // Eliminar punto de referencia
+  static async deleteReferencePoint(referenceId) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      
+      request.input('ReferenceId', sql.Int, referenceId);
+
+      const result = await request.query(`
+        DELETE FROM ReferencePoints 
+        WHERE id = @ReferenceId
+      `);
+
+      return result.rowsAffected[0] > 0;
+    } catch (error) {
+      console.error('Error deleting reference point:', error);
+      throw error;
+    }
+  }
+
+  // Obtener conteo de puntos de referencia por base de datos
+  static async getReferencePointsCountByDatabase(databaseId) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      
+      request.input('DatabaseId', sql.NVarChar, databaseId);
+
+      const result = await request.query(`
+        SELECT flashcard_id, COUNT(*) as ReferencePointsCount
+        FROM ReferencePoints
+        WHERE database_id = @DatabaseId
+        GROUP BY flashcard_id
+      `);
+
+      // Convertir a objeto para fácil lookup
+      const referencePointsCounts = {};
+      result.recordset.forEach(row => {
+        referencePointsCounts[row.flashcard_id] = row.ReferencePointsCount;
+      });
+
+      return referencePointsCounts;
+    } catch (error) {
+      console.error('Error getting reference points count by database:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = {
