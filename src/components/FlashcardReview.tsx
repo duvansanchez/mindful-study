@@ -9,7 +9,7 @@ import { es } from "date-fns/locale";
 import { useFlashcardContent } from "@/hooks/useNotion";
 import { useReviewNotes, useAddReviewNote, useDeleteReviewNote, useUpdateReviewNote } from "@/hooks/useReviewNotes";
 import { useFlashcardReviewCount } from "@/hooks/useStudyTracking";
-import { useReferencePoints, useCreateReferencePoint, useTextSelection } from "@/hooks/useReferencePoints";
+import { useReferencePoints, useCreateReferencePoint, useTextSelection, type ReferencePoint } from "@/hooks/useReferencePoints";
 import { ReferencePointsPanel } from "./ReferencePointsPanel";
 import { CreateReferencePointDialog } from "./CreateReferencePointDialog";
 import { FloatingReferenceButton } from "./FloatingReferenceButton";
@@ -106,8 +106,14 @@ export function FlashcardReview({
       const result = await onStateChange(newState);
       console.log('📡 Resultado recibido:', result);
       
-      // Limpiar mensaje de error si la operación fue exitosa
-      setDominioMessage(null);
+      // Verificar si hay mensaje de error sobre columna Dominio
+      if (result && result.dominioMessage) {
+        console.log('⚠️ Mensaje de dominio recibido:', result.dominioMessage);
+        setDominioMessage(result.dominioMessage);
+      } else if (result && result.success) {
+        // Limpiar mensaje de error si la operación fue exitosa
+        setDominioMessage(null);
+      }
     } catch (error: unknown) {
       console.error('❌ Error cambiando estado:', error);
       if (error && typeof error === 'object' && 'dominioMessage' in error) {
@@ -327,7 +333,7 @@ export function FlashcardReview({
     }
   };
 
-  const handleNavigateToReference = (referencePoint: { selectedText: string; color: string }) => {
+  const handleNavigateToReference = (referencePoint: ReferencePoint) => {
     // Buscar el texto en el contenido y hacer scroll
     const textToFind = referencePoint.selectedText;
     
@@ -368,16 +374,74 @@ export function FlashcardReview({
               mark.style.padding = '2px 4px';
               mark.style.borderRadius = '3px';
               mark.style.transition = 'all 0.3s ease';
+              mark.style.position = 'relative';
               
               try {
                 // Envolver el texto seleccionado con el mark
                 range.surroundContents(mark);
                 
-                // Remover el highlight después de 3 segundos
+                // Crear tooltip con el nombre del punto de referencia
+                const tooltip = document.createElement('div');
+                tooltip.textContent = referencePoint.referenceName;
+                tooltip.style.cssText = `
+                  position: absolute;
+                  top: -45px;
+                  left: 50%;
+                  transform: translateX(-50%);
+                  background: ${referencePoint.color};
+                  color: white;
+                  padding: 10px 20px;
+                  border-radius: 10px;
+                  font-size: 16px;
+                  font-weight: 500;
+                  white-space: nowrap;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                  z-index: 1000;
+                  animation: fadeInScale 0.3s ease-out;
+                  pointer-events: none;
+                `;
+                
+                // Agregar flecha al tooltip
+                const arrow = document.createElement('div');
+                arrow.style.cssText = `
+                  position: absolute;
+                  top: 100%;
+                  left: 50%;
+                  transform: translateX(-50%);
+                  width: 0;
+                  height: 0;
+                  border-left: 8px solid transparent;
+                  border-right: 8px solid transparent;
+                  border-top: 8px solid ${referencePoint.color};
+                `;
+                tooltip.appendChild(arrow);
+                
+                // Agregar animación CSS si no existe
+                if (!document.getElementById('reference-tooltip-styles')) {
+                  const style = document.createElement('style');
+                  style.id = 'reference-tooltip-styles';
+                  style.textContent = `
+                    @keyframes fadeInScale {
+                      0% {
+                        opacity: 0;
+                        transform: translateX(-50%) scale(0.8);
+                      }
+                      100% {
+                        opacity: 1;
+                        transform: translateX(-50%) scale(1);
+                      }
+                    }
+                  `;
+                  document.head.appendChild(style);
+                }
+                
+                mark.appendChild(tooltip);
+                
+                // Remover el highlight y tooltip después de 3 segundos
                 setTimeout(() => {
                   if (mark.parentNode) {
                     // Reemplazar el mark con su contenido de texto
-                    const textNode = document.createTextNode(mark.textContent || '');
+                    const textNode = document.createTextNode(referencePoint.selectedText);
                     mark.parentNode.replaceChild(textNode, mark);
                   }
                 }, 3000);
@@ -390,8 +454,31 @@ export function FlashcardReview({
                 element.style.backgroundColor = referencePoint.color + '40';
                 element.style.transition = 'background-color 0.3s ease';
                 
+                // Crear tooltip flotante como fallback
+                const fallbackTooltip = document.createElement('div');
+                fallbackTooltip.textContent = referencePoint.referenceName;
+                fallbackTooltip.style.cssText = `
+                  position: fixed;
+                  top: 20px;
+                  right: 20px;
+                  background: ${referencePoint.color};
+                  color: white;
+                  padding: 8px 16px;
+                  border-radius: 8px;
+                  font-size: 14px;
+                  font-weight: 500;
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                  z-index: 1000;
+                  animation: slideInRight 0.3s ease-out;
+                `;
+                
+                document.body.appendChild(fallbackTooltip);
+                
                 setTimeout(() => {
                   element.style.backgroundColor = originalBg;
+                  if (fallbackTooltip.parentNode) {
+                    fallbackTooltip.remove();
+                  }
                 }, 2000);
               }
             }
