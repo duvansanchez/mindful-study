@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ImageModal } from './ImageModal';
 
 interface RichText {
   type: 'text';
@@ -389,12 +390,38 @@ const getColorClass = (color: string): string => {
 };
 
 export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
+  const [imageModal, setImageModal] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    caption: string;
+    alt: string;
+  }>({
+    isOpen: false,
+    imageUrl: '',
+    caption: '',
+    alt: ''
+  });
+
+  const openImageModal = (imageUrl: string, caption: string = '', alt: string = '') => {
+    setImageModal({
+      isOpen: true,
+      imageUrl,
+      caption,
+      alt
+    });
+  };
+
+  const closeImageModal = () => {
+    setImageModal(prev => ({ ...prev, isOpen: false }));
+  };
+
   if (!blocks || blocks.length === 0) {
     return <p className="text-muted-foreground">Sin contenido disponible</p>;
   }
 
   return (
-    <div className="notion-content space-y-3">
+    <>
+      <div className="notion-content space-y-3">
       {blocks.map((block) => {
         const richText = block.content?.rich_text || [];
         const key = block.id;
@@ -548,8 +575,10 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
                 <img 
                   src={imageUrl}
                   alt={caption || 'Imagen de Notion'}
-                  className="max-w-full h-auto rounded-lg shadow-sm"
+                  className="max-w-full h-auto rounded-lg shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
                   loading="lazy"
+                  onClick={() => openImageModal(imageUrl, caption, caption || 'Imagen de Notion')}
+                  title="Haz clic para ver en tamaño completo"
                   onError={(e) => {
                     console.error('Error cargando imagen:', imageUrl);
                     const target = e.target as HTMLImageElement;
@@ -603,6 +632,16 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
         }
       })}
     </div>
+    
+    {/* Image Modal */}
+    <ImageModal
+      isOpen={imageModal.isOpen}
+      onClose={closeImageModal}
+      imageUrl={imageModal.imageUrl}
+      caption={imageModal.caption}
+      alt={imageModal.alt}
+    />
+  </>
   );
 };
 
