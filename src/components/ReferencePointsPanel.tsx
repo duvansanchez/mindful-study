@@ -14,6 +14,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DeleteReferenceDialog } from './DeleteReferenceDialog';
 
 interface ReferencePointsPanelProps {
@@ -113,7 +114,8 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
   }
 
   return (
-    <div className="space-y-3">
+    <TooltipProvider>
+      <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
@@ -212,9 +214,16 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                               className="w-3 h-3 rounded-full flex-shrink-0" 
                               style={{ backgroundColor: categoryData.color }}
                             />
-                            <h4 className="text-sm font-medium text-foreground truncate">
-                              {referencePoint.referenceName}
-                            </h4>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <h4 className="text-sm font-medium text-foreground truncate">
+                                  {referencePoint.referenceName}
+                                </h4>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs bg-blue-600 text-white border-blue-600">
+                                <p className="text-sm">{referencePoint.referenceName}</p>
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
                           <Badge variant="outline" className="text-xs">
                             {categoryData.label}
@@ -278,6 +287,7 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
         onConfirm={handleConfirmDelete}
         isDeleting={deleteReferencePoint.isPending}
       />
-    </div>
+      </div>
+    </TooltipProvider>
   );
 };
