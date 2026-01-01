@@ -1,10 +1,11 @@
 import { Statistics, KnowledgeState } from "@/types";
 import { StatsOverview } from "./StatsOverview";
-import { ArrowLeft, Brain, BookOpen, Play, Eye } from "lucide-react";
+import { ArrowLeft, Brain, BookOpen, Play, Eye, Loader2 } from "lucide-react";
 
 interface ModeSelectionProps {
   stats: Statistics;
   databaseName: string;
+  isLoadingFlashcards?: boolean;
   onStartActiveReview: (selectedStates: KnowledgeState[]) => void;
   onStartOverviewMode: () => void;
   onCancel: () => void;
@@ -13,6 +14,7 @@ interface ModeSelectionProps {
 export function ModeSelection({ 
   stats, 
   databaseName, 
+  isLoadingFlashcards = false,
   onStartActiveReview, 
   onStartOverviewMode, 
   onCancel 
@@ -45,18 +47,30 @@ export function ModeSelection({
 
         {/* Estadísticas */}
         <div className="p-6 border-b border-border">
-          <StatsOverview stats={stats} />
+          <StatsOverview stats={stats} isLoading={isLoadingFlashcards} />
         </div>
 
         {/* Opciones de modo */}
         <div className="p-6 space-y-4">
           <h3 className="font-medium text-foreground mb-4">Selecciona el modo de estudio</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Mensaje de carga */}
+          {isLoadingFlashcards && (
+            <div className="flex flex-col items-center justify-center py-12 px-6 bg-muted/30 rounded-lg border border-border/50">
+              <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+              <h4 className="text-lg font-medium text-foreground mb-2">Cargando flashcards</h4>
+              <p className="text-sm text-muted-foreground text-center max-w-md">
+                Obteniendo todo el contenido desde Notion. Esto puede tomar unos momentos para bases de datos grandes.
+              </p>
+            </div>
+          )}
+          
+          <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${isLoadingFlashcards ? 'opacity-50 pointer-events-none' : ''}`}>
             {/* Repaso Activo */}
             <button
               onClick={handleActiveReview}
-              className="group p-6 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-left"
+              disabled={isLoadingFlashcards}
+              className="group p-6 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-left disabled:cursor-not-allowed"
             >
               <div className="flex items-start gap-4">
                 <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
@@ -83,7 +97,8 @@ export function ModeSelection({
             {/* Vista General */}
             <button
               onClick={onStartOverviewMode}
-              className="group p-6 rounded-lg border border-border hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-left"
+              disabled={isLoadingFlashcards}
+              className="group p-6 rounded-lg border border-border hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-left disabled:cursor-not-allowed"
             >
               <div className="flex items-start gap-4">
                 <div className="p-3 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
@@ -120,8 +135,18 @@ export function ModeSelection({
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border bg-muted/30">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>Puedes cambiar de modo en cualquier momento</span>
-            <span>{stats.total} tarjetas disponibles</span>
+            <span>
+              {isLoadingFlashcards 
+                ? "Cargando contenido desde Notion..." 
+                : "Puedes cambiar de modo en cualquier momento"
+              }
+            </span>
+            <span>
+              {isLoadingFlashcards 
+                ? "Preparando tarjetas..." 
+                : `${stats.total} tarjetas disponibles`
+              }
+            </span>
           </div>
         </div>
       </div>

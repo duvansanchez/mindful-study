@@ -6,9 +6,9 @@
   "description": "Transform your Notion databases into interactive flashcards for effective learning and knowledge retention",
   "scripts": {
     "dev": "vite",
-    "dev:api": "node server/simple-api.cjs",
+    "dev:api": "node server/test-api.cjs",
     "dev:notion": "node server/test-api.cjs",
-    "dev:full": "concurrently \"npm run dev:notion\" \"npm run dev\"",
+    "dev:full": "concurrently \"npm run dev:api\" \"npm run dev\"",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

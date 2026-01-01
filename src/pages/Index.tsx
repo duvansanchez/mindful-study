@@ -39,7 +39,7 @@ const Index = () => {
     // Solo cargar bases de datos cuando estemos en vista de grupo, estadísticas o necesitemos los datos
     view === 'group-detail' || view === 'stats' || selectedDatabaseId !== null
   );
-  const { data: flashcards = [] } = useNotionFlashcards(selectedDatabaseId);
+  const { data: flashcards = [], isLoading: flashcardsLoading } = useNotionFlashcards(selectedDatabaseId);
   const { data: isConnected = false, isLoading: connectionLoading } = useNotionConnection();
   const updateFlashcardMutation = useUpdateFlashcardState();
   const updateReviewDateMutation = useUpdateFlashcardReviewDate();
@@ -403,6 +403,7 @@ const Index = () => {
         <ModeSelection
           stats={flashcardsStats}
           databaseName={selectedDatabase.name}
+          isLoadingFlashcards={flashcardsLoading}
           onStartActiveReview={handleStartActiveReview}
           onStartOverviewMode={handleStartOverviewMode}
           onCancel={handleCloseModeSelection}
@@ -436,6 +437,7 @@ const Index = () => {
       {/* Review Mode */}
       {view === 'review' && reviewCards.length > 0 && (
         <FlashcardReview
+          key={reviewCards[currentCardIndex]?.id} // Forzar re-mount cuando cambie la flashcard
           card={reviewCards[currentCardIndex]}
           onStateChange={handleStateChange}
           onNext={handleNextCard}

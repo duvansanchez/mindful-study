@@ -3,12 +3,15 @@ import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
 import type { NotionBlock } from "./NotionRenderer";
-import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon, Bookmark } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFlashcardContent } from "@/hooks/useNotion";
 import { useReviewNotes, useAddReviewNote, useDeleteReviewNote, useUpdateReviewNote } from "@/hooks/useReviewNotes";
 import { useFlashcardReviewCount } from "@/hooks/useStudyTracking";
+import { useReferencePoints, useCreateReferencePoint, useTextSelection } from "@/hooks/useReferencePoints";
+import { ReferencePointsPanel } from "./ReferencePointsPanel";
+import { CreateReferencePointDialog } from "./CreateReferencePointDialog";
 
 interface FlashcardReviewProps {
   card: Flashcard;
@@ -44,6 +47,14 @@ export function FlashcardReview({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState("");
   
+  // Estados para puntos de referencia
+  const [showCreateReferenceDialog, setShowCreateReferenceDialog] = useState(false);
+  const [selectedTextForReference, setSelectedTextForReference] = useState("");
+  const [selectionContext, setSelectionContext] = useState<{
+    contextBefore: string;
+    contextAfter: string;
+  } | null>(null);
+  
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
   const [dominioMessage, setDominioMessage] = useState<string | null>(null);
   const [updatingState, setUpdatingState] = useState(false);
@@ -65,6 +76,11 @@ export function FlashcardReview({
   const deleteNoteMutation = useDeleteReviewNote();
   const updateNoteMutation = useUpdateReviewNote();
 
+  // Cargar puntos de referencia
+  const { data: referencePoints = [], isLoading: referencePointsLoading } = useReferencePoints(card.id);
+  const createReferencePointMutation = useCreateReferencePoint();
+  const { handleTextSelection, clearSelection } = useTextSelection();
+
   // Cargar conteo de repasos
   const { data: reviewCount = 0, isLoading: reviewCountLoading } = useFlashcardReviewCount(card.id);
 
@@ -80,7 +96,7 @@ export function FlashcardReview({
     localStorage.setItem('flashcard-show-auxiliary', newValue.toString());
   };
 
-  const handleStateChange = async (newState: KnowledgeState) => {
+  const handleStateChange = useCallback(async (newState: KnowledgeState) => {
     if (updatingState) return;
     
     setUpdatingState(true);
@@ -91,15 +107,15 @@ export function FlashcardReview({
       
       // Limpiar mensaje de error si la operación fue exitosa
       setDominioMessage(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error cambiando estado:', error);
-      if (error?.dominioMessage) {
-        setDominioMessage(error.dominioMessage);
+      if (error && typeof error === 'object' && 'dominioMessage' in error) {
+        setDominioMessage((error as { dominioMessage: string }).dominioMessage);
       }
     } finally {
       setUpdatingState(false);
     }
-  };
+  }, [updatingState, onStateChange]);
 
   const handleNext = useCallback(async () => {
     if (updatingReviewDate) return;
@@ -189,27 +205,34 @@ export function FlashcardReview({
       }
     };
 
-    // Agregar event listener
+    // Manejar selección de texto para puntos de referencia
+    const handleMouseUp = () => {
+      const selection = window.getSelection();
+      if (selection && selection.toString().trim().length > 0) {
+        // Solo mostrar opción si hay texto seleccionado y estamos en contenido revelado
+        if (revealed) {
+          // Pequeño delay para asegurar que la selección esté completa
+          setTimeout(() => {
+            const selectedText = selection.toString().trim();
+            if (selectedText.length > 0) {
+              // Mostrar botón flotante o tooltip para crear punto de referencia
+              console.log('📍 Texto seleccionado para punto de referencia:', selectedText);
+            }
+          }, 10);
+        }
+      }
+    };
+
+    // Agregar event listeners
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mouseup', handleMouseUp);
 
     // Cleanup
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [onNext, onPrevious, currentIndex, handleNext, revealed, handleReveal]);
-
-  // Resetear estado cuando cambia la flashcard (EXCEPTO showAuxiliary que se mantiene)
-  useEffect(() => {
-    setRevealed(false);
-    // NO resetear showAuxiliary - mantener la preferencia del usuario
-    setShowNoteInput(false);
-    setNoteText("");
-    setEditingNoteId(null);
-    setEditingNoteText("");
-    setLastReviewMessage(null);
-    setDominioMessage(null);
-    lastKeyPressRef.current = null;
-  }, [card.id]);
+  }, [onNext, onPrevious, currentIndex, handleNext, handleReveal, handleStateChange, revealed]);
 
   const handleAddNote = async () => {
     if (!noteText.trim()) return;
@@ -260,6 +283,87 @@ export function FlashcardReview({
     } catch (error) {
       console.error('Error updating review note:', error);
     }
+  };
+
+  // Funciones para puntos de referencia
+  const handleTextSelectionForReference = () => {
+    const selectionData = handleTextSelection();
+    if (selectionData) {
+      setSelectedTextForReference(selectionData.text);
+      setSelectionContext({
+        contextBefore: selectionData.contextBefore,
+        contextAfter: selectionData.contextAfter
+      });
+      setShowCreateReferenceDialog(true);
+    }
+  };
+
+  const handleCreateReferencePoint = async (data: {
+    referenceName: string;
+    category: string;
+    color: string;
+  }) => {
+    try {
+      await createReferencePointMutation.mutateAsync({
+        flashcardId: card.id,
+        data: {
+          selectedText: selectedTextForReference,
+          referenceName: data.referenceName,
+          databaseId: card.databaseId,
+          category: data.category,
+          color: data.color,
+          contextBefore: selectionContext?.contextBefore,
+          contextAfter: selectionContext?.contextAfter,
+        }
+      });
+
+      setShowCreateReferenceDialog(false);
+      setSelectedTextForReference("");
+      setSelectionContext(null);
+      clearSelection();
+    } catch (error) {
+      console.error('Error creating reference point:', error);
+    }
+  };
+
+  const handleNavigateToReference = (referencePoint: { selectedText: string; color: string }) => {
+    // Buscar el texto en el contenido y hacer scroll
+    const textToFind = referencePoint.selectedText;
+    
+    // Usar setTimeout para asegurar que el DOM esté renderizado
+    setTimeout(() => {
+      // Buscar todos los elementos de texto que contengan el texto seleccionado
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.textContent && node.textContent.includes(textToFind)) {
+          const element = node.parentElement;
+          if (element) {
+            // Hacer scroll al elemento
+            element.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center' 
+            });
+            
+            // Highlight temporal del texto
+            const originalBg = element.style.backgroundColor;
+            element.style.backgroundColor = referencePoint.color + '40'; // 40 = 25% opacity
+            element.style.transition = 'background-color 0.3s ease';
+            
+            setTimeout(() => {
+              element.style.backgroundColor = originalBg;
+            }, 2000);
+            
+            break;
+          }
+        }
+      }
+    }, 100);
   };
 
   const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar o tener en cuenta", "Sinónimo", "definición formal", "ejemplo", "fórmula", "contexto", "Explicación de relación"];
@@ -324,13 +428,13 @@ export function FlashcardReview({
             <button
               onClick={() => setShowNotesPanel(!showNotesPanel)}
               className="p-2 rounded-lg hover:bg-secondary transition-colors"
-              title="Mostrar/ocultar notas"
+              title="Mostrar/ocultar panel lateral"
             >
               <StickyNote className="w-4 h-4 text-muted-foreground" />
             </button>
-            {reviewNotes.length > 0 && (
+            {(reviewNotes.length > 0 || referencePoints.length > 0) && (
               <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {reviewNotes.length}
+                {reviewNotes.length + referencePoints.length}
               </span>
             )}
           </div>
@@ -494,8 +598,24 @@ export function FlashcardReview({
                         <StateBadge state={card.state} size="sm" />
                       </div>
                       
-                      {detailedContent?.blocks ? (
-                        <NotionRenderer blocks={detailedContent.blocks as NotionBlock[]} />
+                      {Array.isArray(detailedContent?.blocks) && detailedContent.blocks.length > 0 ? (
+                        <div className="relative">
+                          <NotionRenderer blocks={detailedContent.blocks as NotionBlock[]} />
+                          
+                          {/* Botón flotante para crear punto de referencia */}
+                          <div className="mt-4 p-3 bg-muted/50 rounded-lg border border-dashed border-border">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                              <Bookmark className="w-4 h-4" />
+                              <span>Selecciona texto para crear un punto de referencia</span>
+                            </div>
+                            <button
+                              onClick={handleTextSelectionForReference}
+                              className="px-3 py-2 text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors"
+                            >
+                              Crear punto de referencia
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <div className="prose prose-sm">
                           {(detailedContent?.content || card.content || 'Sin contenido disponible').split('\n').map((paragraph, i) => (
@@ -526,27 +646,39 @@ export function FlashcardReview({
           </div>
         </div>
         
-        {/* Right column - Review notes */}
+        {/* Right column - Review notes and Reference points */}
         <div className={`w-80 border-l border-border bg-secondary/20 flex flex-col ${showNotesPanel ? 'flex' : 'hidden lg:flex'}`}>
           <div className="p-4 border-b border-border">
             <div className="flex items-center gap-2">
               <StickyNote className="w-4 h-4 text-muted-foreground" />
               <h3 className="text-sm font-medium text-foreground">
-                Notas de repaso ({reviewNotes.length})
+                Panel de Estudio
               </h3>
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Notas y puntos de referencia
+            </p>
           </div>
           
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Existing notes */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {notesLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Cargando notas...
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              {/* Notas de repaso */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <StickyNote className="w-4 h-4 text-muted-foreground" />
+                  <h4 className="text-sm font-medium text-foreground">
+                    Notas de repaso ({reviewNotes.length})
+                  </h4>
                 </div>
-              ) : reviewNotes.length > 0 ? (
-                reviewNotes.map((note) => (
+                
+                {notesLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Cargando notas...
+                  </div>
+                ) : reviewNotes.length > 0 ? (
+                  <div className="space-y-3">
+                    {reviewNotes.map((note) => (
                   <div key={note.id} className="p-3 rounded-lg bg-background border border-border shadow-sm">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 space-y-2">
@@ -648,15 +780,24 @@ export function FlashcardReview({
                       )}
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <MessageSquare className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Sin notas de repaso</p>
-                  <p className="text-xs text-muted-foreground mt-1">Agrega notas sobre lo que no dominabas</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <MessageSquare className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Sin notas de repaso</p>
+                      <p className="text-xs text-muted-foreground mt-1">Agrega notas sobre lo que no dominabas</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+
+                {/* Puntos de referencia */}
+                <ReferencePointsPanel
+                  referencePoints={referencePoints}
+                  onNavigateToReference={handleNavigateToReference}
+                  isLoading={referencePointsLoading}
+                />
+              </div>
             
             {/* Add new note */}
             <div className="border-t border-border p-4 bg-background/50">
@@ -751,6 +892,15 @@ export function FlashcardReview({
           style={{ width: `${((currentIndex + 1) / totalCards) * 100}%` }}
         />
       </div>
+
+      {/* Create Reference Point Dialog */}
+      <CreateReferencePointDialog
+        open={showCreateReferenceDialog}
+        onOpenChange={setShowCreateReferenceDialog}
+        selectedText={selectedTextForReference}
+        onCreateReferencePoint={handleCreateReferencePoint}
+        isCreating={createReferencePointMutation.isPending}
+      />
     </div>
   );
 }
