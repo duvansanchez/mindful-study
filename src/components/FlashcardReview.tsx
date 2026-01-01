@@ -12,6 +12,7 @@ import { useFlashcardReviewCount } from "@/hooks/useStudyTracking";
 import { useReferencePoints, useCreateReferencePoint, useTextSelection } from "@/hooks/useReferencePoints";
 import { ReferencePointsPanel } from "./ReferencePointsPanel";
 import { CreateReferencePointDialog } from "./CreateReferencePointDialog";
+import { FloatingReferenceButton } from "./FloatingReferenceButton";
 
 interface FlashcardReviewProps {
   card: Flashcard;
@@ -350,14 +351,50 @@ export function FlashcardReview({
               block: 'center' 
             });
             
-            // Highlight temporal del texto
-            const originalBg = element.style.backgroundColor;
-            element.style.backgroundColor = referencePoint.color + '40'; // 40 = 25% opacity
-            element.style.transition = 'background-color 0.3s ease';
+            // Resaltar SOLO el texto específico, no todo el elemento
+            const textContent = node.textContent;
+            const startIndex = textContent.indexOf(textToFind);
             
-            setTimeout(() => {
-              element.style.backgroundColor = originalBg;
-            }, 2000);
+            if (startIndex !== -1) {
+              // Crear un rango para el texto específico
+              const range = document.createRange();
+              range.setStart(node, startIndex);
+              range.setEnd(node, startIndex + textToFind.length);
+              
+              // Crear un elemento mark para resaltar
+              const mark = document.createElement('mark');
+              mark.style.backgroundColor = referencePoint.color + '60'; // 60 = ~37% opacity
+              mark.style.color = 'inherit';
+              mark.style.padding = '2px 4px';
+              mark.style.borderRadius = '3px';
+              mark.style.transition = 'all 0.3s ease';
+              
+              try {
+                // Envolver el texto seleccionado con el mark
+                range.surroundContents(mark);
+                
+                // Remover el highlight después de 3 segundos
+                setTimeout(() => {
+                  if (mark.parentNode) {
+                    // Reemplazar el mark con su contenido de texto
+                    const textNode = document.createTextNode(mark.textContent || '');
+                    mark.parentNode.replaceChild(textNode, mark);
+                  }
+                }, 3000);
+                
+              } catch (error) {
+                // Si no se puede envolver (por ejemplo, si el texto cruza elementos),
+                // usar el método anterior como fallback
+                console.log('Fallback al método anterior de highlight');
+                const originalBg = element.style.backgroundColor;
+                element.style.backgroundColor = referencePoint.color + '40';
+                element.style.transition = 'background-color 0.3s ease';
+                
+                setTimeout(() => {
+                  element.style.backgroundColor = originalBg;
+                }, 2000);
+              }
+            }
             
             break;
           }
@@ -601,20 +638,6 @@ export function FlashcardReview({
                       {Array.isArray(detailedContent?.blocks) && detailedContent.blocks.length > 0 ? (
                         <div className="relative">
                           <NotionRenderer blocks={detailedContent.blocks as NotionBlock[]} />
-                          
-                          {/* Botón flotante para crear punto de referencia */}
-                          <div className="mt-4 p-3 bg-muted/50 rounded-lg border border-dashed border-border">
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                              <Bookmark className="w-4 h-4" />
-                              <span>Selecciona texto para crear un punto de referencia</span>
-                            </div>
-                            <button
-                              onClick={handleTextSelectionForReference}
-                              className="px-3 py-2 text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors"
-                            >
-                              Crear punto de referencia
-                            </button>
-                          </div>
                         </div>
                       ) : (
                         <div className="prose prose-sm">
@@ -900,6 +923,11 @@ export function FlashcardReview({
         selectedText={selectedTextForReference}
         onCreateReferencePoint={handleCreateReferencePoint}
         isCreating={createReferencePointMutation.isPending}
+      />
+      
+      {/* Botón flotante para crear puntos de referencia */}
+      <FloatingReferenceButton
+        onCreateReference={handleTextSelectionForReference}
       />
     </div>
   );
