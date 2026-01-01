@@ -14,6 +14,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { DeleteReferenceDialog } from './DeleteReferenceDialog';
 
 interface ReferencePointsPanelProps {
   referencePoints: ReferencePoint[];
@@ -40,6 +41,7 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [deletingReference, setDeletingReference] = useState<ReferencePoint | null>(null);
 
   const deleteReferencePoint = useDeleteReferencePoint();
   const updateReferencePoint = useUpdateReferencePoint();
@@ -75,13 +77,18 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
     setEditCategory('');
   };
 
-  const handleDelete = async (referenceId: number) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar este punto de referencia?')) {
-      try {
-        await deleteReferencePoint.mutateAsync(referenceId);
-      } catch (error) {
-        console.error('Error deleting reference point:', error);
-      }
+  const handleDelete = async (referencePoint: ReferencePoint) => {
+    setDeletingReference(referencePoint);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingReference) return;
+    
+    try {
+      await deleteReferencePoint.mutateAsync(deletingReference.id);
+      setDeletingReference(null);
+    } catch (error) {
+      console.error('Error deleting reference point:', error);
     }
   };
 
@@ -227,7 +234,7 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => handleDelete(referencePoint.id)}
+                            onClick={() => handleDelete(referencePoint)}
                             className="h-6 w-6 p-0 text-destructive hover:text-destructive"
                             disabled={deleteReferencePoint.isPending}
                           >
@@ -262,6 +269,15 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
           )}
         </div>
       )}
+      
+      {/* Diálogo de confirmación para eliminar */}
+      <DeleteReferenceDialog
+        referencePoint={deletingReference}
+        open={!!deletingReference}
+        onOpenChange={(open) => !open && setDeletingReference(null)}
+        onConfirm={handleConfirmDelete}
+        isDeleting={deleteReferencePoint.isPending}
+      />
     </div>
   );
 };
