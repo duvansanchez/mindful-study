@@ -201,18 +201,36 @@ export const GroupStatsDetailView: React.FC<GroupStatsDetailViewProps> = ({
           <div>
             <h4 className="text-sm font-medium mb-3">Distribución por dominio</h4>
             <div className="grid grid-cols-3 gap-3">
-              <div className="text-center">
-                <StateBadge state="tocado" size="sm" />
-                <p className="text-lg font-semibold mt-1">{(groupStats as { tocado?: number })?.tocado || 0}</p>
-              </div>
-              <div className="text-center">
-                <StateBadge state="verde" size="sm" />
-                <p className="text-lg font-semibold mt-1">{(groupStats as { verde?: number })?.verde || 0}</p>
-              </div>
-              <div className="text-center">
-                <StateBadge state="solido" size="sm" />
-                <p className="text-lg font-semibold mt-1">{(groupStats as { solido?: number })?.solido || 0}</p>
-              </div>
+              {(() => {
+                const tocado = (groupStats as { tocado?: number })?.tocado || 0;
+                const verde = (groupStats as { verde?: number })?.verde || 0;
+                const solido = (groupStats as { solido?: number })?.solido || 0;
+                const total = (groupStats as { total?: number })?.total || 0;
+                
+                const tocadoPercent = total > 0 ? Math.round((tocado / total) * 100) : 0;
+                const verdePercent = total > 0 ? Math.round((verde / total) * 100) : 0;
+                const solidoPercent = total > 0 ? Math.round((solido / total) * 100) : 0;
+                
+                return (
+                  <>
+                    <div className="text-center">
+                      <StateBadge state="tocado" size="sm" />
+                      <p className="text-lg font-semibold mt-1">{tocado}</p>
+                      <p className="text-xs text-muted-foreground">({tocadoPercent}%)</p>
+                    </div>
+                    <div className="text-center">
+                      <StateBadge state="verde" size="sm" />
+                      <p className="text-lg font-semibold mt-1">{verde}</p>
+                      <p className="text-xs text-muted-foreground">({verdePercent}%)</p>
+                    </div>
+                    <div className="text-center">
+                      <StateBadge state="solido" size="sm" />
+                      <p className="text-lg font-semibold mt-1">{solido}</p>
+                      <p className="text-xs text-muted-foreground">({solidoPercent}%)</p>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         ) : null}
@@ -256,6 +274,13 @@ const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
     total: flashcards.length
   };
 
+  // Calcular porcentajes
+  const percentages = {
+    tocado: stats.total > 0 ? Math.round((stats.tocado / stats.total) * 100) : 0,
+    verde: stats.total > 0 ? Math.round((stats.verde / stats.total) * 100) : 0,
+    solido: stats.total > 0 ? Math.round((stats.solido / stats.total) * 100) : 0
+  };
+
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       {/* Header de la base de datos */}
@@ -280,15 +305,15 @@ const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
             <div className="flex items-center gap-3 text-xs">
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-state-tocado"></div>
-                <span className="text-muted-foreground">{stats.tocado}</span>
+                <span className="text-muted-foreground">{stats.tocado} ({percentages.tocado}%)</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-state-verde"></div>
-                <span className="text-muted-foreground">{stats.verde}</span>
+                <span className="text-muted-foreground">{stats.verde} ({percentages.verde}%)</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-state-solido"></div>
-                <span className="text-muted-foreground">{stats.solido}</span>
+                <span className="text-muted-foreground">{stats.solido} ({percentages.solido}%)</span>
               </div>
             </div>
           </div>
