@@ -11,16 +11,19 @@ import {
   X, 
   MapPin,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Search
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DeleteReferenceDialog } from './DeleteReferenceDialog';
+import { ReferencePointDiagnostic } from './ReferencePointDiagnostic';
 
 interface ReferencePointsPanelProps {
   referencePoints: ReferencePoint[];
   onNavigateToReference: (referencePoint: ReferencePoint) => void;
   isLoading?: boolean;
+  contentText?: string; // Texto del contenido para diagnóstico
 }
 
 const CATEGORIES = [
@@ -37,12 +40,14 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
   referencePoints,
   onNavigateToReference,
   isLoading = false,
+  contentText = '',
 }) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [deletingReference, setDeletingReference] = useState<ReferencePoint | null>(null);
+  const [diagnosticReference, setDiagnosticReference] = useState<ReferencePoint | null>(null);
 
   const deleteReferencePoint = useDeleteReferencePoint();
   const updateReferencePoint = useUpdateReferencePoint();
@@ -80,6 +85,10 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
 
   const handleDelete = async (referencePoint: ReferencePoint) => {
     setDeletingReference(referencePoint);
+  };
+
+  const handleDiagnostic = (referencePoint: ReferencePoint) => {
+    setDiagnosticReference(referencePoint);
   };
 
   const handleConfirmDelete = async () => {
@@ -235,6 +244,15 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                           <Button
                             size="sm"
                             variant="ghost"
+                            onClick={() => handleDiagnostic(referencePoint)}
+                            className="h-6 w-6 p-0"
+                            title="Diagnosticar problema"
+                          >
+                            <Search className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             onClick={() => handleEdit(referencePoint)}
                             className="h-6 w-6 p-0"
                           >
@@ -302,6 +320,41 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
         onConfirm={handleConfirmDelete}
         isDeleting={deleteReferencePoint.isPending}
       />
+
+      {/* Diagnóstico de punto de referencia */}
+      {diagnosticReference && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg max-w-4xl max-h-[90vh] overflow-y-auto w-full">
+            <div className="sticky top-0 bg-background border-b p-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Diagnóstico: {diagnosticReference.referenceName}</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDiagnosticReference(null)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="p-4">
+              <ReferencePointDiagnostic
+                referencePoint={diagnosticReference}
+                contentText={contentText}
+                onUpdateReferencePoint={async (updates) => {
+                  try {
+                    await updateReferencePoint.mutateAsync({
+                      referenceId: diagnosticReference.id,
+                      updates
+                    });
+                    setDiagnosticReference(null);
+                  } catch (error) {
+                    console.error('Error updating reference point:', error);
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </TooltipProvider>
   );
