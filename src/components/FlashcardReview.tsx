@@ -16,6 +16,10 @@ import { FloatingReferenceButton } from "./FloatingReferenceButton";
 
 const REFERENCE_HIGHLIGHT_ATTR = 'data-reference-highlight';
 
+interface ExtendedTooltip extends HTMLElement {
+  cleanup?: () => void;
+}
+
 type TextNodeIndexEntry = {
   node: Text | null;
   start: number;
@@ -300,6 +304,9 @@ export function FlashcardReview({
     contextAfter: string;
   } | null>(null);
 
+  // Estado para el tooltip activo
+  const [activeTooltip, setActiveTooltip] = useState<ExtendedTooltip | null>(null);
+
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
   const [dominioMessage, setDominioMessage] = useState<string | null>(null);
   const [updatingState, setUpdatingState] = useState(false);
@@ -394,11 +401,21 @@ export function FlashcardReview({
       setNoteText("");
       setLastReviewMessage(null);
       setDominioMessage(null);
+      
+      // Limpiar tooltip activo al cambiar de flashcard
+      if (activeTooltip && activeTooltip.parentNode) {
+        // Limpiar event listeners si existen
+        if (activeTooltip.cleanup) {
+          activeTooltip.cleanup();
+        }
+        activeTooltip.remove();
+        setActiveTooltip(null);
+      }
     } finally {
       setUpdatingReviewDate(false);
       onNext();
     }
-  }, [card.id, updatingReviewDate, onNext]);
+  }, [card.id, updatingReviewDate, onNext, activeTooltip]);
 
   // Manejar navegación con teclado (flechas simples, Enter para revelar)
   useEffect(() => {
@@ -487,6 +504,33 @@ export function FlashcardReview({
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [onNext, onPrevious, currentIndex, handleNext, handleReveal, handleStateChange, revealed]);
+
+  // Función para cerrar y limpiar tooltip
+  const handleClose = useCallback(() => {
+    // Limpiar tooltip activo al cerrar
+    if (activeTooltip && activeTooltip.parentNode) {
+      // Limpiar event listeners si existen
+      if (activeTooltip.cleanup) {
+        activeTooltip.cleanup();
+      }
+      activeTooltip.remove();
+      setActiveTooltip(null);
+    }
+    onClose();
+  }, [activeTooltip, onClose]);
+
+  // Limpiar tooltip al desmontar el componente
+  useEffect(() => {
+    return () => {
+      if (activeTooltip && activeTooltip.parentNode) {
+        // Limpiar event listeners si existen
+        if (activeTooltip.cleanup) {
+          activeTooltip.cleanup();
+        }
+        activeTooltip.remove();
+      }
+    };
+  }, [activeTooltip]);
 
   const handleAddNote = async () => {
     if (!noteText.trim()) return;
@@ -593,6 +637,16 @@ export function FlashcardReview({
   };
 
   const handleNavigateToReference = (referencePoint: ReferencePoint) => {
+    // Limpiar tooltip anterior si existe
+    if (activeTooltip && activeTooltip.parentNode) {
+      // Limpiar event listeners si existen
+      if (activeTooltip.cleanup) {
+        activeTooltip.cleanup();
+      }
+      activeTooltip.remove();
+      setActiveTooltip(null);
+    }
+
     const textToFind = referencePoint.selectedText;
 
     setTimeout(() => {
@@ -707,9 +761,70 @@ export function FlashcardReview({
         return { start: mapped.origStart, end: mapped.origEnd };
       };
 
+      const tryFlexibleMatch = () => {
+        // Búsqueda más flexible que maneja texto dividido por elementos HTML
+        const words = textToFind.trim().split(/\s+/);
+        if (words.length === 0) return null;
+
+        // Buscar la primera palabra
+        const firstWord = words[0];
+        const matches: number[] = [];
+        let fromIndex = 0;
+        
+        while (fromIndex <= fullText.length) {
+          const idx = fullText.indexOf(firstWord, fromIndex);
+          if (idx === -1) break;
+          
+          // Verificar si podemos encontrar las palabras siguientes cerca
+          let currentPos = idx + firstWord.length;
+          let allWordsFound = true;
+          let endPos = currentPos;
+          
+          for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            // Buscar la siguiente palabra dentro de un rango razonable (máximo 50 caracteres)
+            const searchEnd = Math.min(currentPos + 50, fullText.length);
+            const wordIdx = fullText.indexOf(word, currentPos);
+            
+            if (wordIdx === -1 || wordIdx > searchEnd) {
+              allWordsFound = false;
+              break;
+            }
+            
+            currentPos = wordIdx + word.length;
+            endPos = currentPos;
+          }
+          
+          if (allWordsFound) {
+            matches.push(idx);
+          }
+          
+          fromIndex = idx + 1;
+        }
+
+        if (matches.length > 0) {
+          // Usar la primera coincidencia encontrada
+          const startIdx = matches[0];
+          // Calcular el final basado en la posición de la última palabra
+          let endIdx = startIdx + textToFind.length;
+          
+          // Intentar encontrar el final real
+          const lastWord = words[words.length - 1];
+          const lastWordPos = fullText.indexOf(lastWord, startIdx);
+          if (lastWordPos !== -1) {
+            endIdx = lastWordPos + lastWord.length;
+          }
+          
+          return { start: startIdx, end: endIdx };
+        }
+
+        return null;
+      };
+
       const exact = tryExactMatch();
-      const fallback = exact ? null : tryCanonicalMatch();
-      const resolved = exact || fallback;
+      const canonical = exact ? null : tryCanonicalMatch();
+      const flexible = (exact || canonical) ? null : tryFlexibleMatch();
+      const resolved = exact || canonical || flexible;
 
       if (!resolved) {
         try {
@@ -723,13 +838,23 @@ export function FlashcardReview({
             canonSelectedTextLen: canonNeedle.length,
             canonContainerTextLen: canonFull.length,
             selectedTextPreview: textToFind.slice(0, 120),
-            containerPreview: fullText.slice(0, 300),
+            containerPreview: fullText.slice(0, 500),
             canonSelectedTextPreview: canonNeedle.slice(0, 120),
-            canonContainerPreview: canonFull.slice(0, 300),
+            canonContainerPreview: canonFull.slice(0, 500),
             contextBefore: referencePoint.contextBefore,
             contextAfter: referencePoint.contextAfter,
             hasFlashcardContentArea: !!contentArea,
           });
+          
+          // Búsqueda de depuración adicional
+          const words = textToFind.trim().split(/\s+/);
+          console.debug('� Antálisis de palabras:', {
+            words,
+            firstWordInContent: fullText.includes(words[0]),
+            lastWordInContent: words.length > 1 ? fullText.includes(words[words.length - 1]) : 'N/A',
+            allWordsInContent: words.every(word => fullText.includes(word))
+          });
+          
           // Señal útil: ¿alguna palabra larga aparece en el contenedor?
           const token = canonNeedle.split(' ').filter(t => t.length >= 8)[0];
           if (token) {
@@ -764,25 +889,243 @@ export function FlashcardReview({
       const firstHighlight = wrapRangeWithHighlight(contentArea, range, referencePoint.color);
       if (firstHighlight) {
         firstHighlight.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        
+        // Esperar un poco para que el scroll termine
+        setTimeout(() => {
+          // Crear tooltip posicionado justo arriba del resaltado
+          const tooltip = document.createElement('div') as ExtendedTooltip;
+          tooltip.textContent = `📍 ${referencePoint.referenceName}`;
+          
+          // Obtener posición del elemento resaltado después del scroll
+          const rect = firstHighlight.getBoundingClientRect();
+          
+          // Calcular posición del tooltip usando coordenadas de viewport (fixed)
+          let tooltipTop = rect.top - 100; // 100px arriba del resaltado (aumentado para evitar solapamiento)
+          let tooltipLeft = rect.left + (rect.width / 2);
+          
+          // Ajustar si el tooltip se sale por arriba
+          if (rect.top < 110) { // Ajustado también el umbral
+            tooltipTop = rect.bottom + 20; // Mostrar abajo si no hay espacio arriba (aumentado margen)
+          }
+          
+          // Ajustar si el tooltip se sale por los lados
+          const tooltipWidth = 450; // ancho máximo estimado (aumentado para tooltip más ancho)
+          if (tooltipLeft - tooltipWidth/2 < 10) {
+            tooltipLeft = tooltipWidth/2 + 10; // Margen izquierdo
+          } else if (tooltipLeft + tooltipWidth/2 > window.innerWidth - 10) {
+            tooltipLeft = window.innerWidth - tooltipWidth/2 - 10; // Margen derecho
+          }
+          
+          tooltip.style.cssText = `
+            position: fixed; 
+            top: ${tooltipTop}px; 
+            left: ${tooltipLeft}px;
+            transform: translateX(-50%);
+            background: ${referencePoint.color}; 
+            color: white; 
+            padding: 10px 16px;
+            border-radius: 10px; 
+            font-size: 16px; 
+            font-weight: 600;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4); 
+            z-index: 1000; 
+            border: 2px solid white;
+            opacity: 0.95; 
+            text-align: center; 
+            max-width: 450px;
+            min-width: 120px;
+            word-wrap: break-word; 
+            line-height: 1.3;
+            pointer-events: none;
+            animation: fadeInTooltip 0.3s ease-out;
+          `;
+          
+          // Agregar animación CSS
+          if (!document.getElementById('tooltip-animation-style')) {
+            const style = document.createElement('style');
+            style.id = 'tooltip-animation-style';
+            style.textContent = `
+              @keyframes fadeInTooltip {
+                from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+                to { opacity: 0.95; transform: translateX(-50%) translateY(0); }
+              }
+            `;
+            document.head.appendChild(style);
+          }
+          
+          // Agregar una pequeña flecha apuntando hacia el resaltado
+          const arrow = document.createElement('div');
+          const showArrowUp = rect.top >= 110; // Mostrar flecha hacia arriba si hay espacio (ajustado)
+          
+          arrow.style.cssText = `
+            position: absolute;
+            ${showArrowUp ? 'top: 100%;' : 'bottom: 100%;'}
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            ${showArrowUp 
+              ? `border-top: 8px solid ${referencePoint.color};` 
+              : `border-bottom: 8px solid ${referencePoint.color};`
+            }
+          `;
+          tooltip.appendChild(arrow);
+
+          document.body.appendChild(tooltip);
+          
+          // Guardar referencia del tooltip activo (no se remueve automáticamente)
+          setActiveTooltip(tooltip);
+          
+          // Función para actualizar posición del tooltip al hacer scroll
+          const updateTooltipPosition = () => {
+            const newRect = firstHighlight.getBoundingClientRect();
+            
+            // Calcular nueva posición
+            let newTooltipTop = newRect.top - 100; // 100px arriba del resaltado (aumentado)
+            let newTooltipLeft = newRect.left + (newRect.width / 2);
+            
+            // Ajustar si se sale por arriba
+            if (newRect.top < 110) { // Ajustado también el umbral
+              newTooltipTop = newRect.bottom + 20; // Mostrar abajo si no hay espacio arriba (aumentado margen)
+            }
+            
+            // Ajustar si se sale por los lados
+            const tooltipWidth = 450; // ancho máximo estimado (aumentado para tooltip más ancho)
+            if (newTooltipLeft - tooltipWidth/2 < 10) {
+              newTooltipLeft = tooltipWidth/2 + 10;
+            } else if (newTooltipLeft + tooltipWidth/2 > window.innerWidth - 10) {
+              newTooltipLeft = window.innerWidth - tooltipWidth/2 - 10;
+            }
+            
+            // Actualizar posición del tooltip
+            tooltip.style.top = `${newTooltipTop}px`;
+            tooltip.style.left = `${newTooltipLeft}px`;
+            
+            // Actualizar flecha si es necesario
+            const arrow = tooltip.querySelector('div') as HTMLElement;
+            if (arrow) {
+              const showArrowUp = newRect.top >= 110; // Ajustado el umbral
+              arrow.style.cssText = `
+                position: absolute;
+                ${showArrowUp ? 'top: 100%;' : 'bottom: 100%;'}
+                left: 50%;
+                transform: translateX(-50%);
+                width: 0;
+                height: 0;
+                border-left: 8px solid transparent;
+                border-right: 8px solid transparent;
+                ${showArrowUp 
+                  ? `border-top: 8px solid ${referencePoint.color};` 
+                  : `border-bottom: 8px solid ${referencePoint.color};`
+                }
+              `;
+            }
+          };
+          
+          // Agregar listener de scroll para actualizar posición
+          const scrollContainer = document.querySelector('.flashcard-content-area')?.closest('.overflow-auto') || window;
+          scrollContainer.addEventListener('scroll', updateTooltipPosition);
+          
+          // Agregar función de cleanup al tooltip
+          (tooltip as ExtendedTooltip).cleanup = () => {
+            scrollContainer.removeEventListener('scroll', updateTooltipPosition);
+            window.removeEventListener('scroll', updateTooltipPosition);
+            window.removeEventListener('resize', updateTooltipPosition);
+          };
+          
+          // Guardar referencia del tooltip activo (no se remueve automáticamente)
+          setActiveTooltip(tooltip);
+          
+          // Guardar función de limpieza en el tooltip para uso posterior
+          tooltip.cleanup = () => {
+            window.removeEventListener('scroll', updateTooltipPosition);
+            window.removeEventListener('resize', updateTooltipPosition);
+          };
+        }, 300); // Esperar 300ms para que termine el scroll
       }
-
-      const tooltip = document.createElement('div');
-      tooltip.textContent = `📍 ${referencePoint.referenceName}`;
-      tooltip.style.cssText = `
-        position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%);
-        background: ${referencePoint.color}; color: white; padding: 12px 18px;
-        border-radius: 10px; font-size: 16px; font-weight: 600;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; border: 3px solid white;
-        opacity: 0.95; text-align: center; max-width: 300px;
-        word-wrap: break-word; line-height: 1.3;
-      `;
-
-      document.body.appendChild(tooltip);
-      setTimeout(() => tooltip.remove(), 6000);
     }, 100);
   };
 
   const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar o tener en cuenta", "Sinónimo", "definición formal", "ejemplo", "fórmula", "contexto", "Explicación de relación"];
+
+  // Función para extraer texto plano del contenido
+  const extractPlainText = (): string => {
+    if (Array.isArray(detailedContent?.blocks) && detailedContent.blocks.length > 0) {
+      // Extraer texto de bloques de Notion usando un enfoque más seguro
+      const extractTextFromBlocks = (blocks: unknown[]): string => {
+        return blocks.map(block => {
+          if (typeof block !== 'object' || !block) return '';
+          
+          const blockObj = block as Record<string, unknown>;
+          const blockType = blockObj.type as string;
+          
+          // Función helper para extraer rich_text
+          const extractRichText = (richTextArray: unknown): string => {
+            if (!Array.isArray(richTextArray)) return '';
+            return richTextArray
+              .map((text: unknown) => {
+                if (typeof text === 'object' && text && 'plain_text' in text) {
+                  return (text as { plain_text?: string }).plain_text || '';
+                }
+                return '';
+              })
+              .join('');
+          };
+
+          // Extraer texto según el tipo de bloque
+          if (blockType === 'paragraph' && blockObj.paragraph) {
+            const paragraph = blockObj.paragraph as Record<string, unknown>;
+            return extractRichText(paragraph.rich_text);
+          }
+          if (blockType === 'heading_1' && blockObj.heading_1) {
+            const heading = blockObj.heading_1 as Record<string, unknown>;
+            return extractRichText(heading.rich_text);
+          }
+          if (blockType === 'heading_2' && blockObj.heading_2) {
+            const heading = blockObj.heading_2 as Record<string, unknown>;
+            return extractRichText(heading.rich_text);
+          }
+          if (blockType === 'heading_3' && blockObj.heading_3) {
+            const heading = blockObj.heading_3 as Record<string, unknown>;
+            return extractRichText(heading.rich_text);
+          }
+          if (blockType === 'bulleted_list_item' && blockObj.bulleted_list_item) {
+            const listItem = blockObj.bulleted_list_item as Record<string, unknown>;
+            return extractRichText(listItem.rich_text);
+          }
+          if (blockType === 'numbered_list_item' && blockObj.numbered_list_item) {
+            const listItem = blockObj.numbered_list_item as Record<string, unknown>;
+            return extractRichText(listItem.rich_text);
+          }
+          if (blockType === 'quote' && blockObj.quote) {
+            const quote = blockObj.quote as Record<string, unknown>;
+            return extractRichText(quote.rich_text);
+          }
+          if (blockType === 'code' && blockObj.code) {
+            const code = blockObj.code as Record<string, unknown>;
+            return extractRichText(code.rich_text);
+          }
+          if (blockType === 'callout' && blockObj.callout) {
+            const callout = blockObj.callout as Record<string, unknown>;
+            return extractRichText(callout.rich_text);
+          }
+          
+          // Procesar bloques hijos si existen
+          if ('children' in blockObj && Array.isArray(blockObj.children)) {
+            return extractTextFromBlocks(blockObj.children);
+          }
+          
+          return '';
+        }).filter(text => text.trim().length > 0).join('\n');
+      };
+      
+      return extractTextFromBlocks(detailedContent.blocks);
+    }
+    
+    return detailedContent?.content || card.content || '';
+  };
 
   // Función para renderizar texto con formato markdown básico (negrita)
   const renderFormattedText = (text: string) => {
@@ -803,7 +1146,7 @@ export function FlashcardReview({
       <header className="flex items-center justify-between px-6 py-4 border-b border-border">
         <div className="flex items-center gap-4">
           <button 
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 rounded-lg hover:bg-secondary transition-colors"
           >
             <X className="w-5 h-5 text-muted-foreground" />
@@ -1198,6 +1541,7 @@ export function FlashcardReview({
                   referencePoints={referencePoints}
                   onNavigateToReference={handleNavigateToReference}
                   isLoading={referencePointsLoading}
+                  contentText={extractPlainText()}
                 />
               </div>
             
