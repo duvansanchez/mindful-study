@@ -248,6 +248,14 @@ const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
 }) => {
   const { data: flashcards = [], isLoading } = useDatabaseFlashcards(database.id);
 
+  // Calcular estadísticas por estado
+  const stats = {
+    tocado: flashcards.filter(f => f.state === 'tocado').length,
+    verde: flashcards.filter(f => f.state === 'verde').length,
+    solido: flashcards.filter(f => f.state === 'solido').length,
+    total: flashcards.length
+  };
+
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       {/* Header de la base de datos */}
@@ -255,16 +263,35 @@ const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
         onClick={onToggle}
         className="w-full p-4 bg-secondary/30 hover:bg-secondary/50 transition-colors flex items-center justify-between"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           )}
-          <span className="font-medium text-foreground">{database.name}</span>
-          <span className="text-sm text-muted-foreground">
-            ({flashcards.length} flashcards)
-          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-1">
+              <span className="font-medium text-foreground truncate">{database.name}</span>
+              <span className="text-sm text-muted-foreground flex-shrink-0">
+                ({stats.total} flashcards)
+              </span>
+            </div>
+            {/* Conteos por estado */}
+            <div className="flex items-center gap-3 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-state-tocado"></div>
+                <span className="text-muted-foreground">{stats.tocado}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-state-verde"></div>
+                <span className="text-muted-foreground">{stats.verde}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-state-solido"></div>
+                <span className="text-muted-foreground">{stats.solido}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </button>
 

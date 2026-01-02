@@ -341,12 +341,12 @@ export function FlashcardReview({
   }, []);
 
   // Función para manejar el cambio de preferencia de información adicional
-  const handleToggleAuxiliary = () => {
+  const handleToggleAuxiliary = useCallback(() => {
     const newValue = !showAuxiliary;
     setShowAuxiliary(newValue);
     // Guardar la preferencia en localStorage para mantenerla durante la sesión
     localStorage.setItem('flashcard-show-auxiliary', newValue.toString());
-  };
+  }, [showAuxiliary]);
 
   const handleStateChange = useCallback(async (newState: KnowledgeState) => {
     if (updatingState) return;
@@ -462,6 +462,14 @@ export function FlashcardReview({
         return;
       }
 
+      // Atajo para mostrar/ocultar información adicional
+      if (key === 'i' || key === 'I') {
+        event.preventDefault();
+        console.log('🎯 Tecla I - Toggle información adicional');
+        handleToggleAuxiliary();
+        return;
+      }
+
       // Navegación simple con flechas (un solo clic)
       if (key === 'ArrowRight' || key === 'ArrowLeft') {
         event.preventDefault();
@@ -503,7 +511,7 @@ export function FlashcardReview({
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [onNext, onPrevious, currentIndex, handleNext, handleReveal, handleStateChange, revealed]);
+  }, [onNext, onPrevious, currentIndex, handleNext, handleReveal, handleStateChange, revealed, handleToggleAuxiliary]);
 
   // Función para cerrar y limpiar tooltip
   const handleClose = useCallback(() => {
@@ -1255,6 +1263,7 @@ export function FlashcardReview({
               >
                 {showAuxiliary ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 Información adicional
+                <span className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">I</span>
               </button>
 
               {showAuxiliary && (
