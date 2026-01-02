@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { ArrowLeft, BarChart3, Calendar, TrendingUp, Clock } from 'lucide-react';
+import { ArrowLeft, BarChart3, Calendar, TrendingUp, Clock, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 import { DatabaseGroup } from '@/types';
 import { useGroups, useGroupStats } from '@/hooks/useGroups';
 import { useNotionDatabases } from '@/hooks/useNotion';
 import { useMultiPeriodStats, useLastStudyDate } from '@/hooks/useStudyTracking';
+import { useFlashcardReviewCount } from '@/hooks/useStudyTracking';
 import { StateBadge } from './StateBadge';
+import { useQuery } from '@tanstack/react-query';
 
 interface StatsViewProps {
   onBack: () => void;
@@ -122,14 +124,32 @@ interface GroupStatsCardProps {
   databases: Array<{ id: string; name: string }>;
 }
 
+// Hook para obtener flashcards de una base de datos
+const useDatabaseFlashcards = (databaseId: string) => {
+  return useQuery({
+    queryKey: ['database-flashcards', databaseId],
+    queryFn: async () => {
+      const response = await fetch(`/api/databases/${databaseId}/flashcards`);
+      if (!response.ok) {
+        throw new Error('Error fetching flashcards');
+      }
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
+};
+
 const GroupStatsCard: React.FC<GroupStatsCardProps> = ({ 
   group, 
   period,
   databases 
 }) => {
+  const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(new Set());
   const { data: groupStats, isLoading: isLoadingStats, refetch: refetchStats } = useGroupStats(group.id);
   const studyStats = useMultiPeriodStats(group.id);
   const { data: lastStudied, refetch: refetchLastStudied } = useLastStudyDate(group.id);
+  
+  const groupDatabases = databases.filter(db => group.databaseIds.includes(db.id));
   
   // Función para refrescar todas las estadísticas
   const handleRefreshAll = async () => {
@@ -139,6 +159,16 @@ const GroupStatsCard: React.FC<GroupStatsCardProps> = ({
       // También invalidar las estadísticas de estudio
       studyStats.refetch?.()
     ]);
+  };
+  
+  const toggleDatabase = (databaseId: string) => {
+    const newExpanded = new Set(expandedDatabases);
+    if (newExpanded.has(databaseId)) {
+      newExpanded.delete(databaseId);
+    } else {
+      newExpanded.add(databaseId);
+    }
+    setExpandedDatabases(newExpanded);
   };
   
   const getPeriodIcon = (period: 'day' | 'week' | 'month') => {
@@ -176,7 +206,7 @@ const GroupStatsCard: React.FC<GroupStatsCardProps> = ({
           <div>
             <h3 className="font-semibold text-foreground">{group.name}</h3>
             <p className="text-sm text-muted-foreground">
-              {databases.filter(db => group.databaseIds.includes(db.id)).length} bases de datos
+              {groupDatabases.length} bases de datos
             </p>
           </div>
         </div>
@@ -213,7 +243,7 @@ const GroupStatsCard: React.FC<GroupStatsCardProps> = ({
             <BarChart3 className="w-4 h-4" />
             <span className="text-sm font-medium">Total tarjetas</span>
           </div>
-          <p className="text-2xl font-bold">{(groupStats as any)?.total || 0}</p>
+          <p className="text-2xl font-bold">{(groupStats as { total?: number })?.total || 0}</p>
         </div>
       </div>
 
@@ -229,19 +259,32 @@ const GroupStatsCard: React.FC<GroupStatsCardProps> = ({
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <StateBadge state="tocado" size="sm" />
-              <p className="text-lg font-semibold mt-1">{(groupStats as any)?.tocado || 0}</p>
+              <p className="text-lg font-semibold mt-1">{(groupStats as { tocado?: number })?.tocado || 0}</p>
             </div>
             <div className="text-center">
               <StateBadge state="verde" size="sm" />
-              <p className="text-lg font-semibold mt-1">{(groupStats as any)?.verde || 0}</p>
+              <p className="text-lg font-semibold mt-1">{(groupStats as { verde?: number })?.verde || 0}</p>
             </div>
             <div className="text-center">
               <StateBadge state="solido" size="sm" />
-              <p className="text-lg font-semibold mt-1">{(groupStats as unknown)?.solido || 0}</p>
+              <p className="text-lg font-semibold mt-1">{(groupStats as { solido?: number })?.solido || 0}</p>
             </div>
           </div>
         </div>
       ) : null}
+
+      {/* Lista de bases de datos */}
+      <div className="space-y-2">
+        <h4 className="text-sm font-medium text-muted-foreground">Bases de datos</h4>
+        {groupDatabases.map((database) => (
+          <DatabaseStatsCard
+            key={database.id}
+            database={database}
+            isExpanded={expandedDatabases.has(database.id)}
+            onToggle={() => toggleDatabase(database.id)}
+          />
+        ))}
+      </div>
     </div>
   );
 };
@@ -255,4 +298,96 @@ const formatDate = (date: Date | null) => {
   if (diffHours < 24) return `Hace ${diffHours} horas`;
   if (diffHours < 48) return 'Ayer';
   return date.toLocaleDateString();
+};
+
+// Componente para mostrar estadísticas de una base de datos individual
+interface DatabaseStatsCardProps {
+  database: { id: string; name: string };
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
+  database,
+  isExpanded,
+  onToggle
+}) => {
+  const { data: flashcards = [], isLoading } = useDatabaseFlashcards(database.id);
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      {/* Header de la base de datos */}
+      <button
+        onClick={onToggle}
+        className="w-full p-3 bg-secondary/30 hover:bg-secondary/50 transition-colors flex items-center justify-between"
+      >
+        <div className="flex items-center gap-2">
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          )}
+          <span className="font-medium text-foreground">{database.name}</span>
+          <span className="text-sm text-muted-foreground">
+            ({flashcards.length} flashcards)
+          </span>
+        </div>
+      </button>
+
+      {/* Lista de flashcards expandida */}
+      {isExpanded && (
+        <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
+              <span className="ml-2 text-sm text-muted-foreground">Cargando flashcards...</span>
+            </div>
+          ) : flashcards.length > 0 ? (
+            flashcards.map((flashcard: { id: string; title: string; state: 'tocado' | 'verde' | 'solido' }) => (
+              <FlashcardStatsRow key={flashcard.id} flashcard={flashcard} />
+            ))
+          ) : (
+            <div className="text-center py-4 text-muted-foreground">
+              <p className="text-sm">No hay flashcards en esta base de datos</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Componente para mostrar una fila de flashcard con sus estadísticas
+interface FlashcardStatsRowProps {
+  flashcard: {
+    id: string;
+    title: string;
+    state: 'tocado' | 'verde' | 'solido';
+  };
+}
+
+const FlashcardStatsRow: React.FC<FlashcardStatsRowProps> = ({ flashcard }) => {
+  const { data: reviewCount = 0, isLoading } = useFlashcardReviewCount(flashcard.id);
+
+  return (
+    <div className="flex items-center justify-between p-2 bg-background rounded border border-border/50 hover:border-border transition-colors">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <StateBadge state={flashcard.state} size="xs" />
+        <span className="text-sm text-foreground truncate" title={flashcard.title}>
+          {flashcard.title}
+        </span>
+      </div>
+      
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <RotateCcw className="w-3 h-3" />
+          {isLoading ? (
+            <div className="w-4 h-4 border border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <span className="font-medium">{reviewCount}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };

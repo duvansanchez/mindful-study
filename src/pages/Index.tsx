@@ -3,6 +3,7 @@ import { Header } from "@/components/Header";
 import { HomeView } from "@/components/HomeView";
 import { GroupsView } from "@/components/GroupsView";
 import { GroupDetailView } from "@/components/GroupDetailView";
+import { GroupStatsDetailView } from "@/components/GroupStatsDetailView";
 import { StatsView } from "@/components/StatsView";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
@@ -18,7 +19,7 @@ import { KnowledgeState, Flashcard, DatabaseGroup } from "@/types";
 import { AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type View = 'home' | 'groups' | 'stats' | 'settings' | 'group-detail' | 'mode-selection' | 'review-setup' | 'review' | 'overview' | 'notion-setup';
+type View = 'home' | 'groups' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'mode-selection' | 'review-setup' | 'review' | 'overview' | 'notion-setup';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
@@ -90,6 +91,11 @@ const Index = () => {
   const handleGroupClick = (group: DatabaseGroup) => {
     setSelectedGroup(group);
     setView('group-detail');
+  };
+
+  const handleShowGroupStats = (group: DatabaseGroup) => {
+    setSelectedGroup(group);
+    setView('group-stats');
   };
 
   const handleBackToHome = () => {
@@ -393,7 +399,16 @@ const Index = () => {
             onBack={() => setView('groups')}
             onDatabaseClick={handleDatabaseClick}
             onEditGroup={setEditingGroup}
+            onShowGroupStats={handleShowGroupStats}
             databaseCounts={databaseCounts}
+          />
+        )}
+
+        {view === 'group-stats' && selectedGroup && (
+          <GroupStatsDetailView
+            group={selectedGroup}
+            databases={databases}
+            onBack={() => setView('group-detail')}
           />
         )}
       </main>
