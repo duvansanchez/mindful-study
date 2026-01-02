@@ -21,6 +21,7 @@ interface GroupDetailViewProps {
   onBack: () => void;
   onDatabaseClick: (databaseId: string) => void;
   onEditGroup: (group: DatabaseGroup) => void;
+  onShowGroupStats: (group: DatabaseGroup) => void;
   databaseCounts: Record<string, number>;
 }
 
@@ -31,6 +32,7 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
   onBack,
   onDatabaseClick,
   onEditGroup,
+  onShowGroupStats,
   databaseCounts
 }) => {
   const groupDatabases = databases.filter(db => group.databaseIds.includes(db.id));
@@ -89,7 +91,10 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
 
       {/* Acciones rápidas del grupo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <button className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left">
+        <button 
+          onClick={() => onShowGroupStats(group)}
+          className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left"
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
               <BarChart3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
