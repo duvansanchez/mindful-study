@@ -14,6 +14,250 @@ import { ReferencePointsPanel } from "./ReferencePointsPanel";
 import { CreateReferencePointDialog } from "./CreateReferencePointDialog";
 import { FloatingReferenceButton } from "./FloatingReferenceButton";
 
+const REFERENCE_HIGHLIGHT_ATTR = 'data-reference-highlight';
+
+type TextNodeIndexEntry = {
+  node: Text | null;
+  start: number;
+  end: number;
+};
+
+const clearReferenceHighlights = (container: Element) => {
+  const highlights = container.querySelectorAll(`[${REFERENCE_HIGHLIGHT_ATTR}="true"]`);
+  highlights.forEach((el) => {
+    const parent = el.parentNode;
+    if (!parent) return;
+    // Reemplazar el span por su contenido de texto
+    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+    parent.removeChild(el);
+    parent.normalize();
+  });
+};
+
+const BLOCK_TAGS = new Set([
+  'P', 'DIV', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+  'BLOCKQUOTE', 'PRE', 'UL', 'OL', 'SECTION', 'ARTICLE'
+]);
+
+const closestBlock = (el: Element | null, container: Element) => {
+  let current: Element | null = el;
+  while (current && current !== container) {
+    if (BLOCK_TAGS.has(current.tagName)) return current;
+    current = current.parentElement;
+  }
+  return container;
+};
+
+const buildTextIndex = (container: Element) => {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => {
+      const text = node as Text;
+      if (!text.data || text.data.length === 0) return NodeFilter.FILTER_REJECT;
+
+      const parentEl = text.parentElement;
+      if (!parentEl) return NodeFilter.FILTER_REJECT;
+
+      // Evitar textos no visibles típicos
+      const tag = parentEl.tagName;
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return NodeFilter.FILTER_REJECT;
+
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+
+  const entries: TextNodeIndexEntry[] = [];
+  let fullText = '';
+  let current: Node | null;
+
+  let prevTextNode: Text | null = null;
+
+  while ((current = walker.nextNode())) {
+    const node = current as Text;
+
+    if (prevTextNode) {
+      const prevBlock = closestBlock(prevTextNode.parentElement, container);
+      const nextBlock = closestBlock(node.parentElement, container);
+
+      // Si cambiamos de bloque, insertar un separador virtual.
+      if (prevBlock !== nextBlock) {
+        const sepStart = fullText.length;
+        fullText += '\n';
+        const sepEnd = fullText.length;
+        // node null = entrada virtual (no corresponde a un Text real)
+        entries.push({ node: null, start: sepStart, end: sepEnd });
+      }
+    }
+
+    const start = fullText.length;
+    fullText += node.data;
+    const end = fullText.length;
+    entries.push({ node, start, end });
+
+    prevTextNode = node;
+  }
+
+  return { fullText, entries };
+};
+
+const resolveDomPosition = (entries: TextNodeIndexEntry[], offset: number) => {
+  // Clamp
+  const last = entries[entries.length - 1];
+  if (!last) return null;
+  const clamped = Math.max(0, Math.min(offset, last.end));
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (clamped >= entry.start && clamped <= entry.end) {
+      if (entry.node) {
+        return {
+          node: entry.node,
+          offset: clamped - entry.start,
+        };
+      }
+
+      // Entrada virtual (\n). Intentar anclar al final del Text previo o al inicio del siguiente.
+      for (let j = i - 1; j >= 0; j--) {
+        const prev = entries[j];
+        if (prev.node) return { node: prev.node, offset: prev.node.data.length };
+      }
+      for (let j = i + 1; j < entries.length; j++) {
+        const next = entries[j];
+        if (next.node) return { node: next.node, offset: 0 };
+      }
+      return null;
+    }
+  }
+
+  // fallback: último nodo real
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i];
+    if (e.node) return { node: e.node, offset: e.node.data.length };
+  }
+  return null;
+};
+
+const createRangeFromOffsets = (entries: TextNodeIndexEntry[], start: number, end: number) => {
+  const startPos = resolveDomPosition(entries, start);
+  const endPos = resolveDomPosition(entries, end);
+  if (!startPos || !endPos) return null;
+
+  const range = document.createRange();
+  range.setStart(startPos.node, startPos.offset);
+  range.setEnd(endPos.node, endPos.offset);
+  return range;
+};
+
+const wrapRangeWithHighlight = (container: Element, range: Range, color: string) => {
+  // Importante: modificaremos nodos, así que primero capturamos los Text nodes candidatos.
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+  const textNodes: Text[] = [];
+  let current: Node | null;
+  while ((current = walker.nextNode())) {
+    textNodes.push(current as Text);
+  }
+
+  let firstHighlightEl: HTMLElement | null = null;
+
+  for (const textNode of textNodes) {
+    if (!range.intersectsNode(textNode)) continue;
+    const textLen = textNode.data.length;
+    if (textLen === 0) continue;
+
+    // Calcular intersección del range con este text node
+    const nodeRange = document.createRange();
+    nodeRange.selectNodeContents(textNode);
+
+    const startOffset = range.compareBoundaryPoints(Range.START_TO_START, nodeRange) <= 0
+      ? 0
+      : range.startContainer === textNode
+        ? range.startOffset
+        : (() => {
+          // Si el range empieza después del inicio de este nodo, entonces es 0; si empieza dentro de otro nodo, puede ser 0.
+          // Para intersección parcial sin ser startContainer, solo nos importa que intersectsNode ya filtró.
+          return 0;
+        })();
+
+    const endOffset = range.compareBoundaryPoints(Range.END_TO_END, nodeRange) >= 0
+      ? textLen
+      : range.endContainer === textNode
+        ? range.endOffset
+        : (() => {
+          return textLen;
+        })();
+
+    const localStart = Math.max(0, Math.min(startOffset, textLen));
+    const localEnd = Math.max(0, Math.min(endOffset, textLen));
+    if (localEnd <= localStart) continue;
+
+    // Split: [before][middle][after]
+    let middleNode = textNode;
+    if (localEnd < middleNode.data.length) {
+      middleNode.splitText(localEnd);
+    }
+    if (localStart > 0) {
+      middleNode = middleNode.splitText(localStart);
+    }
+
+    const span = document.createElement('span');
+    span.setAttribute(REFERENCE_HIGHLIGHT_ATTR, 'true');
+    span.style.backgroundColor = `${color}40`;
+    span.style.borderBottom = `2px solid ${color}`;
+    span.style.borderRadius = '2px';
+    span.style.padding = '0 1px';
+
+    const parent = middleNode.parentNode;
+    if (!parent) continue;
+    parent.insertBefore(span, middleNode);
+    span.appendChild(middleNode);
+
+    if (!firstHighlightEl) firstHighlightEl = span;
+  }
+
+  return firstHighlightEl;
+};
+
+const canonicalizeWhitespaceWithMap = (input: string) => {
+  // Convierte cualquier secuencia de whitespace (espacios, \n, \t, etc.) en un solo espacio.
+  // Devuelve también un mapeo canonIndex -> originalIndex.
+  let canon = '';
+  const map: number[] = [];
+  let inWs = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    // Notion/HTML a veces introduce NBSP o caracteres invisibles
+    const isZeroWidth = ch === '\u200B' || ch === '\u200C' || ch === '\u200D' || ch === '\uFEFF';
+    const isNbsp = ch === '\u00A0' || ch === '\u202F';
+    const isWs = isZeroWidth || isNbsp || /\s/.test(ch);
+
+    if (isWs) {
+      if (!inWs) {
+        canon += ' ';
+        map.push(i);
+        inWs = true;
+      }
+      continue;
+    }
+
+    inWs = false;
+    canon += ch;
+    map.push(i);
+  }
+
+  return { canon, map };
+};
+
+const mapCanonicalRangeToOriginal = (canonStart: number, canonEnd: number, map: number[], originalLength: number) => {
+  if (map.length === 0) return null;
+  const safeStart = Math.max(0, Math.min(canonStart, map.length - 1));
+  const safeEnd = Math.max(0, Math.min(canonEnd, map.length));
+  if (safeEnd <= safeStart) return null;
+
+  const origStart = map[safeStart];
+  const origEnd = safeEnd >= map.length ? originalLength : (map[safeEnd - 1] + 1);
+  return { origStart, origEnd };
+};
+
 interface FlashcardReviewProps {
   card: Flashcard;
   currentIndex: number;
@@ -24,14 +268,14 @@ interface FlashcardReviewProps {
   onStateChange: (state: KnowledgeState) => void;
 }
 
-export function FlashcardReview({ 
-  card, 
-  currentIndex, 
-  totalCards, 
-  onClose, 
-  onNext, 
+export function FlashcardReview({
+  card,
+  currentIndex,
+  totalCards,
+  onClose,
+  onNext,
   onPrevious,
-  onStateChange 
+  onStateChange
 }: FlashcardReviewProps) {
   const [revealed, setRevealed] = useState(false);
   // Estado para mantener la preferencia de información adicional durante la sesión
@@ -43,11 +287,11 @@ export function FlashcardReview({
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [showNotesPanel, setShowNotesPanel] = useState(false);
-  
+
   // Estados para edición de notas
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState("");
-  
+
   // Estados para puntos de referencia
   const [showCreateReferenceDialog, setShowCreateReferenceDialog] = useState(false);
   const [selectedTextForReference, setSelectedTextForReference] = useState("");
@@ -55,7 +299,7 @@ export function FlashcardReview({
     contextBefore: string;
     contextAfter: string;
   } | null>(null);
-  
+
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
   const [dominioMessage, setDominioMessage] = useState<string | null>(null);
   const [updatingState, setUpdatingState] = useState(false);
@@ -299,6 +543,18 @@ export function FlashcardReview({
   const handleTextSelectionForReference = () => {
     const selectionData = handleTextSelection();
     if (selectionData) {
+      const contentArea = document.querySelector('.flashcard-content-area');
+      if (contentArea) {
+        const { range } = selectionData;
+        const commonAncestor = range.commonAncestorContainer;
+        const commonEl = commonAncestor.nodeType === Node.ELEMENT_NODE
+          ? (commonAncestor as Element)
+          : (commonAncestor.parentElement);
+        if (!commonEl || !contentArea.contains(commonEl)) {
+          return;
+        }
+      }
+
       setSelectedTextForReference(selectionData.text);
       setSelectionContext({
         contextBefore: selectionData.contextBefore,
@@ -337,85 +593,152 @@ export function FlashcardReview({
   };
 
   const handleNavigateToReference = (referencePoint: ReferencePoint) => {
-    const textToFind = referencePoint.selectedText.trim();
-    
+    const textToFind = referencePoint.selectedText;
+
     setTimeout(() => {
       const contentArea = document.querySelector('.flashcard-content-area');
       if (!contentArea) return;
-      
-      // Función para encontrar y hacer scroll al texto
-      const findAndScrollToText = () => {
-        // Obtener todos los elementos de texto dentro del área de contenido
-        const allElements = contentArea.querySelectorAll('*');
-        let bestMatch = null;
-        let bestScore = 0;
-        
-        // Normalizar el texto de búsqueda
-        const normalizedSearch = textToFind.replace(/\s+/g, ' ').trim().toLowerCase();
-        
-        for (const element of allElements) {
-          if (element.textContent && element.children.length === 0) { // Solo elementos hoja
-            const elementText = element.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
-            
-            // Calcular score de coincidencia
-            let score = 0;
-            
-            if (elementText.includes(normalizedSearch)) {
-              score = 100; // Coincidencia exacta
-            } else {
-              // Calcular por palabras
-              const searchWords = normalizedSearch.split(' ').filter(w => w.length > 2);
-              const matchingWords = searchWords.filter(word => elementText.includes(word));
-              score = (matchingWords.length / searchWords.length) * 80;
-            }
-            
-            // Preferir elementos más pequeños (más específicos)
-            if (score > 0) {
-              const lengthRatio = normalizedSearch.length / elementText.length;
-              if (lengthRatio > 0.3) { // Al menos 30% del elemento es nuestro texto
-                score += 20;
-              }
-            }
-            
-            if (score > bestScore && score > 30) {
-              bestScore = score;
-              bestMatch = element;
+
+      clearReferenceHighlights(contentArea);
+
+      const { fullText, entries } = buildTextIndex(contentArea);
+      if (!fullText || entries.length === 0) return;
+
+      const tryExactMatch = () => {
+        const matches: number[] = [];
+        let fromIndex = 0;
+        while (fromIndex <= fullText.length) {
+          const idx = fullText.indexOf(textToFind, fromIndex);
+          if (idx === -1) break;
+          matches.push(idx);
+          fromIndex = idx + Math.max(1, textToFind.length);
+        }
+
+        let chosenIndex: number | null = null;
+
+        if (matches.length === 1) {
+          chosenIndex = matches[0];
+        } else if (matches.length > 1) {
+          // Desambiguar con contexto si existe
+          const before = referencePoint.contextBefore || '';
+          const after = referencePoint.contextAfter || '';
+
+          for (const idx of matches) {
+            const prevSlice = before
+              ? fullText.slice(Math.max(0, idx - before.length), idx)
+              : '';
+            const nextSlice = after
+              ? fullText.slice(idx + textToFind.length, idx + textToFind.length + after.length)
+              : '';
+
+            const beforeOk = !before || prevSlice === before;
+            const afterOk = !after || nextSlice === after;
+            if (beforeOk && afterOk) {
+              chosenIndex = idx;
+              break;
             }
           }
-        }
-        
-        if (!bestMatch) {
-          // Buscar en elementos padre si no encuentra en hojas
-          for (const element of allElements) {
-            if (element.textContent) {
-              const elementText = element.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
-              
-              if (elementText.includes(normalizedSearch)) {
-                bestMatch = element;
-                break;
-              }
-            }
+
+          if (chosenIndex === null) {
+            chosenIndex = matches[0];
           }
         }
-        
-        if (bestMatch) {
-          // SOLO hacer scroll al elemento encontrado - SIN resaltado
-          bestMatch.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center',
-            inline: 'nearest'
-          });
-          
-          return true;
-        }
-        
-        return false;
+
+        if (chosenIndex === null) return null;
+        return { start: chosenIndex, end: chosenIndex + textToFind.length };
       };
-      
-      const found = findAndScrollToText();
-      
-      if (!found) {
-        // Mensaje de error
+
+      const tryCanonicalMatch = () => {
+        const { canon: canonFull, map } = canonicalizeWhitespaceWithMap(fullText);
+        const { canon: canonNeedle } = canonicalizeWhitespaceWithMap(textToFind);
+
+        if (!canonNeedle || canonNeedle.trim().length === 0) return null;
+
+        const matches: number[] = [];
+        let fromIndex = 0;
+        while (fromIndex <= canonFull.length) {
+          const idx = canonFull.indexOf(canonNeedle, fromIndex);
+          if (idx === -1) break;
+          matches.push(idx);
+          fromIndex = idx + Math.max(1, canonNeedle.length);
+        }
+
+        let chosenCanonIndex: number | null = null;
+
+        if (matches.length === 1) {
+          chosenCanonIndex = matches[0];
+        } else if (matches.length > 1) {
+          const before = referencePoint.contextBefore || '';
+          const after = referencePoint.contextAfter || '';
+          const { canon: canonBefore } = canonicalizeWhitespaceWithMap(before);
+          const { canon: canonAfter } = canonicalizeWhitespaceWithMap(after);
+
+          for (const idx of matches) {
+            const prevSlice = canonBefore
+              ? canonFull.slice(Math.max(0, idx - canonBefore.length), idx)
+              : '';
+            const nextSlice = canonAfter
+              ? canonFull.slice(idx + canonNeedle.length, idx + canonNeedle.length + canonAfter.length)
+              : '';
+
+            const beforeOk = !canonBefore || prevSlice === canonBefore;
+            const afterOk = !canonAfter || nextSlice === canonAfter;
+            if (beforeOk && afterOk) {
+              chosenCanonIndex = idx;
+              break;
+            }
+          }
+
+          if (chosenCanonIndex === null) {
+            chosenCanonIndex = matches[0];
+          }
+        }
+
+        if (chosenCanonIndex === null) return null;
+
+        const mapped = mapCanonicalRangeToOriginal(
+          chosenCanonIndex,
+          chosenCanonIndex + canonNeedle.length,
+          map,
+          fullText.length
+        );
+        if (!mapped) return null;
+
+        return { start: mapped.origStart, end: mapped.origEnd };
+      };
+
+      const exact = tryExactMatch();
+      const fallback = exact ? null : tryCanonicalMatch();
+      const resolved = exact || fallback;
+
+      if (!resolved) {
+        try {
+          const { canon: canonFull } = canonicalizeWhitespaceWithMap(fullText);
+          const { canon: canonNeedle } = canonicalizeWhitespaceWithMap(textToFind);
+          console.debug('❌ ReferencePoint: match no encontrado', {
+            referenceId: referencePoint.id,
+            referenceName: referencePoint.referenceName,
+            selectedTextLen: textToFind.length,
+            containerTextLen: fullText.length,
+            canonSelectedTextLen: canonNeedle.length,
+            canonContainerTextLen: canonFull.length,
+            selectedTextPreview: textToFind.slice(0, 120),
+            containerPreview: fullText.slice(0, 300),
+            canonSelectedTextPreview: canonNeedle.slice(0, 120),
+            canonContainerPreview: canonFull.slice(0, 300),
+            contextBefore: referencePoint.contextBefore,
+            contextAfter: referencePoint.contextAfter,
+            hasFlashcardContentArea: !!contentArea,
+          });
+          // Señal útil: ¿alguna palabra larga aparece en el contenedor?
+          const token = canonNeedle.split(' ').filter(t => t.length >= 8)[0];
+          if (token) {
+            console.debug('🔎 token check', { token, foundInCanonContainer: canonFull.includes(token) });
+          }
+        } catch (e) {
+          console.debug('❌ ReferencePoint: fallo al loggear diagnóstico', e);
+        }
+
         const errorMsg = document.createElement('div');
         errorMsg.innerHTML = `
           <div style="font-weight: 600; margin-bottom: 4px;">❌ No se encontró el texto</div>
@@ -430,9 +753,19 @@ export function FlashcardReview({
         `;
         document.body.appendChild(errorMsg);
         setTimeout(() => errorMsg.remove(), 3000);
+        return;
       }
-      
-      // Mostrar tooltip con el nombre (más centrado, más grande, menos ancho pero mostrando todo)
+
+      const start = resolved.start;
+      const end = resolved.end;
+      const range = createRangeFromOffsets(entries, start, end);
+      if (!range) return;
+
+      const firstHighlight = wrapRangeWithHighlight(contentArea, range, referencePoint.color);
+      if (firstHighlight) {
+        firstHighlight.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      }
+
       const tooltip = document.createElement('div');
       tooltip.textContent = `📍 ${referencePoint.referenceName}`;
       tooltip.style.cssText = `
@@ -443,10 +776,9 @@ export function FlashcardReview({
         opacity: 0.95; text-align: center; max-width: 300px;
         word-wrap: break-word; line-height: 1.3;
       `;
-      
+
       document.body.appendChild(tooltip);
       setTimeout(() => tooltip.remove(), 6000);
-      
     }, 100);
   };
 

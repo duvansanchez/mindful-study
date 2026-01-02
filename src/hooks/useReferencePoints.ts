@@ -151,8 +151,8 @@ export const useTextSelection = () => {
 
   const handleTextSelection = () => {
     const selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 0) {
-      const text = selection.toString().trim();
+    if (selection && selection.toString().length > 0 && selection.toString().trim().length > 0) {
+      const text = selection.toString();
       const range = selection.getRangeAt(0);
       
       setSelectedText(text);
