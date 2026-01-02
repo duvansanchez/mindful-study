@@ -239,6 +239,7 @@ export const GroupStatsDetailView: React.FC<GroupStatsDetailViewProps> = ({
       {/* Lista detallada de bases de datos */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-foreground">Bases de datos del grupo</h2>
+        
         {groupDatabases.map((database) => (
           <DatabaseStatsCard
             key={database.id}
@@ -265,6 +266,7 @@ const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
   onToggle
 }) => {
   const { data: flashcards = [], isLoading } = useDatabaseFlashcards(database.id);
+  const [flashcardFilter, setFlashcardFilter] = useState<'all' | 'tocado' | 'verde' | 'solido'>('all');
 
   // Calcular estadísticas por estado
   const stats = {
@@ -280,6 +282,12 @@ const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
     verde: stats.total > 0 ? Math.round((stats.verde / stats.total) * 100) : 0,
     solido: stats.total > 0 ? Math.round((stats.solido / stats.total) * 100) : 0
   };
+
+  // Filtrar flashcards según el filtro seleccionado
+  const filteredFlashcards = flashcards.filter(flashcard => {
+    if (flashcardFilter === 'all') return true;
+    return flashcard.state === flashcardFilter;
+  });
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -322,21 +330,86 @@ const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
 
       {/* Lista de flashcards expandida */}
       {isExpanded && (
-        <div className="p-4 space-y-2 max-h-96 overflow-y-auto bg-background">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
-              <span className="ml-2 text-sm text-muted-foreground">Cargando flashcards...</span>
+        <div className="p-4 space-y-4 max-h-96 overflow-y-auto bg-background">
+          {/* Filtro de flashcards */}
+          <div className="flex items-center justify-between pb-2 border-b border-border">
+            <span className="text-sm font-medium text-foreground">
+              Flashcards ({filteredFlashcards.length} de {flashcards.length})
+            </span>
+            <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+              <button
+                onClick={() => setFlashcardFilter('all')}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  flashcardFilter === 'all'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Todas
+              </button>
+              <button
+                onClick={() => setFlashcardFilter('tocado')}
+                className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
+                  flashcardFilter === 'tocado'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-state-tocado"></div>
+                {stats.tocado}
+              </button>
+              <button
+                onClick={() => setFlashcardFilter('verde')}
+                className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
+                  flashcardFilter === 'verde'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-state-verde"></div>
+                {stats.verde}
+              </button>
+              <button
+                onClick={() => setFlashcardFilter('solido')}
+                className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
+                  flashcardFilter === 'solido'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-state-solido"></div>
+                {stats.solido}
+              </button>
             </div>
-          ) : flashcards.length > 0 ? (
-            flashcards.map((flashcard: { id: string; title: string; state: 'tocado' | 'verde' | 'solido' }) => (
-              <FlashcardStatsRow key={flashcard.id} flashcard={flashcard} />
-            ))
-          ) : (
-            <div className="text-center py-6 text-muted-foreground">
-              <p className="text-sm">No hay flashcards en esta base de datos</p>
-            </div>
-          )}
+          </div>
+
+          {/* Lista de flashcards filtradas */}
+          <div className="space-y-2">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
+                <span className="ml-2 text-sm text-muted-foreground">Cargando flashcards...</span>
+              </div>
+            ) : filteredFlashcards.length > 0 ? (
+              filteredFlashcards.map((flashcard: { id: string; title: string; state: 'tocado' | 'verde' | 'solido' }) => (
+                <FlashcardStatsRow key={flashcard.id} flashcard={flashcard} />
+              ))
+            ) : flashcards.length > 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <p className="text-sm">No hay flashcards con el estado "{flashcardFilter}"</p>
+                <button
+                  onClick={() => setFlashcardFilter('all')}
+                  className="text-xs text-primary hover:text-primary/80 transition-colors mt-1"
+                >
+                  Ver todas las flashcards
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <p className="text-sm">No hay flashcards en esta base de datos</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
