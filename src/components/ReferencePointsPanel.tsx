@@ -115,7 +115,7 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
 
   return (
     <TooltipProvider>
-      <div className="space-y-3">
+      <div className="space-y-3" data-reference-panel="true">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
@@ -253,18 +253,33 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                       </div>
 
                       {/* Texto seleccionado (preview) */}
-                      <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded border-l-2"
-                           style={{ borderLeftColor: categoryData.color }}>
-                        <p className="line-clamp-2">
-                          "{referencePoint.selectedText}"
-                        </p>
-                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded border-l-2 cursor-help hover:bg-muted/70 transition-colors"
+                               style={{ borderLeftColor: categoryData.color }}>
+                            <p className="line-clamp-2">
+                              "{referencePoint.selectedText}"
+                            </p>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-md bg-slate-800 text-white border-slate-700">
+                          <div className="space-y-2">
+                            <div className="font-medium text-sm">Texto del punto de referencia:</div>
+                            <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                              "{referencePoint.selectedText}"
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
 
                       {/* Botón de navegación */}
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => onNavigateToReference(referencePoint)}
+                        onClick={() => {
+                          console.log('🖱️ Botón "Ir al texto" clickeado para:', referencePoint.referenceName);
+                          onNavigateToReference(referencePoint);
+                        }}
                         className="w-full text-xs h-7"
                       >
                         <MapPin className="w-3 h-3 mr-1" />

@@ -107,12 +107,15 @@ export function FlashcardReview({
       console.log('📡 Resultado recibido:', result);
       
       // Verificar si hay mensaje de error sobre columna Dominio
-      if (result && result.dominioMessage) {
-        console.log('⚠️ Mensaje de dominio recibido:', result.dominioMessage);
-        setDominioMessage(result.dominioMessage);
-      } else if (result && result.success) {
-        // Limpiar mensaje de error si la operación fue exitosa
-        setDominioMessage(null);
+      if (result !== undefined && result !== null) {
+        const resultObj = result as unknown as { dominioMessage?: string; success?: boolean };
+        if (resultObj.dominioMessage) {
+          console.log('⚠️ Mensaje de dominio recibido:', resultObj.dominioMessage);
+          setDominioMessage(resultObj.dominioMessage);
+        } else if (resultObj.success) {
+          // Limpiar mensaje de error si la operación fue exitosa
+          setDominioMessage(null);
+        }
       }
     } catch (error: unknown) {
       console.error('❌ Error cambiando estado:', error);
@@ -334,159 +337,116 @@ export function FlashcardReview({
   };
 
   const handleNavigateToReference = (referencePoint: ReferencePoint) => {
-    // Buscar el texto en el contenido y hacer scroll
-    const textToFind = referencePoint.selectedText;
+    const textToFind = referencePoint.selectedText.trim();
     
-    // Usar setTimeout para asegurar que el DOM esté renderizado
     setTimeout(() => {
-      // Buscar todos los elementos de texto que contengan el texto seleccionado
-      const walker = document.createTreeWalker(
-        document.body,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
-
-      let node;
-      while ((node = walker.nextNode())) {
-        if (node.textContent && node.textContent.includes(textToFind)) {
-          const element = node.parentElement;
-          if (element) {
-            // Hacer scroll al elemento
-            element.scrollIntoView({ 
-              behavior: 'smooth', 
-              block: 'center' 
-            });
+      const contentArea = document.querySelector('.flashcard-content-area');
+      if (!contentArea) return;
+      
+      // Función para encontrar y hacer scroll al texto
+      const findAndScrollToText = () => {
+        // Obtener todos los elementos de texto dentro del área de contenido
+        const allElements = contentArea.querySelectorAll('*');
+        let bestMatch = null;
+        let bestScore = 0;
+        
+        // Normalizar el texto de búsqueda
+        const normalizedSearch = textToFind.replace(/\s+/g, ' ').trim().toLowerCase();
+        
+        for (const element of allElements) {
+          if (element.textContent && element.children.length === 0) { // Solo elementos hoja
+            const elementText = element.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
             
-            // Resaltar SOLO el texto específico, no todo el elemento
-            const textContent = node.textContent;
-            const startIndex = textContent.indexOf(textToFind);
+            // Calcular score de coincidencia
+            let score = 0;
             
-            if (startIndex !== -1) {
-              // Crear un rango para el texto específico
-              const range = document.createRange();
-              range.setStart(node, startIndex);
-              range.setEnd(node, startIndex + textToFind.length);
-              
-              // Crear un elemento mark para resaltar
-              const mark = document.createElement('mark');
-              mark.style.backgroundColor = referencePoint.color + '60'; // 60 = ~37% opacity
-              mark.style.color = 'inherit';
-              mark.style.padding = '2px 4px';
-              mark.style.borderRadius = '3px';
-              mark.style.transition = 'all 0.3s ease';
-              mark.style.position = 'relative';
-              
-              try {
-                // Envolver el texto seleccionado con el mark
-                range.surroundContents(mark);
-                
-                // Crear tooltip con el nombre del punto de referencia
-                const tooltip = document.createElement('div');
-                tooltip.textContent = referencePoint.referenceName;
-                tooltip.style.cssText = `
-                  position: absolute;
-                  top: -45px;
-                  left: 50%;
-                  transform: translateX(-50%);
-                  background: ${referencePoint.color};
-                  color: white;
-                  padding: 10px 20px;
-                  border-radius: 10px;
-                  font-size: 16px;
-                  font-weight: 500;
-                  white-space: nowrap;
-                  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                  z-index: 1000;
-                  animation: fadeInScale 0.3s ease-out;
-                  pointer-events: none;
-                `;
-                
-                // Agregar flecha al tooltip
-                const arrow = document.createElement('div');
-                arrow.style.cssText = `
-                  position: absolute;
-                  top: 100%;
-                  left: 50%;
-                  transform: translateX(-50%);
-                  width: 0;
-                  height: 0;
-                  border-left: 8px solid transparent;
-                  border-right: 8px solid transparent;
-                  border-top: 8px solid ${referencePoint.color};
-                `;
-                tooltip.appendChild(arrow);
-                
-                // Agregar animación CSS si no existe
-                if (!document.getElementById('reference-tooltip-styles')) {
-                  const style = document.createElement('style');
-                  style.id = 'reference-tooltip-styles';
-                  style.textContent = `
-                    @keyframes fadeInScale {
-                      0% {
-                        opacity: 0;
-                        transform: translateX(-50%) scale(0.8);
-                      }
-                      100% {
-                        opacity: 1;
-                        transform: translateX(-50%) scale(1);
-                      }
-                    }
-                  `;
-                  document.head.appendChild(style);
-                }
-                
-                mark.appendChild(tooltip);
-                
-                // Remover el highlight y tooltip después de 3 segundos
-                setTimeout(() => {
-                  if (mark.parentNode) {
-                    // Reemplazar el mark con su contenido de texto
-                    const textNode = document.createTextNode(referencePoint.selectedText);
-                    mark.parentNode.replaceChild(textNode, mark);
-                  }
-                }, 3000);
-                
-              } catch (error) {
-                // Si no se puede envolver (por ejemplo, si el texto cruza elementos),
-                // usar el método anterior como fallback
-                console.log('Fallback al método anterior de highlight');
-                const originalBg = element.style.backgroundColor;
-                element.style.backgroundColor = referencePoint.color + '40';
-                element.style.transition = 'background-color 0.3s ease';
-                
-                // Crear tooltip flotante como fallback
-                const fallbackTooltip = document.createElement('div');
-                fallbackTooltip.textContent = referencePoint.referenceName;
-                fallbackTooltip.style.cssText = `
-                  position: fixed;
-                  top: 20px;
-                  right: 20px;
-                  background: ${referencePoint.color};
-                  color: white;
-                  padding: 8px 16px;
-                  border-radius: 8px;
-                  font-size: 14px;
-                  font-weight: 500;
-                  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                  z-index: 1000;
-                  animation: slideInRight 0.3s ease-out;
-                `;
-                
-                document.body.appendChild(fallbackTooltip);
-                
-                setTimeout(() => {
-                  element.style.backgroundColor = originalBg;
-                  if (fallbackTooltip.parentNode) {
-                    fallbackTooltip.remove();
-                  }
-                }, 2000);
+            if (elementText.includes(normalizedSearch)) {
+              score = 100; // Coincidencia exacta
+            } else {
+              // Calcular por palabras
+              const searchWords = normalizedSearch.split(' ').filter(w => w.length > 2);
+              const matchingWords = searchWords.filter(word => elementText.includes(word));
+              score = (matchingWords.length / searchWords.length) * 80;
+            }
+            
+            // Preferir elementos más pequeños (más específicos)
+            if (score > 0) {
+              const lengthRatio = normalizedSearch.length / elementText.length;
+              if (lengthRatio > 0.3) { // Al menos 30% del elemento es nuestro texto
+                score += 20;
               }
             }
             
-            break;
+            if (score > bestScore && score > 30) {
+              bestScore = score;
+              bestMatch = element;
+            }
           }
         }
+        
+        if (!bestMatch) {
+          // Buscar en elementos padre si no encuentra en hojas
+          for (const element of allElements) {
+            if (element.textContent) {
+              const elementText = element.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
+              
+              if (elementText.includes(normalizedSearch)) {
+                bestMatch = element;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (bestMatch) {
+          // SOLO hacer scroll al elemento encontrado - SIN resaltado
+          bestMatch.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center',
+            inline: 'nearest'
+          });
+          
+          return true;
+        }
+        
+        return false;
+      };
+      
+      const found = findAndScrollToText();
+      
+      if (!found) {
+        // Mensaje de error
+        const errorMsg = document.createElement('div');
+        errorMsg.innerHTML = `
+          <div style="font-weight: 600; margin-bottom: 4px;">❌ No se encontró el texto</div>
+          <div style="font-size: 12px; opacity: 0.9;">
+            "${textToFind.substring(0, 40)}${textToFind.length > 40 ? '...' : ''}"
+          </div>
+        `;
+        errorMsg.style.cssText = `
+          position: fixed; top: 20px; right: 20px; background: #ef4444; color: white;
+          padding: 12px 16px; border-radius: 8px; font-size: 14px; z-index: 1000;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2); max-width: 300px; line-height: 1.4;
+        `;
+        document.body.appendChild(errorMsg);
+        setTimeout(() => errorMsg.remove(), 3000);
       }
+      
+      // Mostrar tooltip con el nombre (más centrado, más grande, menos ancho pero mostrando todo)
+      const tooltip = document.createElement('div');
+      tooltip.textContent = `📍 ${referencePoint.referenceName}`;
+      tooltip.style.cssText = `
+        position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%);
+        background: ${referencePoint.color}; color: white; padding: 12px 18px;
+        border-radius: 10px; font-size: 16px; font-weight: 600;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; border: 3px solid white;
+        opacity: 0.95; text-align: center; max-width: 300px;
+        word-wrap: break-word; line-height: 1.3;
+      `;
+      
+      document.body.appendChild(tooltip);
+      setTimeout(() => tooltip.remove(), 6000);
+      
     }, 100);
   };
 
@@ -723,11 +683,11 @@ export function FlashcardReview({
                       </div>
                       
                       {Array.isArray(detailedContent?.blocks) && detailedContent.blocks.length > 0 ? (
-                        <div className="relative">
+                        <div className="relative flashcard-content-area">
                           <NotionRenderer blocks={detailedContent.blocks as NotionBlock[]} />
                         </div>
                       ) : (
-                        <div className="prose prose-sm">
+                        <div className="prose prose-sm flashcard-content-area">
                           {(detailedContent?.content || card.content || 'Sin contenido disponible').split('\n').map((paragraph, i) => (
                             <p key={i} className="mb-3 last:mb-0">{paragraph}</p>
                           ))}
