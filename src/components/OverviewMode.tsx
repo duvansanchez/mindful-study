@@ -2,13 +2,14 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
-import { Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, Filter, ArrowUpDown, ChevronDown, Bookmark } from "lucide-react";
+import { Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, Filter, ArrowUpDown, ChevronDown, Bookmark, Maximize2 } from "lucide-react";
 import { useFlashcardContent } from "@/hooks/useNotion";
 import { useReviewNotes } from "@/hooks/useReviewNotes";
 import { useNotesCountByDatabase } from "@/hooks/useStudyTracking";
 import { useReferencePoints, useCreateReferencePoint, useTextSelection } from "@/hooks/useReferencePoints";
 import { ReferencePointsPanel } from "./ReferencePointsPanel";
 import { CreateReferencePointDialog } from "./CreateReferencePointDialog";
+import { FlashcardExpandedModal } from "./FlashcardExpandedModal";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -29,6 +30,7 @@ interface FlashcardOverviewCardProps {
 const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) => {
   const [isRevealed, setIsRevealed] = useState(false);
   const [showCreateReferenceDialog, setShowCreateReferenceDialog] = useState(false);
+  const [showExpandedModal, setShowExpandedModal] = useState(false);
   const [selectedTextForReference, setSelectedTextForReference] = useState("");
   const [selectionContext, setSelectionContext] = useState<{
     contextBefore: string;
@@ -268,23 +270,35 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
         </div>
       </div>
 
-      {/* Botón para revelar contenido */}
-      <button
-        onClick={handleToggleContent}
-        className="w-full flex items-center justify-center gap-2 py-3 px-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors border border-border/50 hover:border-border"
-      >
-        {isRevealed ? (
-          <>
-            <EyeOff className="w-4 h-4" />
-            Ocultar contenido principal
-          </>
-        ) : (
-          <>
-            <Eye className="w-4 h-4" />
-            Mostrar contenido principal
-          </>
-        )}
-      </button>
+      {/* Botones de acción */}
+      <div className="flex gap-2">
+        {/* Botón para vista ampliada */}
+        <button
+          onClick={() => setShowExpandedModal(true)}
+          className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors border border-border/50 hover:border-border flex-1"
+        >
+          <Maximize2 className="w-4 h-4" />
+          Vista ampliada
+        </button>
+
+        {/* Botón para revelar contenido */}
+        <button
+          onClick={handleToggleContent}
+          className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors border border-border/50 hover:border-border flex-1"
+        >
+          {isRevealed ? (
+            <>
+              <EyeOff className="w-4 h-4" />
+              Ocultar contenido
+            </>
+          ) : (
+            <>
+              <Eye className="w-4 h-4" />
+              Ver contenido
+            </>
+          )}
+        </button>
+      </div>
 
       {/* Contenido revelado */}
       {isRevealed && (
@@ -342,6 +356,13 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
         selectedText={selectedTextForReference}
         onCreateReferencePoint={handleCreateReferencePoint}
         isCreating={createReferencePointMutation.isPending}
+      />
+
+      {/* Expanded Modal */}
+      <FlashcardExpandedModal
+        card={card}
+        isOpen={showExpandedModal}
+        onClose={() => setShowExpandedModal(false)}
       />
     </div>
   );
