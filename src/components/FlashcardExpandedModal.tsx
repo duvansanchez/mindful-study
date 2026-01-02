@@ -30,8 +30,8 @@ export const FlashcardExpandedModal: React.FC<FlashcardExpandedModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const [showContent, setShowContent] = useState(true);
-  const [showReferencePoints, setShowReferencePoints] = useState(true);
+  const [showContent, setShowContent] = useState(false);
+  const [showReferencePoints, setShowReferencePoints] = useState(false);
   
   // Cargar datos de la flashcard
   const { data: detailedContent, isLoading: contentLoading } = useFlashcardContent(card.id);
