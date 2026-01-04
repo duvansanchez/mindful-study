@@ -1068,7 +1068,7 @@ export function FlashcardReview({
     }, 100);
   };
 
-  const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar o tener en cuenta", "Sinónimo", "definición formal", "ejemplo", "fórmula", "contexto", "Explicación de relación"];
+  const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar o tener en cuenta", "Sinónimo", "definición formal", "ejemplo", "Preguntas", "Active Recall", "Explicación de relación"];
 
   // Función para extraer texto plano del contenido
   const extractPlainText = (): string => {

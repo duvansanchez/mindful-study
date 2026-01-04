@@ -21,6 +21,7 @@ interface GroupDetailViewProps {
   onDatabaseClick: (databaseId: string) => void;
   onEditGroup: (group: DatabaseGroup) => void;
   onShowGroupStats: (group: DatabaseGroup) => void;
+  onShowGroupGoals: (group: DatabaseGroup) => void;
   onShowGroupPlanning: (group: DatabaseGroup) => void;
   databaseCounts: Record<string, number>;
 }
@@ -33,6 +34,7 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
   onDatabaseClick,
   onEditGroup,
   onShowGroupStats,
+  onShowGroupGoals,
   onShowGroupPlanning,
   databaseCounts
 }) => {
@@ -104,6 +106,21 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
           </div>
           <p className="text-sm text-muted-foreground">
             Ve el progreso y estadísticas específicas de esta agrupación
+          </p>
+        </button>
+
+        <button 
+          onClick={() => onShowGroupGoals(group)}
+          className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg group-hover:bg-green-200 dark:group-hover:bg-green-900/50 transition-colors">
+              <Target className="w-4 h-4 text-green-600 dark:text-green-400" />
+            </div>
+            <h3 className="font-medium text-foreground">Metas y Objetivos</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Establece y gestiona objetivos de aprendizaje para este grupo
           </p>
         </button>
 

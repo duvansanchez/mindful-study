@@ -4,6 +4,7 @@ import { HomeView } from "@/components/HomeView";
 import { GroupsView } from "@/components/GroupsView";
 import { GroupDetailView } from "@/components/GroupDetailView";
 import { GroupStatsDetailView } from "@/components/GroupStatsDetailView";
+import { GroupGoalsView } from "@/components/GroupGoalsView";
 import { PlanningView } from "@/components/PlanningView";
 import { StatsView } from "@/components/StatsView";
 import { ReviewSetup } from "@/components/ReviewSetup";
@@ -21,7 +22,7 @@ import { KnowledgeState, Flashcard, DatabaseGroup } from "@/types";
 import { AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type View = 'home' | 'groups' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'planning' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
+type View = 'home' | 'groups' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
@@ -101,6 +102,11 @@ const Index = () => {
   const handleShowGroupStats = (group: DatabaseGroup) => {
     setSelectedGroup(group);
     setView('group-stats');
+  };
+
+  const handleShowGroupGoals = (group: DatabaseGroup) => {
+    setSelectedGroup(group);
+    setView('group-goals');
   };
 
   const handleShowGroupPlanning = (group: DatabaseGroup) => {
@@ -511,6 +517,7 @@ const Index = () => {
             onDatabaseClick={handleDatabaseClick}
             onEditGroup={setEditingGroup}
             onShowGroupStats={handleShowGroupStats}
+            onShowGroupGoals={handleShowGroupGoals}
             onShowGroupPlanning={handleShowGroupPlanning}
             databaseCounts={databaseCounts}
           />
@@ -520,6 +527,13 @@ const Index = () => {
           <GroupStatsDetailView
             group={selectedGroup}
             databases={databases}
+            onBack={() => setView('group-detail')}
+          />
+        )}
+
+        {view === 'group-goals' && selectedGroup && (
+          <GroupGoalsView
+            group={selectedGroup}
             onBack={() => setView('group-detail')}
           />
         )}
