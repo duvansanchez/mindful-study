@@ -43,3 +43,23 @@ export interface Statistics {
   solido: number;
   total: number;
 }
+
+export interface PlanningSession {
+  id: string;
+  groupId: string;
+  sessionName: string;
+  databaseId: string;
+  sessionNote: string;
+  studyMode: 'review' | 'matching' | 'overview';
+  orderIndex: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreatePlanningSessionData {
+  sessionName: string;
+  databaseId: string;
+  sessionNote: string;
+  studyMode: 'review' | 'matching' | 'overview';
+  orderIndex?: number;
+}

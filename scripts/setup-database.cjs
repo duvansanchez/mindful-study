@@ -35,6 +35,7 @@ async function setupDatabase() {
     const scripts = [
       'create_database.sql',
       'create_tables.sql',
+      'create_planning_session.sql',
       'seed_data.sql'
     ];
     

@@ -4,6 +4,7 @@ import { HomeView } from "@/components/HomeView";
 import { GroupsView } from "@/components/GroupsView";
 import { GroupDetailView } from "@/components/GroupDetailView";
 import { GroupStatsDetailView } from "@/components/GroupStatsDetailView";
+import { PlanningView } from "@/components/PlanningView";
 import { StatsView } from "@/components/StatsView";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
@@ -20,7 +21,7 @@ import { KnowledgeState, Flashcard, DatabaseGroup } from "@/types";
 import { AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type View = 'home' | 'groups' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
+type View = 'home' | 'groups' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'planning' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
@@ -40,8 +41,8 @@ const Index = () => {
 
   // Notion hooks - Solo cargar bases de datos cuando sea necesario
   const { data: databases = [], isLoading: databasesLoading } = useNotionDatabases(
-    // Solo cargar bases de datos cuando estemos en vista de grupo, estadísticas o necesitemos los datos
-    view === 'group-detail' || view === 'stats' || selectedDatabaseId !== null
+    // Solo cargar bases de datos cuando estemos en vista de grupo, estadísticas, planificación o necesitemos los datos
+    view === 'group-detail' || view === 'stats' || view === 'planning' || selectedDatabaseId !== null
   );
   const { data: flashcards = [], isLoading: flashcardsLoading } = useNotionFlashcards(selectedDatabaseId);
   const { data: isConnected = false, isLoading: connectionLoading } = useNotionConnection();
@@ -99,6 +100,11 @@ const Index = () => {
   const handleShowGroupStats = (group: DatabaseGroup) => {
     setSelectedGroup(group);
     setView('group-stats');
+  };
+
+  const handleShowGroupPlanning = (group: DatabaseGroup) => {
+    setSelectedGroup(group);
+    setView('planning');
   };
 
   const handleBackToHome = () => {
@@ -460,12 +466,21 @@ const Index = () => {
             onDatabaseClick={handleDatabaseClick}
             onEditGroup={setEditingGroup}
             onShowGroupStats={handleShowGroupStats}
+            onShowGroupPlanning={handleShowGroupPlanning}
             databaseCounts={databaseCounts}
           />
         )}
 
         {view === 'group-stats' && selectedGroup && (
           <GroupStatsDetailView
+            group={selectedGroup}
+            databases={databases}
+            onBack={() => setView('group-detail')}
+          />
+        )}
+
+        {view === 'planning' && selectedGroup && (
+          <PlanningView
             group={selectedGroup}
             databases={databases}
             onBack={() => setView('group-detail')}
