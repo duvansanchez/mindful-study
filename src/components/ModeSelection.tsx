@@ -1,6 +1,6 @@
 import { Statistics, KnowledgeState } from "@/types";
 import { StatsOverview } from "./StatsOverview";
-import { ArrowLeft, Brain, BookOpen, Play, Eye, Loader2 } from "lucide-react";
+import { ArrowLeft, Brain, BookOpen, Play, Eye, Loader2, Link } from "lucide-react";
 
 interface ModeSelectionProps {
   stats: Statistics;
@@ -8,6 +8,7 @@ interface ModeSelectionProps {
   isLoadingFlashcards?: boolean;
   onStartActiveReview: (selectedStates: KnowledgeState[]) => void;
   onStartOverviewMode: () => void;
+  onStartMatchingMode: () => void; // Nueva función para modo matching
   onCancel: () => void;
 }
 
@@ -16,7 +17,8 @@ export function ModeSelection({
   databaseName, 
   isLoadingFlashcards = false,
   onStartActiveReview, 
-  onStartOverviewMode, 
+  onStartOverviewMode,
+  onStartMatchingMode, 
   onCancel 
 }: ModeSelectionProps) {
   const handleActiveReview = () => {
@@ -65,62 +67,96 @@ export function ModeSelection({
             </div>
           )}
           
-          <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${isLoadingFlashcards ? 'opacity-50 pointer-events-none' : ''}`}>
-            {/* Repaso Activo */}
-            <button
-              onClick={handleActiveReview}
-              disabled={isLoadingFlashcards}
-              className="group p-6 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-left disabled:cursor-not-allowed"
-            >
-              <div className="flex items-start gap-4">
-                <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                  <Brain className="w-6 h-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
-                    Repaso activo
-                    <Play className="w-4 h-4 text-primary" />
-                  </h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                    Modo de estudio interactivo. Evalúa tu conocimiento, cambia estados de aprendizaje 
-                    y registra tu progreso.
-                  </p>
-                  <div className="flex items-center gap-2 text-xs text-primary">
-                    <span>• Evaluación cognitiva</span>
-                    <span>• Actualiza progreso</span>
-                    <span>• Registra repasos</span>
+          <div className={`space-y-6 ${isLoadingFlashcards ? 'opacity-50 pointer-events-none' : ''}`}>
+            {/* Primera fila - Repaso Activo y Vista General */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Repaso Activo */}
+              <button
+                onClick={handleActiveReview}
+                disabled={isLoadingFlashcards}
+                className="group p-6 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-left disabled:cursor-not-allowed"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Brain className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
+                      Repaso activo
+                      <Play className="w-4 h-4 text-primary" />
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+                      Modo de estudio interactivo. Evalúa tu conocimiento, cambia estados de aprendizaje 
+                      y registra tu progreso.
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-primary">
+                      <span>• Evaluación cognitiva</span>
+                      <span>• Actualiza progreso</span>
+                      <span>• Registra repasos</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </button>
+              </button>
 
-            {/* Vista General */}
-            <button
-              onClick={onStartOverviewMode}
-              disabled={isLoadingFlashcards}
-              className="group p-6 rounded-lg border border-border hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-left disabled:cursor-not-allowed"
-            >
-              <div className="flex items-start gap-4">
-                <div className="p-3 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
-                  <BookOpen className="w-6 h-6 text-blue-500" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
-                    Vista general
-                    <Eye className="w-4 h-4 text-blue-500" />
-                  </h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                    Modo de lectura controlada. Explora contenido sin presión, 
-                    detecta huecos conceptuales y planifica futuros repasos.
-                  </p>
-                  <div className="flex items-center gap-2 text-xs text-blue-500">
-                    <span>• Solo lectura</span>
-                    <span>• Sin evaluación</span>
-                    <span>• Exploración libre</span>
+              {/* Vista General */}
+              <button
+                onClick={onStartOverviewMode}
+                disabled={isLoadingFlashcards}
+                className="group p-6 rounded-lg border border-border hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-left disabled:cursor-not-allowed"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
+                    <BookOpen className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
+                      Vista general
+                      <Eye className="w-4 h-4 text-blue-500" />
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+                      Modo de lectura controlada. Explora contenido sin presión, 
+                      detecta huecos conceptuales y planifica futuros repasos.
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-blue-500">
+                      <span>• Solo lectura</span>
+                      <span>• Sin evaluación</span>
+                      <span>• Exploración libre</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </button>
+              </button>
+            </div>
+
+            {/* Segunda fila - Modo Matching centrado */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                onClick={onStartMatchingMode}
+                disabled={isLoadingFlashcards}
+                className="group p-6 rounded-lg border border-border hover:border-green-500/50 hover:bg-green-500/5 transition-all text-left disabled:cursor-not-allowed overflow-hidden"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors flex-shrink-0">
+                    <Link className="w-6 h-6 text-green-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
+                      Modo Matching
+                      <Play className="w-4 h-4 text-green-500" />
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-3 break-words">
+                      Juego de emparejamiento. Conecta títulos con definiciones. 
+                      Perfecto para memorizar conceptos.
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-green-500 flex-wrap">
+                      <span>• Emparejamiento</span>
+                      <span>• Gamificado</span>
+                      <span>• Memorización</span>
+                    </div>
+                  </div>
+                </div>
+              </button>
+              <div></div> {/* Espacio vacío */}
+            </div>
           </div>
 
           {/* Información adicional */}

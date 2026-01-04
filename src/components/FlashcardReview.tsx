@@ -268,8 +268,10 @@ interface FlashcardReviewProps {
   totalCards: number;
   onClose: () => void;
   onNext: () => void;
+  onRepeat: () => void; // Nueva función para repetir al final
   onPrevious?: () => void;
   onStateChange: (state: KnowledgeState) => void;
+  cardsToRepeatCount?: number; // Contador de flashcards para repetir
 }
 
 export function FlashcardReview({
@@ -278,8 +280,10 @@ export function FlashcardReview({
   totalCards,
   onClose,
   onNext,
+  onRepeat,
   onPrevious,
-  onStateChange
+  onStateChange,
+  cardsToRepeatCount = 0
 }: FlashcardReviewProps) {
   const [revealed, setRevealed] = useState(false);
   // Estado para mantener la preferencia de información adicional durante la sesión
@@ -470,6 +474,14 @@ export function FlashcardReview({
         return;
       }
 
+      // Atajo para repetir al final
+      if (key === 'r' || key === 'R') {
+        event.preventDefault();
+        console.log('🎯 Tecla R - Repetir al final');
+        onRepeat();
+        return;
+      }
+
       // Navegación simple con flechas (un solo clic)
       if (key === 'ArrowRight' || key === 'ArrowLeft') {
         event.preventDefault();
@@ -511,7 +523,7 @@ export function FlashcardReview({
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [onNext, onPrevious, currentIndex, handleNext, handleReveal, handleStateChange, revealed, handleToggleAuxiliary]);
+  }, [onNext, onRepeat, onPrevious, currentIndex, handleNext, handleReveal, handleStateChange, revealed, handleToggleAuxiliary]);
 
   // Función para cerrar y limpiar tooltip
   const handleClose = useCallback(() => {
@@ -1161,9 +1173,14 @@ export function FlashcardReview({
           </button>
           <div className="text-sm text-muted-foreground">
             {currentIndex + 1} de {totalCards}
+            {cardsToRepeatCount > 0 && (
+              <span className="ml-2 px-2 py-1 bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 rounded-full text-xs font-medium">
+                🔄 {cardsToRepeatCount} para repetir
+              </span>
+            )}
           </div>
           <div className="text-xs text-muted-foreground/70 hidden sm:block">
-            ⏎ revelar | ← → navegar | 1️⃣2️⃣3️⃣ estados
+            ⏎ revelar | ← → navegar | 1️⃣2️⃣3️⃣ estados | 🅁 repetir
           </div>
         </div>
         
@@ -1381,20 +1398,37 @@ export function FlashcardReview({
                   )}
                 </div>
                 
-                <button
-                  onClick={handleNext}
-                  disabled={updatingReviewDate}
-                  className="w-full mt-6 py-4 rounded-lg bg-secondary text-secondary-foreground font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {updatingReviewDate ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Actualizando fecha de repaso...
-                    </>
-                  ) : (
-                    'Siguiente tarjeta'
-                  )}
-                </button>
+                {/* Botones de navegación */}
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={onRepeat}
+                    className="flex-1 py-4 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white font-medium transition-colors flex items-center justify-center gap-2"
+                    title="Marcar para repetir al final de la sesión"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Repetir al final
+                    {cardsToRepeatCount > 0 && (
+                      <span className="bg-yellow-700 text-yellow-100 px-2 py-0.5 rounded-full text-xs font-semibold">
+                        {cardsToRepeatCount}
+                      </span>
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={handleNext}
+                    disabled={updatingReviewDate}
+                    className="flex-1 py-4 rounded-lg bg-secondary text-secondary-foreground font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {updatingReviewDate ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Actualizando...
+                      </>
+                    ) : (
+                      'Siguiente tarjeta'
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </div>

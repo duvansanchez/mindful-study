@@ -9,11 +9,12 @@ interface ReviewSetupProps {
   databaseName: string;
   databaseId: string;
   flashcards: Flashcard[];
+  mode?: 'review' | 'matching'; // Nueva prop para indicar el modo
   onStart: (selectedCards: Flashcard[]) => void;
   onCancel: () => void;
 }
 
-export function ReviewSetup({ stats, databaseName, databaseId, flashcards, onStart, onCancel }: ReviewSetupProps) {
+export function ReviewSetup({ stats, databaseName, databaseId, flashcards, mode = 'review', onStart, onCancel }: ReviewSetupProps) {
   const [selectedStates, setSelectedStates] = useState<KnowledgeState[]>(['tocado', 'verde']);
   const [filteredCards, setFilteredCards] = useState<Flashcard[]>(flashcards);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -51,7 +52,7 @@ export function ReviewSetup({ stats, databaseName, databaseId, flashcards, onSta
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-6">
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 rounded-xl bg-card border border-border shadow-lg animate-slide-up">
         <h2 className="text-xl font-semibold text-foreground mb-1">
-          Iniciar repaso
+          {mode === 'matching' ? 'Iniciar Modo Matching' : 'Iniciar repaso'}
         </h2>
         <p className="text-sm text-muted-foreground mb-6">
           {databaseName}
@@ -145,7 +146,7 @@ export function ReviewSetup({ stats, databaseName, databaseId, flashcards, onSta
             className="flex-1 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Play className="w-4 h-4" />
-            Comenzar ({totalSelected})
+            {mode === 'matching' ? 'Iniciar Matching' : 'Comenzar'} ({totalSelected})
           </button>
         </div>
       </div>
