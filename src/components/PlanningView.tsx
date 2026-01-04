@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { DatabaseGroup, Database, PlanningSession } from '@/types';
+import { DatabaseGroup, Database, PlanningSession, Flashcard } from '@/types';
 import { CreatePlanningSessionDialog } from './CreatePlanningSessionDialog';
 import { PlanningSessionCard } from './PlanningSessionCard';
 import { DeleteSessionDialog } from './DeleteSessionDialog';
+import { useSessionFlashcards } from '@/hooks/useSessionFlashcards';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -17,17 +18,20 @@ interface PlanningViewProps {
   group: DatabaseGroup;
   databases: Database[];
   onBack: () => void;
+  onStartSession?: (databaseId: string, flashcards: Flashcard[], studyMode: string) => void;
 }
 
 export const PlanningView: React.FC<PlanningViewProps> = ({
   group,
   databases,
-  onBack
+  onBack,
+  onStartSession
 }) => {
   const [draggedSession, setDraggedSession] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<PlanningSession | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [sessionToStart, setSessionToStart] = useState<PlanningSession | null>(null);
 
   const { 
     data: sessions = [], 
@@ -36,6 +40,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
   const reorderMutation = useReorderPlanningSessions();
   const deleteMutation = useDeletePlanningSession();
+
+  // Hook para obtener flashcards de la sesión que se va a iniciar
+  const { data: sessionFlashcards = [], isLoading: flashcardsLoading } = useSessionFlashcards(sessionToStart);
 
   // Filtrar bases de datos del grupo
   const groupDatabases = databases.filter(db => group.databaseIds.includes(db.id));
@@ -65,6 +72,38 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       });
     }
   };
+
+  const handleStartSession = (session: PlanningSession) => {
+    console.log('🚀 Iniciando sesión:', {
+      sessionId: session.id,
+      sessionName: session.sessionName,
+      databaseId: session.databaseId,
+      studyMode: session.studyMode,
+      selectedFlashcards: session.selectedFlashcards?.length || 0
+    });
+    setSessionToStart(session);
+  };
+
+  // Efecto para iniciar la sesión cuando las flashcards estén listas
+  React.useEffect(() => {
+    if (sessionToStart && !flashcardsLoading && onStartSession) {
+      console.log('🎯 Flashcards listas para la sesión:', {
+        sessionId: sessionToStart.id,
+        sessionName: sessionToStart.sessionName,
+        databaseId: sessionToStart.databaseId,
+        studyMode: sessionToStart.studyMode,
+        flashcardsCount: sessionFlashcards.length,
+        selectedFlashcardsCount: sessionToStart.selectedFlashcards?.length || 0
+      });
+      
+      // Llamar a la función de inicio de sesión con los datos necesarios
+      // Incluso si no hay flashcards, permitir que el modo de estudio maneje la situación
+      onStartSession(sessionToStart.databaseId, sessionFlashcards, sessionToStart.studyMode);
+      
+      // Limpiar el estado
+      setSessionToStart(null);
+    }
+  }, [sessionToStart, sessionFlashcards, flashcardsLoading, onStartSession]);
 
   const handleDragStart = (e: React.DragEvent, sessionId: string) => {
     setDraggedSession(sessionId);
@@ -221,6 +260,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                       sessionNumber={index + 1}
                       onEdit={handleEditSession}
                       onDelete={handleDeleteSession}
+                      onStartSession={handleStartSession}
                     />
                   </div>
                 </div>
