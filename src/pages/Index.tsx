@@ -34,6 +34,7 @@ const Index = () => {
   const [studyStartTime, setStudyStartTime] = useState<Date | null>(null);
   const [previousView, setPreviousView] = useState<View>('home'); // Para recordar de dónde venía
   const [pendingMode, setPendingMode] = useState<'review' | 'matching'>('review'); // Para saber qué modo se va a iniciar
+  const [isPlannedSession, setIsPlannedSession] = useState(false); // Para distinguir sesiones planificadas
   
   // Estados para los diálogos de agrupaciones
   const [editingGroup, setEditingGroup] = useState<DatabaseGroup | null>(null);
@@ -125,6 +126,7 @@ const Index = () => {
   };
 
   const handleStartOverviewMode = () => {
+    setIsPlannedSession(false); // Marcar que NO es una sesión planificada
     setView('overview');
   };
 
@@ -350,18 +352,21 @@ const Index = () => {
     setCurrentCardIndex(0);
     setCardsToRepeat([]); // Limpiar flashcards para repetir
     setStudyStartTime(null);
+    setIsPlannedSession(false); // Limpiar el estado de sesión planificada
   };
 
   const handleCloseModeSelection = () => {
     // Regresar a la vista anterior
     setView(previousView);
     setSelectedDatabaseId(null);
+    setIsPlannedSession(false); // Limpiar el estado de sesión planificada
   };
 
   const handleCloseOverview = () => {
     // Regresar a la vista anterior
     setView(previousView);
     setSelectedDatabaseId(null);
+    setIsPlannedSession(false); // Limpiar el estado de sesión planificada
   };
 
   const handleStartPlannedSession = (databaseId: string, flashcards: Flashcard[], studyMode: string) => {
@@ -386,6 +391,9 @@ const Index = () => {
     setCurrentCardIndex(0);
     setCardsToRepeat([]);
     setStudyStartTime(new Date());
+    
+    // Marcar que es una sesión planificada
+    setIsPlannedSession(true);
     
     // Configurar el modo de estudio
     setPendingMode(studyMode as 'review' | 'matching');
@@ -542,7 +550,7 @@ const Index = () => {
       {/* Overview Mode */}
       {view === 'overview' && selectedDatabase && (
         <OverviewMode
-          flashcards={flashcards}
+          flashcards={isPlannedSession ? reviewCards : flashcards}
           databaseName={selectedDatabase.name}
           databaseId={selectedDatabase.id}
           onClose={handleCloseOverview}
