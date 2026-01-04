@@ -8,7 +8,6 @@ import {
   BookOpen, 
   Edit3,
   Settings,
-  TrendingUp,
   Calendar,
   Target,
   Loader2
@@ -105,18 +104,6 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
           </div>
           <p className="text-sm text-muted-foreground">
             Ve el progreso y estadísticas específicas de esta agrupación
-          </p>
-        </button>
-
-        <button className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg group-hover:bg-green-200 dark:group-hover:bg-green-900/50 transition-colors">
-              <TrendingUp className="w-4 h-4 text-green-600 dark:text-green-400" />
-            </div>
-            <h3 className="font-medium text-foreground">Progreso del grupo</h3>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Analiza tu evolución en las materias de este grupo
           </p>
         </button>
 
