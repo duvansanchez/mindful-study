@@ -52,6 +52,7 @@ export interface PlanningSession {
   sessionNote: string;
   studyMode: 'review' | 'matching' | 'overview';
   orderIndex: number;
+  selectedFlashcards?: string[]; // IDs de las flashcards seleccionadas
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,5 +62,6 @@ export interface CreatePlanningSessionData {
   databaseId: string;
   sessionNote: string;
   studyMode: 'review' | 'matching' | 'overview';
+  selectedFlashcards?: string[];
   orderIndex?: number;
 }

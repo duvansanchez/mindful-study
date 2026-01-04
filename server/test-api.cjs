@@ -80,7 +80,8 @@ app.post('/groups/:groupId/planning-sessions', async (req, res) => {
       sessionName, 
       databaseId, 
       sessionNote, 
-      studyMode, 
+      studyMode,
+      selectedFlashcards,
       orderIndex 
     } = req.body;
     
@@ -97,6 +98,7 @@ app.post('/groups/:groupId/planning-sessions', async (req, res) => {
     }
     
     console.log('📅 Creando sesión de planificación para grupo:', groupId);
+    console.log('📋 Flashcards seleccionadas:', selectedFlashcards?.length || 0);
     
     const session = await DatabaseService.createPlanningSession(
       groupId,
@@ -104,6 +106,7 @@ app.post('/groups/:groupId/planning-sessions', async (req, res) => {
       databaseId,
       sessionNote?.trim() || '',
       studyMode,
+      selectedFlashcards || [],
       orderIndex
     );
     

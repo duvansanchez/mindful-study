@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { DatabaseGroup, Database, CreatePlanningSessionData } from '@/types';
+import { DatabaseGroup, Database, CreatePlanningSessionData, Flashcard } from '@/types';
 import { useCreatePlanningSession } from '@/hooks/usePlanning';
+import { useNotionFlashcards } from '@/hooks/useNotion';
+import { FlashcardSelectionDialog } from './FlashcardSelectionDialog';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +27,8 @@ import {
   Eye, 
   Shuffle, 
   Loader2,
-  Plus
+  Plus,
+  Filter
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -65,14 +68,21 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
   children
 }) => {
   const [open, setOpen] = useState(false);
+  const [flashcardSelectionOpen, setFlashcardSelectionOpen] = useState(false);
   const [formData, setFormData] = useState<CreatePlanningSessionData>({
     sessionName: '',
     databaseId: '',
     sessionNote: '',
-    studyMode: 'review'
+    studyMode: 'review',
+    selectedFlashcards: []
   });
 
   const createMutation = useCreatePlanningSession();
+  
+  // Cargar flashcards cuando se selecciona una base de datos
+  const { data: flashcards = [], isLoading: flashcardsLoading } = useNotionFlashcards(
+    formData.databaseId || null
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,18 +111,40 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
         sessionName: '',
         databaseId: '',
         sessionNote: '',
-        studyMode: 'review'
+        studyMode: 'review',
+        selectedFlashcards: []
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error creando la sesión');
     }
   };
 
-  const handleInputChange = (field: keyof CreatePlanningSessionData, value: string) => {
+  const handleInputChange = (field: keyof CreatePlanningSessionData, value: string | string[]) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleDatabaseChange = (databaseId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      databaseId,
+      selectedFlashcards: [] // Limpiar selección al cambiar base de datos
+    }));
+  };
+
+  const handleOpenFlashcardSelection = () => {
+    if (!formData.databaseId) {
+      toast.error('Primero selecciona una base de datos');
+      return;
+    }
+    setFlashcardSelectionOpen(true);
+  };
+
+  const handleFlashcardSelectionConfirm = () => {
+    setFlashcardSelectionOpen(false);
+    // Las flashcards ya están seleccionadas en formData.selectedFlashcards
   };
 
   return (
@@ -152,27 +184,79 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
             <Label htmlFor="database">Base de datos</Label>
             <Select 
               value={formData.databaseId} 
-              onValueChange={(value) => handleInputChange('databaseId', value)}
+              onValueChange={handleDatabaseChange}
               required
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona una base de datos" />
               </SelectTrigger>
               <SelectContent>
-                {databases.map((database) => (
-                  <SelectItem key={database.id} value={database.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{database.icon}</span>
-                      <span>{database.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        ({database.cardCount} tarjetas)
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
+                {databases.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground">
+                    No hay bases de datos disponibles
+                  </div>
+                ) : (
+                  databases.map((database) => (
+                    <SelectItem key={database.id} value={database.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{database.icon}</span>
+                        <span>{database.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({database.cardCount} tarjetas)
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
+
+          {/* Selección de flashcards */}
+          {formData.databaseId && (
+            <div className="space-y-2">
+              <Label>Flashcards a incluir</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleOpenFlashcardSelection}
+                  disabled={flashcardsLoading}
+                  className="flex-1"
+                >
+                  {flashcardsLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Cargando flashcards...
+                    </>
+                  ) : (
+                    <>
+                      <Filter className="w-4 h-4 mr-2" />
+                      {formData.selectedFlashcards?.length 
+                        ? `${formData.selectedFlashcards.length} flashcard${formData.selectedFlashcards.length !== 1 ? 's' : ''} seleccionada${formData.selectedFlashcards.length !== 1 ? 's' : ''}`
+                        : 'Seleccionar flashcards'
+                      }
+                    </>
+                  )}
+                </Button>
+                {formData.selectedFlashcards?.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleInputChange('selectedFlashcards', [])}
+                  >
+                    Limpiar
+                  </Button>
+                )}
+              </div>
+              {formData.selectedFlashcards?.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Si no seleccionas flashcards específicas, se incluirán todas las de la base de datos
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Modo de estudio */}
           <div className="space-y-2">
@@ -248,6 +332,17 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
           </div>
         </form>
       </DialogContent>
+
+      {/* Diálogo de selección de flashcards */}
+      <FlashcardSelectionDialog
+        open={flashcardSelectionOpen}
+        onOpenChange={setFlashcardSelectionOpen}
+        flashcards={flashcards}
+        selectedFlashcards={formData.selectedFlashcards || []}
+        onSelectionChange={(selectedIds) => handleInputChange('selectedFlashcards', selectedIds)}
+        onConfirm={handleFlashcardSelectionConfirm}
+        isLoading={createMutation.isPending}
+      />
     </Dialog>
   );
 };
