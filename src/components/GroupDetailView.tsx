@@ -22,6 +22,7 @@ interface GroupDetailViewProps {
   onDatabaseClick: (databaseId: string) => void;
   onEditGroup: (group: DatabaseGroup) => void;
   onShowGroupStats: (group: DatabaseGroup) => void;
+  onShowGroupPlanning: (group: DatabaseGroup) => void;
   databaseCounts: Record<string, number>;
 }
 
@@ -33,6 +34,7 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
   onDatabaseClick,
   onEditGroup,
   onShowGroupStats,
+  onShowGroupPlanning,
   databaseCounts
 }) => {
   const groupDatabases = databases.filter(db => group.databaseIds.includes(db.id));
@@ -118,7 +120,10 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
           </p>
         </button>
 
-        <button className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left">
+        <button 
+          onClick={() => onShowGroupPlanning(group)}
+          className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left"
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
               <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" />

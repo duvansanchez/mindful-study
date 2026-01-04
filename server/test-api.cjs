@@ -46,6 +46,75 @@ app.get('/test-simple', (req, res) => {
   res.json({ message: 'Código cargado correctamente', timestamp: new Date().toISOString() });
 });
 
+// ==================== ENDPOINTS DE PLANIFICACIÓN (TEMP) ====================
+
+console.log('🔧 DEBUG: Registrando endpoints de planificación TEMP...');
+
+// Test endpoint simple
+app.get('/test-planning', (req, res) => {
+  console.log('🧪 Test planning endpoint llamado');
+  res.json({ message: 'Planning endpoints funcionando', timestamp: new Date().toISOString() });
+});
+
+// Obtener todas las sesiones de planificación de un grupo
+app.get('/groups/:groupId/planning-sessions', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    console.log('📅 Obteniendo sesiones de planificación para grupo:', groupId);
+    
+    const sessions = await DatabaseService.getPlanningSessionsByGroup(groupId);
+    
+    console.log('✅ Sesiones de planificación obtenidas:', sessions.length);
+    res.json(sessions);
+  } catch (error) {
+    console.error('❌ Error obteniendo sesiones de planificación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Crear nueva sesión de planificación
+app.post('/groups/:groupId/planning-sessions', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { 
+      sessionName, 
+      databaseId, 
+      sessionNote, 
+      studyMode, 
+      orderIndex 
+    } = req.body;
+    
+    if (!sessionName || sessionName.trim().length === 0) {
+      return res.status(400).json({ error: 'El nombre de la sesión es requerido' });
+    }
+    
+    if (!databaseId) {
+      return res.status(400).json({ error: 'La base de datos es requerida' });
+    }
+    
+    if (!studyMode || !['review', 'matching', 'overview'].includes(studyMode)) {
+      return res.status(400).json({ error: 'Modo de estudio inválido' });
+    }
+    
+    console.log('📅 Creando sesión de planificación para grupo:', groupId);
+    
+    const session = await DatabaseService.createPlanningSession(
+      groupId,
+      sessionName.trim(),
+      databaseId,
+      sessionNote?.trim() || '',
+      studyMode,
+      orderIndex
+    );
+    
+    console.log('✅ Sesión de planificación creada:', session.id);
+    res.status(201).json(session);
+  } catch (error) {
+    console.error('❌ Error creando sesión de planificación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== ENDPOINTS DE PUNTOS DE REFERENCIA ====================
 
 // Obtener puntos de referencia de una flashcard
@@ -2021,6 +2090,137 @@ app.get('/databases/:databaseId/reference-points-count', async (req, res) => {
     res.json(referencePointsCounts);
   } catch (error) {
     console.error('❌ Error obteniendo conteos de puntos de referencia:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== ENDPOINTS DE PLANIFICACIÓN ====================
+
+console.log('🔧 DEBUG: Registrando endpoints de planificación...');
+
+// Test endpoint simple
+app.get('/test-planning', (req, res) => {
+  console.log('🧪 Test planning endpoint llamado');
+  res.json({ message: 'Planning endpoints funcionando', timestamp: new Date().toISOString() });
+});
+
+// Obtener todas las sesiones de planificación de un grupo
+app.get('/groups/:groupId/planning-sessions', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    console.log('📅 Obteniendo sesiones de planificación para grupo:', groupId);
+    
+    // Por ahora devolver array vacío hasta que funcione
+    const sessions = [];
+    
+    console.log('✅ Sesiones de planificación obtenidas:', sessions.length);
+    res.json(sessions);
+  } catch (error) {
+    console.error('❌ Error obteniendo sesiones de planificación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Crear nueva sesión de planificación
+app.post('/groups/:groupId/planning-sessions', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { 
+      sessionName, 
+      databaseId, 
+      sessionNote, 
+      studyMode, 
+      orderIndex 
+    } = req.body;
+    
+    console.log('📅 Creando sesión de planificación para grupo:', groupId);
+    
+    // Por ahora devolver respuesta simulada
+    const session = {
+      id: 'temp-id',
+      groupId,
+      sessionName,
+      databaseId,
+      sessionNote: sessionNote || '',
+      studyMode,
+      orderIndex: orderIndex || 1,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    console.log('✅ Sesión de planificación creada:', session.id);
+    res.status(201).json(session);
+  } catch (error) {
+    console.error('❌ Error creando sesión de planificación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Actualizar orden de las sesiones de planificación
+app.put('/groups/:groupId/planning-sessions/reorder', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { sessionOrders } = req.body; // Array de { sessionId, orderIndex }
+    
+    if (!Array.isArray(sessionOrders)) {
+      return res.status(400).json({ error: 'sessionOrders debe ser un array' });
+    }
+    
+    console.log('📅 Reordenando sesiones de planificación para grupo:', groupId);
+    
+    const updated = await DatabaseService.reorderPlanningSessions(groupId, sessionOrders);
+    
+    if (updated) {
+      console.log('✅ Sesiones reordenadas correctamente');
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'No se pudieron reordenar las sesiones' });
+    }
+  } catch (error) {
+    console.error('❌ Error reordenando sesiones de planificación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Actualizar sesión de planificación
+app.put('/planning-sessions/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const updates = req.body;
+    
+    console.log('📅 Actualizando sesión de planificación:', sessionId);
+    
+    const updated = await DatabaseService.updatePlanningSession(sessionId, updates);
+    
+    if (updated) {
+      console.log('✅ Sesión de planificación actualizada');
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Sesión de planificación no encontrada' });
+    }
+  } catch (error) {
+    console.error('❌ Error actualizando sesión de planificación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar sesión de planificación
+app.delete('/planning-sessions/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    console.log('📅 Eliminando sesión de planificación:', sessionId);
+    
+    const deleted = await DatabaseService.deletePlanningSession(sessionId);
+    
+    if (deleted) {
+      console.log('✅ Sesión de planificación eliminada');
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Sesión de planificación no encontrada' });
+    }
+  } catch (error) {
+    console.error('❌ Error eliminando sesión de planificación:', error);
     res.status(500).json({ error: error.message });
   }
 });

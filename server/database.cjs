@@ -762,6 +762,199 @@ class DatabaseService {
       throw error;
     }
   }
+
+  // ==================== PLANIFICACIÓN ====================
+
+  // Obtener sesiones de planificación de un grupo
+  static async getPlanningSessionsByGroup(groupId) {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .query(`
+          SELECT 
+            Id,
+            GroupId,
+            SessionName,
+            DatabaseId,
+            SessionNote,
+            StudyMode,
+            OrderIndex,
+            CreatedAt,
+            UpdatedAt
+          FROM PlanningSession 
+          WHERE GroupId = @groupId 
+          ORDER BY OrderIndex ASC, CreatedAt ASC
+        `);
+
+      return result.recordset.map(row => ({
+        id: row.Id,
+        groupId: row.GroupId,
+        sessionName: row.SessionName,
+        databaseId: row.DatabaseId,
+        sessionNote: row.SessionNote,
+        studyMode: row.StudyMode,
+        orderIndex: row.OrderIndex,
+        createdAt: row.CreatedAt,
+        updatedAt: row.UpdatedAt
+      }));
+    } catch (error) {
+      console.error('Error obteniendo sesiones de planificación:', error);
+      throw error;
+    }
+  }
+
+  // Crear nueva sesión de planificación
+  static async createPlanningSession(groupId, sessionName, databaseId, sessionNote, studyMode, orderIndex) {
+    try {
+      const pool = await getPool();
+      const sessionId = require('crypto').randomUUID();
+      
+      // Si no se proporciona orderIndex, obtener el siguiente disponible
+      if (orderIndex === undefined || orderIndex === null) {
+        const maxOrderResult = await pool.request()
+          .input('groupId', sql.UniqueIdentifier, groupId)
+          .query(`
+            SELECT ISNULL(MAX(OrderIndex), 0) + 1 as NextOrder
+            FROM PlanningSession 
+            WHERE GroupId = @groupId
+          `);
+        orderIndex = maxOrderResult.recordset[0].NextOrder;
+      }
+
+      await pool.request()
+        .input('sessionId', sql.UniqueIdentifier, sessionId)
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .input('sessionName', sql.NVarChar(255), sessionName)
+        .input('databaseId', sql.NVarChar(255), databaseId)
+        .input('sessionNote', sql.NVarChar(sql.MAX), sessionNote)
+        .input('studyMode', sql.NVarChar(50), studyMode)
+        .input('orderIndex', sql.Int, orderIndex)
+        .query(`
+          INSERT INTO PlanningSession (
+            Id, GroupId, SessionName, DatabaseId, SessionNote, StudyMode, OrderIndex, CreatedAt, UpdatedAt
+          ) VALUES (
+            @sessionId, @groupId, @sessionName, @databaseId, @sessionNote, @studyMode, @orderIndex, GETDATE(), GETDATE()
+          )
+        `);
+
+      return {
+        id: sessionId,
+        groupId,
+        sessionName,
+        databaseId,
+        sessionNote,
+        studyMode,
+        orderIndex,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+    } catch (error) {
+      console.error('Error creando sesión de planificación:', error);
+      throw error;
+    }
+  }
+
+  // Reordenar sesiones de planificación
+  static async reorderPlanningSessions(groupId, sessionOrders) {
+    try {
+      const pool = await getPool();
+      const transaction = new sql.Transaction(pool);
+      
+      await transaction.begin();
+      
+      try {
+        for (const { sessionId, orderIndex } of sessionOrders) {
+          await transaction.request()
+            .input('sessionId', sql.UniqueIdentifier, sessionId)
+            .input('groupId', sql.UniqueIdentifier, groupId)
+            .input('orderIndex', sql.Int, orderIndex)
+            .query(`
+              UPDATE PlanningSession 
+              SET OrderIndex = @orderIndex, UpdatedAt = GETDATE()
+              WHERE Id = @sessionId AND GroupId = @groupId
+            `);
+        }
+        
+        await transaction.commit();
+        return true;
+      } catch (error) {
+        await transaction.rollback();
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error reordenando sesiones de planificación:', error);
+      throw error;
+    }
+  }
+
+  // Actualizar sesión de planificación
+  static async updatePlanningSession(sessionId, updates) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      const setClause = [];
+
+      request.input('sessionId', sql.UniqueIdentifier, sessionId);
+
+      if (updates.sessionName !== undefined) {
+        request.input('sessionName', sql.NVarChar(255), updates.sessionName);
+        setClause.push('SessionName = @sessionName');
+      }
+
+      if (updates.databaseId !== undefined) {
+        request.input('databaseId', sql.NVarChar(255), updates.databaseId);
+        setClause.push('DatabaseId = @databaseId');
+      }
+
+      if (updates.sessionNote !== undefined) {
+        request.input('sessionNote', sql.NVarChar(sql.MAX), updates.sessionNote);
+        setClause.push('SessionNote = @sessionNote');
+      }
+
+      if (updates.studyMode !== undefined) {
+        request.input('studyMode', sql.NVarChar(50), updates.studyMode);
+        setClause.push('StudyMode = @studyMode');
+      }
+
+      if (updates.orderIndex !== undefined) {
+        request.input('orderIndex', sql.Int, updates.orderIndex);
+        setClause.push('OrderIndex = @orderIndex');
+      }
+
+      if (setClause.length === 0) {
+        return true; // No hay nada que actualizar
+      }
+
+      setClause.push('UpdatedAt = GETDATE()');
+
+      await request.query(`
+        UPDATE PlanningSession 
+        SET ${setClause.join(', ')}
+        WHERE Id = @sessionId
+      `);
+
+      return true;
+    } catch (error) {
+      console.error('Error actualizando sesión de planificación:', error);
+      throw error;
+    }
+  }
+
+  // Eliminar sesión de planificación
+  static async deletePlanningSession(sessionId) {
+    try {
+      const pool = await getPool();
+      await pool.request()
+        .input('sessionId', sql.UniqueIdentifier, sessionId)
+        .query(`DELETE FROM PlanningSession WHERE Id = @sessionId`);
+      
+      return true;
+    } catch (error) {
+      console.error('Error eliminando sesión de planificación:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = {
