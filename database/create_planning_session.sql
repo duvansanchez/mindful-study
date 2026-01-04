@@ -8,6 +8,7 @@ BEGIN
         DatabaseId NVARCHAR(255) NOT NULL,
         SessionNote NVARCHAR(MAX),
         StudyMode NVARCHAR(50) NOT NULL CHECK (StudyMode IN ('review', 'matching', 'overview')),
+        SelectedFlashcards NVARCHAR(MAX), -- JSON array de IDs de flashcards seleccionadas
         OrderIndex INT NOT NULL DEFAULT 1,
         CreatedAt DATETIME2 DEFAULT GETDATE(),
         UpdatedAt DATETIME2 DEFAULT GETDATE(),
@@ -21,5 +22,14 @@ BEGIN
 END
 ELSE
 BEGIN
-    PRINT 'Tabla PlanningSession ya existe';
+    -- Agregar columna SelectedFlashcards si no existe
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'SelectedFlashcards')
+    BEGIN
+        ALTER TABLE PlanningSession ADD SelectedFlashcards NVARCHAR(MAX);
+        PRINT 'Columna SelectedFlashcards agregada a PlanningSession';
+    END
+    ELSE
+    BEGIN
+        PRINT 'Tabla PlanningSession ya existe con todas las columnas';
+    END
 END

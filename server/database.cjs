@@ -779,6 +779,7 @@ class DatabaseService {
             DatabaseId,
             SessionNote,
             StudyMode,
+            SelectedFlashcards,
             OrderIndex,
             CreatedAt,
             UpdatedAt
@@ -794,6 +795,7 @@ class DatabaseService {
         databaseId: row.DatabaseId,
         sessionNote: row.SessionNote,
         studyMode: row.StudyMode,
+        selectedFlashcards: row.SelectedFlashcards ? JSON.parse(row.SelectedFlashcards) : [],
         orderIndex: row.OrderIndex,
         createdAt: row.CreatedAt,
         updatedAt: row.UpdatedAt
@@ -805,7 +807,7 @@ class DatabaseService {
   }
 
   // Crear nueva sesión de planificación
-  static async createPlanningSession(groupId, sessionName, databaseId, sessionNote, studyMode, orderIndex) {
+  static async createPlanningSession(groupId, sessionName, databaseId, sessionNote, studyMode, selectedFlashcards, orderIndex) {
     try {
       const pool = await getPool();
       const sessionId = require('crypto').randomUUID();
@@ -822,6 +824,11 @@ class DatabaseService {
         orderIndex = maxOrderResult.recordset[0].NextOrder;
       }
 
+      // Convertir array de flashcards a JSON
+      const selectedFlashcardsJson = selectedFlashcards && selectedFlashcards.length > 0 
+        ? JSON.stringify(selectedFlashcards) 
+        : null;
+
       await pool.request()
         .input('sessionId', sql.UniqueIdentifier, sessionId)
         .input('groupId', sql.UniqueIdentifier, groupId)
@@ -829,12 +836,13 @@ class DatabaseService {
         .input('databaseId', sql.NVarChar(255), databaseId)
         .input('sessionNote', sql.NVarChar(sql.MAX), sessionNote)
         .input('studyMode', sql.NVarChar(50), studyMode)
+        .input('selectedFlashcards', sql.NVarChar(sql.MAX), selectedFlashcardsJson)
         .input('orderIndex', sql.Int, orderIndex)
         .query(`
           INSERT INTO PlanningSession (
-            Id, GroupId, SessionName, DatabaseId, SessionNote, StudyMode, OrderIndex, CreatedAt, UpdatedAt
+            Id, GroupId, SessionName, DatabaseId, SessionNote, StudyMode, SelectedFlashcards, OrderIndex, CreatedAt, UpdatedAt
           ) VALUES (
-            @sessionId, @groupId, @sessionName, @databaseId, @sessionNote, @studyMode, @orderIndex, GETDATE(), GETDATE()
+            @sessionId, @groupId, @sessionName, @databaseId, @sessionNote, @studyMode, @selectedFlashcards, @orderIndex, GETDATE(), GETDATE()
           )
         `);
 
@@ -845,6 +853,7 @@ class DatabaseService {
         databaseId,
         sessionNote,
         studyMode,
+        selectedFlashcards: selectedFlashcards || [],
         orderIndex,
         createdAt: new Date(),
         updatedAt: new Date()
