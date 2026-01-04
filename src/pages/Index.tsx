@@ -7,6 +7,7 @@ import { GroupStatsDetailView } from "@/components/GroupStatsDetailView";
 import { StatsView } from "@/components/StatsView";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
+import MatchingMode from "@/components/MatchingMode";
 import { OverviewMode } from "@/components/OverviewMode";
 import { ModeSelection } from "@/components/ModeSelection";
 import { NotionSetup } from "@/components/NotionSetup";
@@ -19,7 +20,7 @@ import { KnowledgeState, Flashcard, DatabaseGroup } from "@/types";
 import { AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type View = 'home' | 'groups' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'mode-selection' | 'review-setup' | 'review' | 'overview' | 'notion-setup';
+type View = 'home' | 'groups' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
@@ -27,9 +28,11 @@ const Index = () => {
   const [selectedGroup, setSelectedGroup] = useState<DatabaseGroup | null>(null);
   const [reviewCards, setReviewCards] = useState<Flashcard[]>([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [cardsToRepeat, setCardsToRepeat] = useState<Flashcard[]>([]); // Nuevas flashcards para repetir al final
   const [databaseCounts, setDatabaseCounts] = useState<Record<string, number>>({});
   const [studyStartTime, setStudyStartTime] = useState<Date | null>(null);
   const [previousView, setPreviousView] = useState<View>('home'); // Para recordar de dónde venía
+  const [pendingMode, setPendingMode] = useState<'review' | 'matching'>('review'); // Para saber qué modo se va a iniciar
   
   // Estados para los diálogos de agrupaciones
   const [editingGroup, setEditingGroup] = useState<DatabaseGroup | null>(null);
@@ -111,6 +114,7 @@ const Index = () => {
   };
 
   const handleStartActiveReview = () => {
+    setPendingMode('review'); // Configurar modo de repaso
     setView('review-setup');
   };
 
@@ -118,11 +122,22 @@ const Index = () => {
     setView('overview');
   };
 
+  const handleStartMatchingMode = () => {
+    setPendingMode('matching'); // Configurar modo matching
+    setView('review-setup'); // Ir a la configuración primero
+  };
+
   const handleStartReview = (selectedCards: Flashcard[]) => {
     setReviewCards(selectedCards);
     setCurrentCardIndex(0);
     setStudyStartTime(new Date()); // Iniciar tracking de tiempo
-    setView('review');
+    
+    // Decidir a qué vista ir según el modo pendiente
+    if (pendingMode === 'matching') {
+      setView('matching');
+    } else {
+      setView('review');
+    }
   };
 
   const handleStateChange = async (newState: KnowledgeState) => {
@@ -231,15 +246,25 @@ const Index = () => {
       }
     }
     
-    // Pasar a la siguiente tarjeta o terminar el repaso
+    // Pasar a la siguiente tarjeta o agregar las repeticiones al final
     if (currentCardIndex < reviewCards.length - 1) {
       setCurrentCardIndex(prev => prev + 1);
       setStudyStartTime(new Date()); // Reiniciar tiempo para la nueva tarjeta
     } else {
-      // Es la última tarjeta, terminar el repaso
-      setView('home');
-      setSelectedDatabaseId(null);
-      setStudyStartTime(null);
+      // Es la última tarjeta de la lista original
+      if (cardsToRepeat.length > 0) {
+        // Agregar las flashcards para repetir al final de la lista
+        console.log('🔄 Agregando', cardsToRepeat.length, 'flashcards para repetir al final');
+        setReviewCards(prev => [...prev, ...cardsToRepeat]);
+        setCardsToRepeat([]); // Limpiar la lista de repeticiones
+        setCurrentCardIndex(prev => prev + 1); // Ir a la primera flashcard repetida
+        setStudyStartTime(new Date());
+      } else {
+        // No hay más flashcards para repetir, terminar el repaso
+        setView('home');
+        setSelectedDatabaseId(null);
+        setStudyStartTime(null);
+      }
     }
   };
 
@@ -247,6 +272,40 @@ const Index = () => {
     // Ir a la tarjeta anterior si no estamos en la primera
     if (currentCardIndex > 0) {
       setCurrentCardIndex(prev => prev - 1);
+    }
+  };
+
+  const handleRepeatCard = () => {
+    const currentCard = reviewCards[currentCardIndex];
+    if (currentCard) {
+      // Verificar si la flashcard ya está en la lista de repeticiones
+      const isAlreadyInRepeatList = cardsToRepeat.some(card => card.id === currentCard.id);
+      
+      if (!isAlreadyInRepeatList) {
+        console.log('🔄 Marcando flashcard para repetir al final:', currentCard.title);
+        setCardsToRepeat(prev => [...prev, currentCard]);
+      }
+      
+      // Continuar con la siguiente flashcard (igual que handleNextCard pero sin actualizar fecha de repaso)
+      if (currentCardIndex < reviewCards.length - 1) {
+        setCurrentCardIndex(prev => prev + 1);
+        setStudyStartTime(new Date());
+      } else {
+        // Es la última tarjeta de la lista original
+        if (cardsToRepeat.length > 0) {
+          // Agregar las flashcards para repetir al final de la lista
+          console.log('🔄 Agregando', cardsToRepeat.length, 'flashcards para repetir al final');
+          setReviewCards(prev => [...prev, ...cardsToRepeat]);
+          setCardsToRepeat([]);
+          setCurrentCardIndex(prev => prev + 1);
+          setStudyStartTime(new Date());
+        } else {
+          // No hay más flashcards para repetir, terminar el repaso
+          setView('home');
+          setSelectedDatabaseId(null);
+          setStudyStartTime(null);
+        }
+      }
     }
   };
 
@@ -278,11 +337,12 @@ const Index = () => {
       });
     }
 
-    // Regresar a la vista anterior
+    // Regresar a la vista anterior y limpiar estados
     setView(previousView);
     setSelectedDatabaseId(null);
     setReviewCards([]);
     setCurrentCardIndex(0);
+    setCardsToRepeat([]); // Limpiar flashcards para repetir
     setStudyStartTime(null);
   };
 
@@ -421,6 +481,7 @@ const Index = () => {
           isLoadingFlashcards={flashcardsLoading}
           onStartActiveReview={handleStartActiveReview}
           onStartOverviewMode={handleStartOverviewMode}
+          onStartMatchingMode={handleStartMatchingMode}
           onCancel={handleCloseModeSelection}
         />
       )}
@@ -435,6 +496,14 @@ const Index = () => {
         />
       )}
 
+      {/* Matching Mode */}
+      {view === 'matching' && selectedDatabase && (
+        <MatchingMode
+          cards={reviewCards}
+          onClose={handleCloseOverview}
+        />
+      )}
+
       {/* Review Setup Modal */}
       {view === 'review-setup' && selectedDatabase && (
         <ReviewSetup
@@ -442,6 +511,7 @@ const Index = () => {
           databaseName={selectedDatabase.name}
           databaseId={selectedDatabase.id}
           flashcards={flashcards}
+          mode={pendingMode}
           onStart={handleStartReview}
           onCancel={() => {
             setView('mode-selection');
@@ -456,10 +526,12 @@ const Index = () => {
           card={reviewCards[currentCardIndex]}
           onStateChange={handleStateChange}
           onNext={handleNextCard}
+          onRepeat={handleRepeatCard}
           onPrevious={handlePreviousCard}
           onClose={handleCloseReview}
           currentIndex={currentCardIndex}
           totalCards={reviewCards.length}
+          cardsToRepeatCount={cardsToRepeat.length}
         />
       )}
 
