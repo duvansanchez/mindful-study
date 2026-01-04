@@ -364,6 +364,43 @@ const Index = () => {
     setSelectedDatabaseId(null);
   };
 
+  const handleStartPlannedSession = (databaseId: string, flashcards: Flashcard[], studyMode: string) => {
+    console.log('🚀 Iniciando sesión planificada:', { 
+      databaseId, 
+      flashcardsCount: flashcards.length, 
+      studyMode,
+      flashcardIds: flashcards.map(f => f.id).slice(0, 5) // Mostrar solo los primeros 5 IDs
+    });
+    
+    // Verificar si hay flashcards disponibles
+    if (flashcards.length === 0) {
+      alert('No hay flashcards disponibles para esta sesión.');
+      return;
+    }
+    
+    // Configurar la base de datos seleccionada
+    setSelectedDatabaseId(databaseId);
+    
+    // Configurar las flashcards para el repaso
+    setReviewCards(flashcards);
+    setCurrentCardIndex(0);
+    setCardsToRepeat([]);
+    setStudyStartTime(new Date());
+    
+    // Configurar el modo de estudio
+    setPendingMode(studyMode as 'review' | 'matching');
+    setPreviousView('planning'); // Para regresar a planificación al cerrar
+    
+    // Navegar directamente al modo de estudio seleccionado
+    if (studyMode === 'overview') {
+      setView('overview');
+    } else if (studyMode === 'matching') {
+      setView('matching');
+    } else {
+      setView('review'); // Por defecto, modo review
+    }
+  };
+
   // Show setup if no token is configured
   if (!import.meta.env.VITE_NOTION_TOKEN) {
     if (view === 'notion-setup') {
@@ -484,6 +521,7 @@ const Index = () => {
             group={selectedGroup}
             databases={databases}
             onBack={() => setView('group-detail')}
+            onStartSession={handleStartPlannedSession}
           />
         )}
       </main>

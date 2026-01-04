@@ -17,6 +17,7 @@ interface PlanningSessionCardProps {
   sessionNumber: number;
   onEdit?: (session: PlanningSession) => void;
   onDelete?: (session: PlanningSession) => void;
+  onStartSession?: (session: PlanningSession) => void;
 }
 
 const studyModeConfig = {
@@ -45,7 +46,8 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
   database,
   sessionNumber,
   onEdit,
-  onDelete
+  onDelete,
+  onStartSession
 }) => {
   const modeConfig = studyModeConfig[session.studyMode];
   const ModeIcon = modeConfig.icon;
@@ -128,7 +130,11 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
           </span>
         </div>
         
-        <button className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors">
+        <button 
+          onClick={() => onStartSession?.(session)}
+          className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
+          disabled={!onStartSession}
+        >
           <BarChart3 className="w-3 h-3" />
           <span>Iniciar sesión</span>
         </button>
