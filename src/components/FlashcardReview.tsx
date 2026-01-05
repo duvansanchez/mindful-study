@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
 import type { NotionBlock } from "./NotionRenderer";
-import { ChevronDown, ChevronUp, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon, Bookmark } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon, Bookmark } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFlashcardContent } from "@/hooks/useNotion";
@@ -299,6 +299,10 @@ export function FlashcardReview({
   // Estados para edición de notas
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState("");
+
+  // Estado para filtro de notas de repaso
+  const [noteFilter, setNoteFilter] = useState<string>('all');
+  const [showReviewNotes, setShowReviewNotes] = useState(true);
 
   // Estados para puntos de referencia
   const [showCreateReferenceDialog, setShowCreateReferenceDialog] = useState(false);
@@ -1070,6 +1074,16 @@ export function FlashcardReview({
 
   const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar o tener en cuenta", "Sinónimo", "definición formal", "ejemplo", "Preguntas", "Active Recall", "Explicación de relación"];
 
+  // Filtrar notas de repaso según el filtro seleccionado
+  const filteredReviewNotes = useMemo(() => {
+    if (noteFilter === 'all') {
+      return reviewNotes;
+    }
+    return reviewNotes.filter(note => 
+      note.content.toLowerCase().includes(noteFilter.toLowerCase())
+    );
+  }, [reviewNotes, noteFilter]);
+
   // Función para extraer texto plano del contenido
   const extractPlainText = (): string => {
     if (Array.isArray(detailedContent?.blocks) && detailedContent.blocks.length > 0) {
@@ -1452,21 +1466,57 @@ export function FlashcardReview({
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
               {/* Notas de repaso */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <StickyNote className="w-4 h-4 text-muted-foreground" />
-                  <h4 className="text-sm font-medium text-foreground">
-                    Notas de repaso ({reviewNotes.length})
-                  </h4>
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setShowReviewNotes(!showReviewNotes)}
+                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showReviewNotes ? (
+                      <ChevronDown className="w-4 h-4" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4" />
+                    )}
+                    <StickyNote className="w-4 h-4" />
+                    <span>Notas de repaso</span>
+                    {reviewNotes.length > 0 && (
+                      <span className="ml-1 px-2 py-0.5 text-xs bg-secondary text-secondary-foreground rounded-full">
+                        {filteredReviewNotes.length}
+                      </span>
+                    )}
+                  </button>
+                  
+                  {/* Filtro de notas */}
+                  {reviewNotes.length > 0 && showReviewNotes && (
+                    <select
+                      value={noteFilter}
+                      onChange={(e) => setNoteFilter(e.target.value)}
+                      className="text-xs px-2 py-1 rounded bg-background border border-border text-foreground focus:border-primary/50 focus:outline-none max-w-32"
+                    >
+                      <option value="all">Todas ({reviewNotes.length})</option>
+                      {quickNotes.map((noteType) => {
+                        const count = reviewNotes.filter(note => 
+                          note.content.toLowerCase().includes(noteType.toLowerCase())
+                        ).length;
+                        return count > 0 ? (
+                          <option key={noteType} value={noteType}>
+                            {noteType} ({count})
+                          </option>
+                        ) : null;
+                      })}
+                    </select>
+                  )}
                 </div>
                 
-                {notesLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Cargando notas...
-                  </div>
-                ) : reviewNotes.length > 0 ? (
-                  <div className="space-y-3">
-                    {reviewNotes.map((note) => (
+                {showReviewNotes && (
+                  <>
+                    {notesLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Cargando notas...
+                      </div>
+                    ) : filteredReviewNotes.length > 0 ? (
+                      <div className="space-y-3">
+                        {filteredReviewNotes.map((note) => (
                   <div key={note.id} className="p-3 rounded-lg bg-background border border-border shadow-sm">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 space-y-2">
@@ -1573,13 +1623,31 @@ export function FlashcardReview({
                   ) : (
                     <div className="text-center py-6">
                       <MessageSquare className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Sin notas de repaso</p>
-                      <p className="text-xs text-muted-foreground mt-1">Agrega notas sobre lo que no dominabas</p>
+                      {noteFilter === 'all' ? (
+                        <>
+                          <p className="text-sm text-muted-foreground">Sin notas de repaso</p>
+                          <p className="text-xs text-muted-foreground mt-1">Agrega notas sobre lo que no dominabas</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground">Sin notas de tipo "{noteFilter}"</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            <button 
+                              onClick={() => setNoteFilter('all')}
+                              className="text-primary hover:text-primary/80 transition-colors"
+                            >
+                              Ver todas las notas
+                            </button>
+                          </p>
+                        </>
+                      )}
                     </div>
                   )}
-                </div>
+                  </>
+                )}
+              </div>
 
-                {/* Puntos de referencia */}
+              {/* Puntos de referencia */}
                 <ReferencePointsPanel
                   referencePoints={referencePoints}
                   onNavigateToReference={handleNavigateToReference}
