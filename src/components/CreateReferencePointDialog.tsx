@@ -29,6 +29,7 @@ interface CreateReferencePointDialogProps {
 const CATEGORIES = [
   { value: 'no-dominaba', label: 'No dominaba o no tenía en cuenta', color: '#EF4444' },
   { value: 'investigar', label: 'Próximo a investigar o tener en cuenta', color: '#F59E0B' },
+  { value: 'ejemplo', label: 'Ejemplo', color: '#10B981' },
 ];
 
 export const CreateReferencePointDialog: React.FC<CreateReferencePointDialogProps> = ({

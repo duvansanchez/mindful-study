@@ -1074,6 +1074,20 @@ export function FlashcardReview({
 
   const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar o tener en cuenta", "Sinónimo", "definición formal", "ejemplo", "Preguntas", "Active Recall", "Explicación de relación"];
 
+  // Mapeo de colores para las notas que coinciden con categorías de puntos de referencia
+  const getNoteColor = (noteText: string) => {
+    const colorMap: Record<string, string> = {
+      "No dominaba o no tenía en cuenta": "#EF4444",
+      "Próximo a investigar o tener en cuenta": "#F59E0B", 
+      "ejemplo": "#10B981"
+    };
+    
+    // Limpiar el texto de los dos puntos al final si los tiene
+    const cleanText = noteText.replace(/:\s*$/, '');
+    
+    return colorMap[cleanText] || colorMap[noteText] || "#6B7280"; // Color por defecto (gris)
+  };
+
   // Filtrar notas de repaso según el filtro seleccionado
   const filteredReviewNotes = useMemo(() => {
     if (noteFilter === 'all') {
@@ -1168,7 +1182,16 @@ export function FlashcardReview({
       if (part.startsWith('**') && part.endsWith('**')) {
         // Texto en negrita
         const boldText = part.slice(2, -2);
-        return <strong key={index} className="font-semibold text-foreground">{boldText}</strong>;
+        const color = getNoteColor(boldText);
+        return (
+          <strong 
+            key={index} 
+            className="font-semibold" 
+            style={{ color }}
+          >
+            {boldText}
+          </strong>
+        );
       }
       return part;
     });
@@ -1498,7 +1521,7 @@ export function FlashcardReview({
                           note.content.toLowerCase().includes(noteType.toLowerCase())
                         ).length;
                         return count > 0 ? (
-                          <option key={noteType} value={noteType}>
+                          <option key={noteType} value={noteType} style={{ color: getNoteColor(noteType) }}>
                             {noteType} ({count})
                           </option>
                         ) : null;
@@ -1676,7 +1699,8 @@ export function FlashcardReview({
                           const formattedQuick = `**${quick}**: `;
                           setNoteText(noteText ? `${noteText}\n${formattedQuick}` : formattedQuick);
                         }}
-                        className="px-2 py-1 text-xs rounded bg-secondary border border-border hover:border-primary/50 hover:text-primary transition-colors font-medium"
+                        className="px-2 py-1 text-xs rounded bg-secondary border border-border hover:border-primary/50 transition-colors font-medium"
+                        style={{ color: getNoteColor(quick) }}
                       >
                         {quick}
                       </button>
