@@ -27,13 +27,8 @@ interface CreateReferencePointDialogProps {
 }
 
 const CATEGORIES = [
-  { value: 'general', label: 'General', color: '#3B82F6' },
-  { value: 'definition', label: 'Definición', color: '#10B981' },
-  { value: 'example', label: 'Ejemplo', color: '#F59E0B' },
-  { value: 'important', label: 'Importante', color: '#EF4444' },
-  { value: 'question', label: 'Pregunta', color: '#8B5CF6' },
-  { value: 'formula', label: 'Fórmula', color: '#06B6D4' },
-  { value: 'concept', label: 'Concepto', color: '#84CC16' },
+  { value: 'no-dominaba', label: 'No dominaba o no tenía en cuenta', color: '#EF4444' },
+  { value: 'investigar', label: 'Próximo a investigar o tener en cuenta', color: '#F59E0B' },
 ];
 
 export const CreateReferencePointDialog: React.FC<CreateReferencePointDialogProps> = ({

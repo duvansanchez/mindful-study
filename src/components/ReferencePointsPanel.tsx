@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ReferencePoint, useDeleteReferencePoint, useUpdateReferencePoint } from '@/hooks/useReferencePoints';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,13 +27,8 @@ interface ReferencePointsPanelProps {
 }
 
 const CATEGORIES = [
-  { value: 'general', label: 'General', color: '#3B82F6' },
-  { value: 'definition', label: 'Definición', color: '#10B981' },
-  { value: 'example', label: 'Ejemplo', color: '#F59E0B' },
-  { value: 'important', label: 'Importante', color: '#EF4444' },
-  { value: 'question', label: 'Pregunta', color: '#8B5CF6' },
-  { value: 'formula', label: 'Fórmula', color: '#06B6D4' },
-  { value: 'concept', label: 'Concepto', color: '#84CC16' },
+  { value: 'no-dominaba', label: 'No dominaba o no tenía en cuenta', color: '#EF4444' },
+  { value: 'investigar', label: 'Próximo a investigar o tener en cuenta', color: '#F59E0B' },
 ];
 
 export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
@@ -48,6 +43,7 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [deletingReference, setDeletingReference] = useState<ReferencePoint | null>(null);
   const [diagnosticReference, setDiagnosticReference] = useState<ReferencePoint | null>(null);
+  const [referenceFilter, setReferenceFilter] = useState<string>('all');
 
   const deleteReferencePoint = useDeleteReferencePoint();
   const updateReferencePoint = useUpdateReferencePoint();
@@ -106,6 +102,14 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
     return CATEGORIES.find(cat => cat.value === category) || CATEGORIES[0];
   };
 
+  // Filtrar puntos de referencia según el filtro seleccionado
+  const filteredReferencePoints = useMemo(() => {
+    if (referenceFilter === 'all') {
+      return referencePoints;
+    }
+    return referencePoints.filter(point => point.category === referenceFilter);
+  }, [referencePoints, referenceFilter]);
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -140,25 +144,60 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
           <span>Puntos de Referencia</span>
           {referencePoints.length > 0 && (
             <Badge variant="secondary" className="ml-1">
-              {referencePoints.length}
+              {filteredReferencePoints.length}
             </Badge>
           )}
         </button>
+        
+        {/* Filtro de puntos de referencia */}
+        {referencePoints.length > 0 && !isCollapsed && (
+          <select
+            value={referenceFilter}
+            onChange={(e) => setReferenceFilter(e.target.value)}
+            className="text-xs px-2 py-1 rounded bg-background border border-border text-foreground focus:border-primary/50 focus:outline-none max-w-32"
+          >
+            <option value="all">Todos ({referencePoints.length})</option>
+            {CATEGORIES.map((category) => {
+              const count = referencePoints.filter(point => point.category === category.value).length;
+              return count > 0 ? (
+                <option key={category.value} value={category.value}>
+                  {category.label} ({count})
+                </option>
+              ) : null;
+            })}
+          </select>
+        )}
       </div>
 
       {/* Content */}
       {!isCollapsed && (
         <div className="space-y-2">
-          {referencePoints.length === 0 ? (
+          {filteredReferencePoints.length === 0 ? (
             <div className="text-center py-6 text-muted-foreground">
               <Bookmark className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No hay puntos de referencia</p>
-              <p className="text-xs mt-1">
-                Selecciona texto y crea tu primer punto de referencia
-              </p>
+              {referenceFilter === 'all' ? (
+                <>
+                  <p className="text-sm">No hay puntos de referencia</p>
+                  <p className="text-xs mt-1">
+                    Selecciona texto y crea tu primer punto de referencia
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm">Sin puntos de tipo "{CATEGORIES.find(cat => cat.value === referenceFilter)?.label}"</p>
+                  <p className="text-xs mt-1">
+                    <button 
+                      onClick={() => setReferenceFilter('all')}
+                      className="text-primary hover:text-primary/80 transition-colors"
+                    >
+                      Ver todos los puntos
+                    </button>
+                  </p>
+                </>
+              )}
             </div>
           ) : (
-            referencePoints.map((referencePoint) => {
+            filteredReferencePoints.map((referencePoint) => {
               const categoryData = getCategoryData(referencePoint.category);
               const isEditing = editingId === referencePoint.id;
 
