@@ -12,16 +12,21 @@ import {
   MapPin,
   ChevronDown,
   ChevronRight,
-  Search
+  Search,
+  StickyNote,
+  Eye
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DeleteReferenceDialog } from './DeleteReferenceDialog';
 import { ReferencePointDiagnostic } from './ReferencePointDiagnostic';
+import { ReferencePointNoteModal } from './ReferencePointNoteModal';
 
 interface ReferencePointsPanelProps {
   referencePoints: ReferencePoint[];
   onNavigateToReference: (referencePoint: ReferencePoint) => void;
+  onClearTooltipAndHighlights?: () => void;
+  onShowAllReferences?: () => void;
   isLoading?: boolean;
   contentText?: string; // Texto del contenido para diagnóstico
 }
@@ -30,11 +35,14 @@ const CATEGORIES = [
   { value: 'no-dominaba', label: 'No dominaba o no tenía en cuenta', color: '#EF4444' },
   { value: 'investigar', label: 'Próximo a investigar o tener en cuenta', color: '#F59E0B' },
   { value: 'ejemplo', label: 'Ejemplo', color: '#10B981' },
+  { value: 'frase', label: 'Frase', color: '#8B5CF6' },
 ];
 
 export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
   referencePoints,
   onNavigateToReference,
+  onClearTooltipAndHighlights,
+  onShowAllReferences,
   isLoading = false,
   contentText = '',
 }) => {
@@ -44,6 +52,7 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [deletingReference, setDeletingReference] = useState<ReferencePoint | null>(null);
   const [diagnosticReference, setDiagnosticReference] = useState<ReferencePoint | null>(null);
+  const [noteReference, setNoteReference] = useState<ReferencePoint | null>(null);
   const [referenceFilter, setReferenceFilter] = useState<string>('all');
 
   const deleteReferencePoint = useDeleteReferencePoint();
@@ -86,6 +95,14 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
 
   const handleDiagnostic = (referencePoint: ReferencePoint) => {
     setDiagnosticReference(referencePoint);
+  };
+
+  const handleShowNote = (referencePoint: ReferencePoint) => {
+    // Limpiar tooltips y resaltados antes de abrir el modal
+    if (onClearTooltipAndHighlights) {
+      onClearTooltipAndHighlights();
+    }
+    setNoteReference(referencePoint);
   };
 
   const handleConfirmDelete = async () => {
@@ -150,24 +167,40 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
           )}
         </button>
         
-        {/* Filtro de puntos de referencia */}
-        {referencePoints.length > 0 && !isCollapsed && (
-          <select
-            value={referenceFilter}
-            onChange={(e) => setReferenceFilter(e.target.value)}
-            className="text-xs px-2 py-1 rounded bg-background border border-border text-foreground focus:border-primary/50 focus:outline-none max-w-32"
-          >
-            <option value="all">Todos ({referencePoints.length})</option>
-            {CATEGORIES.map((category) => {
-              const count = referencePoints.filter(point => point.category === category.value).length;
-              return count > 0 ? (
-                <option key={category.value} value={category.value}>
-                  {category.label} ({count})
-                </option>
-              ) : null;
-            })}
-          </select>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Botón para mostrar todos los puntos de referencia */}
+          {referencePoints.length > 0 && !isCollapsed && onShowAllReferences && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onShowAllReferences}
+              className="h-7 px-2 text-xs"
+              title="Mostrar todos los puntos de referencia en el texto"
+            >
+              <Eye className="w-3 h-3 mr-1" />
+              Mostrar todos
+            </Button>
+          )}
+          
+          {/* Filtro de puntos de referencia */}
+          {referencePoints.length > 0 && !isCollapsed && (
+            <select
+              value={referenceFilter}
+              onChange={(e) => setReferenceFilter(e.target.value)}
+              className="text-xs px-2 py-1 rounded bg-background border border-border text-foreground focus:border-primary/50 focus:outline-none max-w-32"
+            >
+              <option value="all">Todos ({referencePoints.length})</option>
+              {CATEGORIES.map((category) => {
+                const count = referencePoints.filter(point => point.category === category.value).length;
+                return count > 0 ? (
+                  <option key={category.value} value={category.value}>
+                    {category.label} ({count})
+                  </option>
+                ) : null;
+              })}
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Content */}
@@ -273,6 +306,10 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                                 <p className="text-sm">{referencePoint.referenceName}</p>
                               </TooltipContent>
                             </Tooltip>
+                            {/* Indicador de notas */}
+                            {referencePoint.notes && referencePoint.notes.trim() && (
+                              <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" title="Tiene notas" />
+                            )}
                           </div>
                           <Badge variant="outline" className="text-xs">
                             {categoryData.label}
@@ -281,6 +318,15 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                         
                         {/* Acciones */}
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleShowNote(referencePoint)}
+                            className="h-6 w-6 p-0"
+                            title="Ver nota"
+                          >
+                            <StickyNote className="w-3 h-3" />
+                          </Button>
                           <Button
                             size="sm"
                             variant="ghost"
@@ -395,6 +441,13 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal de notas del punto de referencia */}
+      <ReferencePointNoteModal
+        referencePoint={noteReference}
+        open={!!noteReference}
+        onOpenChange={(open) => !open && setNoteReference(null)}
+      />
       </div>
     </TooltipProvider>
   );

@@ -12,6 +12,7 @@ import { useFlashcardReviewCount } from "@/hooks/useStudyTracking";
 import { useReferencePoints, useCreateReferencePoint, useTextSelection, type ReferencePoint } from "@/hooks/useReferencePoints";
 import { ReferencePointsPanel } from "./ReferencePointsPanel";
 import { CreateReferencePointDialog } from "./CreateReferencePointDialog";
+import { ReferencePointNoteModal } from "./ReferencePointNoteModal";
 import { FloatingReferenceButton } from "./FloatingReferenceButton";
 
 const REFERENCE_HIGHLIGHT_ATTR = 'data-reference-highlight';
@@ -315,6 +316,9 @@ export function FlashcardReview({
   // Estado para el tooltip activo
   const [activeTooltip, setActiveTooltip] = useState<ExtendedTooltip | null>(null);
 
+  // Estado para el modal de notas del punto de referencia
+  const [noteModalReference, setNoteModalReference] = useState<ReferencePoint | null>(null);
+
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
   const [dominioMessage, setDominioMessage] = useState<string | null>(null);
   const [updatingState, setUpdatingState] = useState(false);
@@ -542,6 +546,102 @@ export function FlashcardReview({
     }
     onClose();
   }, [activeTooltip, onClose]);
+
+  // Función para limpiar tooltip y resaltados (para usar desde otros componentes)
+  const clearTooltipAndHighlights = useCallback(() => {
+    // Limpiar tooltip activo
+    if (activeTooltip && activeTooltip.parentNode) {
+      if (activeTooltip.cleanup) {
+        activeTooltip.cleanup();
+      }
+      activeTooltip.remove();
+      setActiveTooltip(null);
+    }
+    
+    // Limpiar resaltados
+    const contentContainer = document.querySelector('.flashcard-content-area');
+    if (contentContainer) {
+      clearReferenceHighlights(contentContainer);
+    }
+  }, [activeTooltip]);
+
+  // Función para abrir modal de notas desde tooltip
+  const handleOpenNoteModalFromTooltip = useCallback((referencePoint: ReferencePoint) => {
+    // Limpiar tooltip y resaltados
+    clearTooltipAndHighlights();
+    // Abrir modal de notas
+    setNoteModalReference(referencePoint);
+  }, [clearTooltipAndHighlights]);
+
+  // Función para mostrar todos los puntos de referencia sin tooltips
+  const handleShowAllReferences = useCallback(() => {
+    console.log('🔧 DEBUG: Mostrando todos los puntos de referencia');
+    
+    // Limpiar tooltips activos primero
+    clearTooltipAndHighlights();
+    
+    setTimeout(() => {
+      const contentArea = document.querySelector('.flashcard-content-area');
+      if (!contentArea) return;
+
+      // Limpiar resaltados existentes
+      clearReferenceHighlights(contentArea);
+
+      const { fullText, entries } = buildTextIndex(contentArea);
+      if (!fullText || entries.length === 0) return;
+
+      // Resaltar todos los puntos de referencia
+      referencePoints.forEach((referencePoint) => {
+        const selectedText = referencePoint.selectedText;
+        if (!selectedText || selectedText.trim().length === 0) return;
+
+        const index = fullText.indexOf(selectedText);
+        if (index === -1) return;
+
+        const range = createRangeFromOffsets(entries, index, index + selectedText.length);
+        if (!range) return;
+
+        // Crear resaltado clickeable
+        const highlight = wrapRangeWithHighlight(contentArea, range, referencePoint.color);
+        if (highlight) {
+          // Hacer el resaltado clickeable para abrir modal de notas
+          highlight.style.cursor = 'pointer';
+          highlight.style.position = 'relative';
+          highlight.title = `📍 ${referencePoint.referenceName} - Clic para ver notas`;
+          
+          // Agregar indicador de notas si tiene notas
+          if (referencePoint.notes && referencePoint.notes.trim()) {
+            const noteIndicator = document.createElement('span');
+            noteIndicator.style.cssText = `
+              position: absolute;
+              top: -2px;
+              right: -2px;
+              width: 6px;
+              height: 6px;
+              background-color: #3B82F6;
+              border-radius: 50%;
+              border: 1px solid white;
+              z-index: 10;
+              pointer-events: none;
+            `;
+            highlight.appendChild(noteIndicator);
+          }
+          
+          const handleHighlightClick = (e: Event) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('🔧 DEBUG: Resaltado clickeado para:', referencePoint.referenceName);
+            setNoteModalReference(referencePoint);
+          };
+          
+          highlight.addEventListener('click', handleHighlightClick);
+          
+          // Guardar referencia para limpieza posterior
+          highlight.setAttribute('data-reference-id', referencePoint.id.toString());
+        }
+      });
+    }, 100);
+  }, [referencePoints, clearTooltipAndHighlights]);
 
   // Limpiar tooltip al desmontar el componente
   useEffect(() => {
@@ -912,6 +1012,25 @@ export function FlashcardReview({
 
       const firstHighlight = wrapRangeWithHighlight(contentArea, range, referencePoint.color);
       if (firstHighlight) {
+        // Agregar indicador de notas si tiene notas
+        if (referencePoint.notes && referencePoint.notes.trim()) {
+          firstHighlight.style.position = 'relative';
+          const noteIndicator = document.createElement('span');
+          noteIndicator.style.cssText = `
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 6px;
+            height: 6px;
+            background-color: #3B82F6;
+            border-radius: 50%;
+            border: 1px solid white;
+            z-index: 10;
+            pointer-events: none;
+          `;
+          firstHighlight.appendChild(noteIndicator);
+        }
+        
         firstHighlight.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
         
         // Esperar un poco para que el scroll termine
@@ -960,9 +1079,37 @@ export function FlashcardReview({
             min-width: 120px;
             word-wrap: break-word; 
             line-height: 1.3;
-            pointer-events: none;
+            pointer-events: auto;
+            cursor: pointer;
             animation: fadeInTooltip 0.3s ease-out;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
           `;
+          
+          // Agregar efectos hover
+          tooltip.addEventListener('mouseenter', () => {
+            tooltip.style.transform = 'translateX(-50%) scale(1.05)';
+            tooltip.style.boxShadow = '0 8px 20px rgba(0,0,0,0.5)';
+          });
+          
+          tooltip.addEventListener('mouseleave', () => {
+            tooltip.style.transform = 'translateX(-50%) scale(1)';
+            tooltip.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)';
+          });
+          
+          // Agregar evento de clic para abrir modal de notas
+          const handleTooltipClick = () => {
+            console.log('🔧 DEBUG: Tooltip clickeado para:', referencePoint.referenceName);
+            handleOpenNoteModalFromTooltip(referencePoint);
+          };
+          
+          tooltip.addEventListener('click', handleTooltipClick);
+          
+          // Guardar función de limpieza
+          tooltip.cleanup = () => {
+            tooltip.removeEventListener('click', handleTooltipClick);
+            tooltip.removeEventListener('mouseenter', () => {});
+            tooltip.removeEventListener('mouseleave', () => {});
+          };
           
           // Agregar animación CSS
           if (!document.getElementById('tooltip-animation-style')) {
@@ -1674,6 +1821,8 @@ export function FlashcardReview({
                 <ReferencePointsPanel
                   referencePoints={referencePoints}
                   onNavigateToReference={handleNavigateToReference}
+                  onClearTooltipAndHighlights={clearTooltipAndHighlights}
+                  onShowAllReferences={handleShowAllReferences}
                   isLoading={referencePointsLoading}
                   contentText={extractPlainText()}
                 />
@@ -1781,6 +1930,13 @@ export function FlashcardReview({
         selectedText={selectedTextForReference}
         onCreateReferencePoint={handleCreateReferencePoint}
         isCreating={createReferencePointMutation.isPending}
+      />
+      
+      {/* Modal de notas del punto de referencia */}
+      <ReferencePointNoteModal
+        referencePoint={noteModalReference}
+        open={!!noteModalReference}
+        onOpenChange={(open) => !open && setNoteModalReference(null)}
       />
       
       {/* Botón flotante para crear puntos de referencia */}

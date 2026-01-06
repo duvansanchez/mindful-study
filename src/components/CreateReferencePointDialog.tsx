@@ -30,6 +30,7 @@ const CATEGORIES = [
   { value: 'no-dominaba', label: 'No dominaba o no tenía en cuenta', color: '#EF4444' },
   { value: 'investigar', label: 'Próximo a investigar o tener en cuenta', color: '#F59E0B' },
   { value: 'ejemplo', label: 'Ejemplo', color: '#10B981' },
+  { value: 'frase', label: 'Frase', color: '#8B5CF6' },
 ];
 
 export const CreateReferencePointDialog: React.FC<CreateReferencePointDialogProps> = ({
@@ -140,6 +141,9 @@ export const CreateReferencePointDialog: React.FC<CreateReferencePointDialogProp
               className="w-4 h-4 rounded border border-border" 
               style={{ backgroundColor: color }}
             />
+            <span className="text-xs ml-2 text-muted-foreground">
+              (Puedes agregar notas después de crear el punto)
+            </span>
           </div>
 
           <DialogFooter className="gap-2">
