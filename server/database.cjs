@@ -622,12 +622,13 @@ class DatabaseService {
       request.input('ContextAfter', sql.NVarChar, options.contextAfter || null);
       request.input('Category', sql.NVarChar, options.category || 'general');
       request.input('Color', sql.NVarChar, options.color || '#3B82F6');
+      request.input('Notes', sql.NVarChar, options.notes || null);
 
       const result = await request.query(`
         INSERT INTO ReferencePoints 
-        (flashcard_id, database_id, selected_text, reference_name, text_position, block_id, context_before, context_after, category, color)
+        (flashcard_id, database_id, selected_text, reference_name, text_position, block_id, context_before, context_after, category, color, notes)
         OUTPUT INSERTED.*
-        VALUES (@FlashcardId, @DatabaseId, @SelectedText, @ReferenceName, @TextPosition, @BlockId, @ContextBefore, @ContextAfter, @Category, @Color)
+        VALUES (@FlashcardId, @DatabaseId, @SelectedText, @ReferenceName, @TextPosition, @BlockId, @ContextBefore, @ContextAfter, @Category, @Color, @Notes)
       `);
 
       return result.recordset[0];
@@ -663,6 +664,7 @@ class DatabaseService {
         contextAfter: row.context_after,
         category: row.category,
         color: row.color,
+        notes: row.notes,
         createdAt: row.created_at,
         updatedAt: row.updated_at
       }));
@@ -675,26 +677,39 @@ class DatabaseService {
   // Actualizar punto de referencia
   static async updateReferencePoint(referenceId, updates) {
     try {
+      console.log('🔧 DEBUG updateReferencePoint - referenceId:', referenceId);
+      console.log('🔧 DEBUG updateReferencePoint - updates:', JSON.stringify(updates, null, 2));
+      
       const pool = await getPool();
       const request = pool.request();
       
       request.input('ReferenceId', sql.Int, referenceId);
       
       const updateFields = [];
-      const allowedFields = ['referenceName', 'category', 'color'];
+      const allowedFields = ['referenceName', 'category', 'color', 'notes'];
       
       if (updates.referenceName !== undefined) {
+        console.log('🔧 DEBUG - Actualizando referenceName:', updates.referenceName);
         request.input('ReferenceName', sql.NVarChar, updates.referenceName);
         updateFields.push('reference_name = @ReferenceName');
       }
       if (updates.category !== undefined) {
+        console.log('🔧 DEBUG - Actualizando category:', updates.category);
         request.input('Category', sql.NVarChar, updates.category);
         updateFields.push('category = @Category');
       }
       if (updates.color !== undefined) {
+        console.log('🔧 DEBUG - Actualizando color:', updates.color);
         request.input('Color', sql.NVarChar, updates.color);
         updateFields.push('color = @Color');
       }
+      if (updates.notes !== undefined) {
+        console.log('🔧 DEBUG - Actualizando notes:', updates.notes);
+        request.input('Notes', sql.NVarChar, updates.notes);
+        updateFields.push('notes = @Notes');
+      }
+
+      console.log('🔧 DEBUG - updateFields:', updateFields);
 
       if (updateFields.length === 0) {
         throw new Error('No valid fields to update');

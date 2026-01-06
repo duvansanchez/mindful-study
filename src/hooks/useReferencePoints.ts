@@ -13,6 +13,7 @@ export interface ReferencePoint {
   contextAfter?: string;
   category: string;
   color: string;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +28,7 @@ export interface CreateReferencePointData {
   contextAfter?: string;
   category?: string;
   color?: string;
+  notes?: string;
 }
 
 // Hook para obtener puntos de referencia de una flashcard
