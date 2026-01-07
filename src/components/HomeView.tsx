@@ -1,6 +1,64 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { RefreshCw, Loader2 } from 'lucide-react';
 
 export const HomeView: React.FC = () => {
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClearCache = async () => {
+    setIsClearing(true);
+    try {
+      const response = await fetch('http://localhost:3002/clear-cache', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        // Mostrar mensaje de éxito
+        const successMsg = document.createElement('div');
+        successMsg.innerHTML = '✅ Cache limpiado correctamente';
+        successMsg.style.cssText = `
+          position: fixed; 
+          top: 20px; 
+          right: 20px; 
+          background: #10B981; 
+          color: white;
+          padding: 12px 16px; 
+          border-radius: 8px; 
+          font-size: 14px; 
+          z-index: 1000;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        `;
+        document.body.appendChild(successMsg);
+        setTimeout(() => successMsg.remove(), 3000);
+      } else {
+        throw new Error('Error al limpiar cache');
+      }
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      // Mostrar mensaje de error
+      const errorMsg = document.createElement('div');
+      errorMsg.innerHTML = '❌ Error al limpiar cache';
+      errorMsg.style.cssText = `
+        position: fixed; 
+        top: 20px; 
+        right: 20px; 
+        background: #EF4444; 
+        color: white;
+        padding: 12px 16px; 
+        border-radius: 8px; 
+        font-size: 14px; 
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      `;
+      document.body.appendChild(errorMsg);
+      setTimeout(() => errorMsg.remove(), 3000);
+    } finally {
+      setIsClearing(false);
+    }
+  };
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Welcome Section */}
@@ -12,6 +70,31 @@ export const HomeView: React.FC = () => {
           Organiza tu aprendizaje con flashcards inteligentes conectadas a Notion. 
           Crea agrupaciones, revisa contenido y sigue tu progreso de manera eficiente.
         </p>
+        
+        {/* Botón para limpiar cache */}
+        <div className="mb-8">
+          <Button
+            onClick={handleClearCache}
+            disabled={isClearing}
+            variant="outline"
+            className="mx-auto"
+          >
+            {isClearing ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Limpiando cache...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Limpiar Cache
+              </>
+            )}
+          </Button>
+          <p className="text-sm text-muted-foreground mt-2">
+            Usa este botón si agregaste nuevas flashcards en Notion y no aparecen en la app
+          </p>
+        </div>
         
         {/* Features */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 max-w-4xl mx-auto">

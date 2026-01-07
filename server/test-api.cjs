@@ -46,6 +46,17 @@ app.get('/test-simple', (req, res) => {
   res.json({ message: 'Código cargado correctamente', timestamp: new Date().toISOString() });
 });
 
+// Limpiar cache de bases de datos
+app.post('/clear-cache', (req, res) => {
+  console.log('🗑️ Limpiando cache de bases de datos...');
+  // Limpiar variables de cache si existen
+  if (global.databasesCache) {
+    delete global.databasesCache;
+    console.log('✅ Cache de bases de datos limpiado');
+  }
+  res.json({ success: true, message: 'Cache limpiado correctamente' });
+});
+
 // ==================== ENDPOINTS DE PLANIFICACIÓN (TEMP) ====================
 
 console.log('🔧 DEBUG: Registrando endpoints de planificación TEMP...');

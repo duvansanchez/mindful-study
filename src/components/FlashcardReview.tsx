@@ -414,7 +414,7 @@ export function FlashcardReview({
       setLastReviewMessage(null);
       setDominioMessage(null);
       
-      // Limpiar tooltip activo al cambiar de flashcard
+      // Limpiar tooltip activo y resaltados al cambiar de flashcard
       if (activeTooltip && activeTooltip.parentNode) {
         // Limpiar event listeners si existen
         if (activeTooltip.cleanup) {
@@ -422,6 +422,12 @@ export function FlashcardReview({
         }
         activeTooltip.remove();
         setActiveTooltip(null);
+      }
+      
+      // Limpiar todos los resaltados de puntos de referencia
+      const contentArea = document.querySelector('.flashcard-content-area');
+      if (contentArea) {
+        clearReferenceHighlights(contentArea);
       }
     } finally {
       setUpdatingReviewDate(false);
@@ -544,6 +550,13 @@ export function FlashcardReview({
       activeTooltip.remove();
       setActiveTooltip(null);
     }
+    
+    // Limpiar todos los resaltados de puntos de referencia
+    const contentArea = document.querySelector('.flashcard-content-area');
+    if (contentArea) {
+      clearReferenceHighlights(contentArea);
+    }
+    
     onClose();
   }, [activeTooltip, onClose]);
 
@@ -575,8 +588,6 @@ export function FlashcardReview({
 
   // Función para mostrar todos los puntos de referencia sin tooltips
   const handleShowAllReferences = useCallback(() => {
-    console.log('🔧 DEBUG: Mostrando todos los puntos de referencia');
-    
     // Limpiar tooltips activos primero
     clearTooltipAndHighlights();
     
@@ -595,8 +606,51 @@ export function FlashcardReview({
         const selectedText = referencePoint.selectedText;
         if (!selectedText || selectedText.trim().length === 0) return;
 
-        const index = fullText.indexOf(selectedText);
-        if (index === -1) return;
+        // Intentar búsqueda exacta primero
+        let index = fullText.indexOf(selectedText);
+        
+        // Si no se encuentra, intentar búsqueda flexible
+        if (index === -1) {
+          // Normalizar texto para búsqueda (quitar espacios extra, saltos de línea, etc.)
+          const normalizeText = (text: string) => text
+            .replace(/\s+/g, ' ')  // Reemplazar múltiples espacios/saltos por un espacio
+            .replace(/\n/g, ' ')   // Reemplazar saltos de línea por espacios
+            .trim();
+          
+          const normalizedSelected = normalizeText(selectedText);
+          const normalizedFull = normalizeText(fullText);
+          
+          const normalizedIndex = normalizedFull.indexOf(normalizedSelected);
+          
+          if (normalizedIndex !== -1) {
+            // Encontrar la posición aproximada en el texto original
+            // Contar caracteres hasta llegar a la posición normalizada
+            let originalIndex = 0;
+            let normalizedCount = 0;
+            
+            for (let i = 0; i < fullText.length && normalizedCount < normalizedIndex; i++) {
+              const char = fullText[i];
+              if (!/\s/.test(char) || (i > 0 && !/\s/.test(fullText[i-1]))) {
+                normalizedCount++;
+              }
+              originalIndex = i;
+            }
+            
+            index = originalIndex;
+          }
+        }
+        
+        if (index === -1) {
+          // Intentar buscar una parte del texto (primeras 20 palabras)
+          const words = selectedText.split(/\s+/).slice(0, 20).join(' ');
+          const partialIndex = fullText.indexOf(words);
+          
+          if (partialIndex !== -1) {
+            index = partialIndex;
+          } else {
+            return;
+          }
+        }
 
         const range = createRangeFromOffsets(entries, index, index + selectedText.length);
         if (!range) return;
@@ -630,7 +684,6 @@ export function FlashcardReview({
           const handleHighlightClick = (e: Event) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log('🔧 DEBUG: Resaltado clickeado para:', referencePoint.referenceName);
             setNoteModalReference(referencePoint);
           };
           
@@ -642,6 +695,18 @@ export function FlashcardReview({
       });
     }, 100);
   }, [referencePoints, clearTooltipAndHighlights]);
+
+  // Efecto para mostrar automáticamente los puntos de referencia cuando se revela el contenido
+  useEffect(() => {
+    if (revealed && !contentLoading && referencePoints.length > 0) {
+      // Esperar un poco más para asegurar que el contenido esté completamente renderizado
+      const timer = setTimeout(() => {
+        handleShowAllReferences();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [revealed, contentLoading, referencePoints, handleShowAllReferences]);
 
   // Limpiar tooltip al desmontar el componente
   useEffect(() => {
