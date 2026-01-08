@@ -1,20 +1,26 @@
 import { useQuery } from '@tanstack/react-query';
 import { Flashcard, PlanningSession } from '@/types';
-import { useNotionFlashcards } from './useNotion';
+import { useMultipleNotionFlashcards } from './useNotion';
 
 // Hook para obtener las flashcards de una sesión de planificación
 export const useSessionFlashcards = (session: PlanningSession | null) => {
-  // Obtener todas las flashcards de la base de datos
-  const { data: allFlashcards = [], isLoading, error } = useNotionFlashcards(
-    session?.databaseId || null
+  // Determinar qué bases de datos usar - solo si hay sesión
+  const databaseIds = session?.databaseIds || (session?.databaseId ? [session.databaseId] : []);
+  
+  // Solo cargar flashcards si hay sesión y bases de datos
+  const shouldLoadFlashcards = !!session && databaseIds.length > 0;
+  
+  // SIEMPRE usar useMultipleNotionFlashcards (funciona para 1 o múltiples DBs)
+  const { flashcards: allFlashcards, isLoading } = useMultipleNotionFlashcards(
+    shouldLoadFlashcards ? databaseIds : []
   );
 
   return useQuery({
-    queryKey: ['session-flashcards', session?.id, session?.selectedFlashcards],
+    queryKey: ['session-flashcards', session?.id, session?.selectedFlashcards, databaseIds],
     queryFn: (): Flashcard[] => {
-      if (!session || !allFlashcards.length) return [];
+      if (!session || !shouldLoadFlashcards) return [];
 
-      // Si no hay flashcards seleccionadas específicamente, devolver todas
+      // Si no hay flashcards seleccionadas específicamente, devolver todas las de las bases de datos
       if (!session.selectedFlashcards || session.selectedFlashcards.length === 0) {
         return allFlashcards;
       }
@@ -23,7 +29,7 @@ export const useSessionFlashcards = (session: PlanningSession | null) => {
       const selectedIds = new Set(session.selectedFlashcards);
       return allFlashcards.filter(flashcard => selectedIds.has(flashcard.id));
     },
-    enabled: !!session && !!allFlashcards.length && !isLoading,
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    enabled: shouldLoadFlashcards && !isLoading,
+    staleTime: 5 * 60 * 1000, // 5 minutos de cache
   });
 };

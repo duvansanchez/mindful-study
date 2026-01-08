@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { DatabaseGroup, Database, CreatePlanningSessionData, Flashcard } from '@/types';
+import React, { useState, useMemo } from 'react';
+import { DatabaseGroup, Database, CreatePlanningSessionData, Flashcard, FlashcardWithDatabase } from '@/types';
 import { useCreatePlanningSession } from '@/hooks/usePlanning';
-import { useNotionFlashcards } from '@/hooks/useNotion';
+import { useMultipleNotionFlashcards } from '@/hooks/useNotion';
 import { FlashcardSelectionDialog } from './FlashcardSelectionDialog';
 import {
   Dialog,
@@ -71,7 +71,7 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
   const [flashcardSelectionOpen, setFlashcardSelectionOpen] = useState(false);
   const [formData, setFormData] = useState<CreatePlanningSessionData>({
     sessionName: '',
-    databaseId: '',
+    databaseIds: [],
     sessionNote: '',
     studyMode: 'review',
     selectedFlashcards: []
@@ -79,10 +79,27 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
 
   const createMutation = useCreatePlanningSession();
   
-  // Cargar flashcards cuando se selecciona una base de datos
-  const { data: flashcards = [], isLoading: flashcardsLoading } = useNotionFlashcards(
-    formData.databaseId || null
+  // Cargar flashcards de todas las bases de datos seleccionadas
+  const selectedDatabases = useMemo(() => 
+    databases.filter(db => formData.databaseIds?.includes(db.id)) || [],
+    [databases, formData.databaseIds]
   );
+
+  // Combinar flashcards de múltiples bases de datos y agregar información de DB
+  const { flashcards: rawFlashcards, isLoading: flashcardsLoading } = useMultipleNotionFlashcards(
+    formData.databaseIds || []
+  );
+
+  const allFlashcards = useMemo(() => {
+    return rawFlashcards.map(flashcard => {
+      const database = selectedDatabases.find(db => db.id === flashcard.databaseId);
+      return {
+        ...flashcard,
+        databaseName: database?.name || 'Base de datos desconocida',
+        databaseIcon: database?.icon || '📄'
+      } as FlashcardWithDatabase;
+    });
+  }, [rawFlashcards, selectedDatabases]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,15 +109,28 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
       return;
     }
     
-    if (!formData.databaseId) {
-      toast.error('Debes seleccionar una base de datos');
+    if (!formData.databaseIds || formData.databaseIds.length === 0) {
+      toast.error('Debes seleccionar al menos una base de datos');
       return;
     }
 
     try {
-      await createMutation.mutateAsync({
+      // Enviar tanto databaseId (para compatibilidad) como databaseIds (para múltiples DBs)
+      const sessionData = {
+        ...formData,
+        databaseId: formData.databaseIds[0], // Para compatibilidad con esquema actual
+        databaseIds: formData.databaseIds    // Para soporte de múltiples bases de datos
+      };
+
+      console.log('🚀 Creando sesión con datos:', {
+        sessionName: sessionData.sessionName,
+        databaseIds: sessionData.databaseIds,
+        selectedFlashcards: sessionData.selectedFlashcards?.length || 0
+      });
+
+      const result = await createMutation.mutateAsync({
         groupId: group.id,
-        sessionData: formData
+        sessionData
       });
       
       toast.success('Sesión de planificación creada exitosamente');
@@ -109,7 +139,7 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
       // Limpiar formulario
       setFormData({
         sessionName: '',
-        databaseId: '',
+        databaseIds: [],
         sessionNote: '',
         studyMode: 'review',
         selectedFlashcards: []
@@ -126,17 +156,9 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
     }));
   };
 
-  const handleDatabaseChange = (databaseId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      databaseId,
-      selectedFlashcards: [] // Limpiar selección al cambiar base de datos
-    }));
-  };
-
   const handleOpenFlashcardSelection = () => {
-    if (!formData.databaseId) {
-      toast.error('Primero selecciona una base de datos');
+    if (!formData.databaseIds || formData.databaseIds.length === 0) {
+      toast.error('Primero selecciona al menos una base de datos');
       return;
     }
     setFlashcardSelectionOpen(true);
@@ -179,41 +201,61 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
             />
           </div>
 
-          {/* Base de datos */}
+          {/* Bases de datos */}
           <div className="space-y-2">
-            <Label htmlFor="database">Base de datos</Label>
-            <Select 
-              value={formData.databaseId} 
-              onValueChange={handleDatabaseChange}
-              required
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona una base de datos" />
-              </SelectTrigger>
-              <SelectContent>
-                {databases.length === 0 ? (
-                  <div className="p-2 text-sm text-muted-foreground">
-                    No hay bases de datos disponibles
-                  </div>
-                ) : (
-                  databases.map((database) => (
-                    <SelectItem key={database.id} value={database.id}>
-                      <div className="flex items-center gap-2">
-                        <span>{database.icon}</span>
-                        <span>{database.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({database.cardCount} tarjetas)
-                        </span>
+            <Label>Bases de datos</Label>
+            <div className="space-y-2">
+              {databases.length === 0 ? (
+                <div className="p-3 text-sm text-muted-foreground border border-dashed rounded-lg text-center">
+                  No hay bases de datos disponibles
+                </div>
+              ) : (
+                <div className="grid gap-2 max-h-48 overflow-y-auto border rounded-lg p-2">
+                  {databases.map((database) => (
+                    <label
+                      key={database.id}
+                      className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/50 cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.databaseIds?.includes(database.id) || false}
+                        onChange={(e) => {
+                          const currentIds = formData.databaseIds || [];
+                          const newIds = e.target.checked
+                            ? [...currentIds, database.id]
+                            : currentIds.filter(id => id !== database.id);
+                          
+                          setFormData(prev => ({
+                            ...prev,
+                            databaseIds: newIds,
+                            selectedFlashcards: [] // Limpiar selección al cambiar bases de datos
+                          }));
+                        }}
+                        className="rounded border-border"
+                      />
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-lg">{database.icon}</span>
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">{database.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {database.cardCount} tarjetas
+                          </div>
+                        </div>
                       </div>
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {formData.databaseIds && formData.databaseIds.length > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  {formData.databaseIds.length} base{formData.databaseIds.length !== 1 ? 's' : ''} de datos seleccionada{formData.databaseIds.length !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Selección de flashcards */}
-          {formData.databaseId && (
+          {formData.databaseIds && formData.databaseIds.length > 0 && (
             <div className="space-y-2">
               <Label>Flashcards a incluir</Label>
               <div className="flex items-center gap-2">
@@ -234,7 +276,7 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
                       <Filter className="w-4 h-4 mr-2" />
                       {formData.selectedFlashcards?.length 
                         ? `${formData.selectedFlashcards.length} flashcard${formData.selectedFlashcards.length !== 1 ? 's' : ''} seleccionada${formData.selectedFlashcards.length !== 1 ? 's' : ''}`
-                        : 'Seleccionar flashcards'
+                        : 'Seleccionar flashcards específicas'
                       }
                     </>
                   )}
@@ -250,11 +292,23 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
                   </Button>
                 )}
               </div>
-              {formData.selectedFlashcards?.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Si no seleccionas flashcards específicas, se incluirán todas las de la base de datos
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>
+                  Si no seleccionas flashcards específicas, se incluirán todas las de las bases de datos seleccionadas
                 </p>
-              )}
+                {selectedDatabases.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    <span>Bases seleccionadas:</span>
+                    {selectedDatabases.map((db, index) => (
+                      <span key={db.id} className="inline-flex items-center gap-1">
+                        <span>{db.icon}</span>
+                        <span className="font-medium">{db.name}</span>
+                        {index < selectedDatabases.length - 1 && <span>,</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -337,11 +391,12 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
       <FlashcardSelectionDialog
         open={flashcardSelectionOpen}
         onOpenChange={setFlashcardSelectionOpen}
-        flashcards={flashcards}
+        flashcards={allFlashcards}
         selectedFlashcards={formData.selectedFlashcards || []}
         onSelectionChange={(selectedIds) => handleInputChange('selectedFlashcards', selectedIds)}
         onConfirm={handleFlashcardSelectionConfirm}
         isLoading={createMutation.isPending}
+        databases={selectedDatabases}
       />
     </Dialog>
   );

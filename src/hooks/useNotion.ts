@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { NotionService } from '@/services/notion';
 import { Database, Flashcard, KnowledgeState, Statistics } from '@/types';
@@ -84,7 +84,7 @@ export const useNotionStats = (flashcards: Flashcard[]): Statistics => {
   };
 };
 
-// Hook para manejar múltiples bases de datos
+// Hook para manejar múltiples bases de datos - VERSIÓN CORREGIDA
 export const useMultipleNotionFlashcards = (databaseIds: string[]) => {
   const [allFlashcards, setAllFlashcards] = useState<Flashcard[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -94,6 +94,7 @@ export const useMultipleNotionFlashcards = (databaseIds: string[]) => {
     const fetchAllFlashcards = async () => {
       if (databaseIds.length === 0) {
         setAllFlashcards([]);
+        setIsLoading(false);
         return;
       }
 
@@ -101,11 +102,28 @@ export const useMultipleNotionFlashcards = (databaseIds: string[]) => {
       setError(null);
 
       try {
-        const promises = databaseIds.map(id => NotionService.getFlashcardsFromDatabase(id));
+        // Cargar flashcards de cada DB individualmente usando el servicio directo
+        const promises = databaseIds.map(async (dbId) => {
+          const flashcards = await NotionService.getFlashcardsFromDatabase(dbId);
+          
+          // Asegurar que cada flashcard tenga el databaseId correcto
+          return flashcards.map(flashcard => ({
+            ...flashcard,
+            databaseId: dbId
+          }));
+        });
+        
         const results = await Promise.all(promises);
         const combined = results.flat();
-        setAllFlashcards(combined);
+        
+        // Eliminar duplicados por ID
+        const uniqueFlashcards = combined.filter((flashcard, index, self) => 
+          index === self.findIndex(f => f.id === flashcard.id)
+        );
+        
+        setAllFlashcards(uniqueFlashcards);
       } catch (err) {
+        console.error('❌ Error cargando flashcards:', err);
         setError(err as Error);
       } finally {
         setIsLoading(false);

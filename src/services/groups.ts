@@ -1,7 +1,7 @@
 import { DatabaseGroup, Database } from '@/types';
 
 // URL base de la API local
-const API_BASE = '/api/notion';
+const API_BASE = 'http://localhost:3002';
 
 // Servicio para manejar agrupaciones de bases de datos
 export class GroupsService {

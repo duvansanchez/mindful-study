@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Flashcard, KnowledgeState } from '@/types';
+import { Flashcard, KnowledgeState, Database, FlashcardWithDatabase } from '@/types';
+import { useNotionFlashcards } from '@/hooks/useNotion';
 import {
   Dialog,
   DialogContent,
@@ -31,11 +32,12 @@ import {
 interface FlashcardSelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  flashcards: Flashcard[];
+  flashcards?: Flashcard[]; // Opcional para compatibilidad
   selectedFlashcards: string[];
   onSelectionChange: (selectedIds: string[]) => void;
   onConfirm: () => void;
   isLoading?: boolean;
+  databases?: Database[]; // Nuevas bases de datos para cargar flashcards
 }
 
 type FilterState = 'all' | 'tocado' | 'verde' | 'solido' | 'with-notes';
@@ -55,18 +57,52 @@ const stateColors = {
 export const FlashcardSelectionDialog: React.FC<FlashcardSelectionDialogProps> = ({
   open,
   onOpenChange,
-  flashcards,
+  flashcards = [],
   selectedFlashcards,
   onSelectionChange,
   onConfirm,
-  isLoading = false
+  isLoading = false,
+  databases = []
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterState, setFilterState] = useState<FilterState>('all');
+  const [selectedDatabase, setSelectedDatabase] = useState<string>('all');
+
+  // Cargar flashcards de múltiples bases de datos
+  const databaseFlashcards = useMemo(() => {
+    if (databases.length === 0) return flashcards || [];
+    
+    // Si tenemos bases de datos, intentar agregar información de DB a las flashcards
+    return (flashcards || []).map(card => {
+      if ('databaseId' in card && card.databaseId) {
+        const database = databases.find(db => db.id === card.databaseId);
+        return {
+          ...card,
+          databaseName: database?.name || 'Base de datos desconocida',
+          databaseIcon: database?.icon || '📄'
+        } as FlashcardWithDatabase;
+      }
+      return card;
+    });
+  }, [databases, flashcards]);
+
+  // Usar flashcards combinadas o las pasadas directamente
+  const allFlashcards = databases.length > 0 ? databaseFlashcards : flashcards;
 
   // Filtrar flashcards según búsqueda y filtros
   const filteredFlashcards = useMemo(() => {
-    let filtered = flashcards;
+    let filtered = allFlashcards;
+
+    // Filtro por base de datos
+    if (selectedDatabase !== 'all' && databases.length > 0) {
+      filtered = filtered.filter(card => {
+        // Verificar si la flashcard tiene databaseId y coincide
+        if ('databaseId' in card && card.databaseId) {
+          return card.databaseId === selectedDatabase;
+        }
+        return false;
+      });
+    }
 
     // Filtro por texto de búsqueda
     if (searchTerm.trim()) {
@@ -89,7 +125,7 @@ export const FlashcardSelectionDialog: React.FC<FlashcardSelectionDialogProps> =
     }
 
     return filtered;
-  }, [flashcards, searchTerm, filterState]);
+  }, [allFlashcards, searchTerm, filterState, selectedDatabase, databases.length]);
 
   const handleSelectAll = () => {
     const allFilteredIds = filteredFlashcards.map(card => card.id);
@@ -139,8 +175,9 @@ export const FlashcardSelectionDialog: React.FC<FlashcardSelectionDialogProps> =
           </div>
 
           {/* Filtros y acciones */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
+          <div className="space-y-3">
+            {/* Primera fila: Filtros */}
+            <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-muted-foreground" />
                 <Label htmlFor="filter">Filtrar por:</Label>
@@ -177,9 +214,33 @@ export const FlashcardSelectionDialog: React.FC<FlashcardSelectionDialogProps> =
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Filtro por base de datos (solo si hay múltiples) */}
+              {databases.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <Label>Base de datos:</Label>
+                  <Select value={selectedDatabase} onValueChange={setSelectedDatabase}>
+                    <SelectTrigger className="w-64 min-w-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las bases de datos</SelectItem>
+                      {databases.map((database) => (
+                        <SelectItem key={database.id} value={database.id}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="flex-shrink-0">{database.icon}</span>
+                            <span className="truncate">{database.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Segunda fila: Botones de acción */}
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -203,9 +264,12 @@ export const FlashcardSelectionDialog: React.FC<FlashcardSelectionDialogProps> =
 
           {/* Contador */}
           <div className="text-sm text-muted-foreground">
-            {selectedCount} flashcard{selectedCount !== 1 ? 's' : ''} seleccionada{selectedCount !== 1 ? 's' : ''} de {flashcards.length} total{flashcards.length !== 1 ? 'es' : ''}
-            {filteredFlashcards.length !== flashcards.length && (
+            {selectedCount} flashcard{selectedCount !== 1 ? 's' : ''} seleccionada{selectedCount !== 1 ? 's' : ''} de {allFlashcards.length} total{allFlashcards.length !== 1 ? 'es' : ''}
+            {filteredFlashcards.length !== allFlashcards.length && (
               <span> • Mostrando {filteredFlashcards.length} filtrada{filteredFlashcards.length !== 1 ? 's' : ''}</span>
+            )}
+            {databases.length > 1 && (
+              <span> • {databases.length} bases de datos</span>
             )}
           </div>
         </div>
@@ -276,6 +340,14 @@ export const FlashcardSelectionDialog: React.FC<FlashcardSelectionDialogProps> =
                           : card.content
                         }
                       </p>
+                      
+                      {/* Mostrar base de datos si hay múltiples */}
+                      {databases.length > 1 && 'databaseName' in card && (
+                        <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                          <span>{(card as FlashcardWithDatabase).databaseIcon}</span>
+                          <span>{(card as FlashcardWithDatabase).databaseName}</span>
+                        </div>
+                      )}
                       
                       {hasNotes && (
                         <div className="mt-2 text-xs text-muted-foreground">

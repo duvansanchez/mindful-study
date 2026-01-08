@@ -1,7 +1,7 @@
 import { Database, Flashcard, KnowledgeState } from '@/types';
 
 // URL base de la API local
-const API_BASE = '/api/notion';
+const API_BASE = 'http://localhost:3002';
 
 // Servicio principal de Notion (usando API local)
 export class NotionService {
@@ -43,7 +43,7 @@ export class NotionService {
   // Obtener contenido detallado de una flashcard específica (lazy loading)
   static async getFlashcardContent(flashcardId: string): Promise<{ blocks?: unknown[]; content: string }> {
     try {
-      const response = await fetch(`/api/flashcards/${flashcardId}/content`);
+      const response = await fetch(`${API_BASE}/flashcards/${flashcardId}/content`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

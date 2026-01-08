@@ -792,6 +792,7 @@ class DatabaseService {
             GroupId,
             SessionName,
             DatabaseId,
+            DatabaseIds,
             SessionNote,
             StudyMode,
             SelectedFlashcards,
@@ -803,18 +804,63 @@ class DatabaseService {
           ORDER BY OrderIndex ASC, CreatedAt ASC
         `);
 
-      return result.recordset.map(row => ({
-        id: row.Id,
-        groupId: row.GroupId,
-        sessionName: row.SessionName,
-        databaseId: row.DatabaseId,
-        sessionNote: row.SessionNote,
-        studyMode: row.StudyMode,
-        selectedFlashcards: row.SelectedFlashcards ? JSON.parse(row.SelectedFlashcards) : [],
-        orderIndex: row.OrderIndex,
-        createdAt: row.CreatedAt,
-        updatedAt: row.UpdatedAt
-      }));
+      console.log('🔧 getPlanningSessionsByGroup - sesiones encontradas:', result.recordset.length);
+
+      return result.recordset.map(row => {
+        console.log('🔧 Procesando sesión:', row.SessionName);
+        console.log('  - DatabaseId (single):', row.DatabaseId);
+        console.log('  - DatabaseIds (raw):', row.DatabaseIds);
+        
+        // CORRECCIÓN CRÍTICA: Parsear DatabaseIds correctamente
+        let databaseIds = [row.DatabaseId]; // Fallback por defecto
+        
+        if (row.DatabaseIds) {
+          try {
+            const parsed = JSON.parse(row.DatabaseIds);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              databaseIds = parsed;
+              console.log('  - DatabaseIds (parsed successfully):', databaseIds);
+            } else {
+              console.warn('  - DatabaseIds parsed but empty/invalid, using fallback');
+            }
+          } catch (e) {
+            console.error('  - Error parsing DatabaseIds for session', row.Id, ':', e.message);
+            console.error('  - Raw DatabaseIds value:', row.DatabaseIds);
+          }
+        } else {
+          console.log('  - DatabaseIds is null/empty, using fallback:', databaseIds);
+        }
+
+        // Parsear SelectedFlashcards
+        let selectedFlashcards = [];
+        if (row.SelectedFlashcards) {
+          try {
+            selectedFlashcards = JSON.parse(row.SelectedFlashcards);
+            console.log('  - SelectedFlashcards count:', selectedFlashcards.length);
+          } catch (e) {
+            console.error('  - Error parsing SelectedFlashcards:', e.message);
+          }
+        }
+
+        const sessionData = {
+          id: row.Id,
+          groupId: row.GroupId,
+          sessionName: row.SessionName,
+          databaseId: row.DatabaseId,
+          databaseIds: databaseIds, // Usar el array parseado correctamente
+          sessionNote: row.SessionNote,
+          studyMode: row.StudyMode,
+          selectedFlashcards: selectedFlashcards,
+          orderIndex: row.OrderIndex,
+          createdAt: row.CreatedAt,
+          updatedAt: row.UpdatedAt
+        };
+
+        console.log('  - Final databaseIds:', sessionData.databaseIds);
+        console.log('  - Final selectedFlashcards count:', sessionData.selectedFlashcards.length);
+
+        return sessionData;
+      });
     } catch (error) {
       console.error('Error obteniendo sesiones de planificación:', error);
       throw error;
@@ -822,7 +868,10 @@ class DatabaseService {
   }
 
   // Crear nueva sesión de planificación
-  static async createPlanningSession(groupId, sessionName, databaseId, sessionNote, studyMode, selectedFlashcards, orderIndex) {
+  static async createPlanningSession(groupId, sessionName, databaseId, sessionNote, studyMode, selectedFlashcards, orderIndex, databaseIds = null) {
+    console.log('🔧 createPlanningSession - INICIANDO');
+    console.log('🔧 Parámetros recibidos:', { groupId, sessionName, databaseId, sessionNote, studyMode, selectedFlashcards: selectedFlashcards?.length, orderIndex, databaseIds });
+    
     try {
       const pool = await getPool();
       const sessionId = require('crypto').randomUUID();
@@ -844,7 +893,22 @@ class DatabaseService {
         ? JSON.stringify(selectedFlashcards) 
         : null;
 
-      await pool.request()
+      // CORRECCIÓN CRÍTICA: Asegurar que databaseIds siempre tenga un valor válido
+      let finalDatabaseIds;
+      if (databaseIds && Array.isArray(databaseIds) && databaseIds.length > 0) {
+        finalDatabaseIds = databaseIds;
+      } else {
+        finalDatabaseIds = [databaseId];
+      }
+      
+      const databaseIdsJson = JSON.stringify(finalDatabaseIds);
+
+      console.log('🔧 Valores finales a guardar:');
+      console.log('  - finalDatabaseIds:', finalDatabaseIds);
+      console.log('  - databaseIdsJson:', databaseIdsJson);
+      console.log('  - selectedFlashcardsJson:', selectedFlashcardsJson);
+
+      const insertResult = await pool.request()
         .input('sessionId', sql.UniqueIdentifier, sessionId)
         .input('groupId', sql.UniqueIdentifier, groupId)
         .input('sessionName', sql.NVarChar(255), sessionName)
@@ -852,20 +916,45 @@ class DatabaseService {
         .input('sessionNote', sql.NVarChar(sql.MAX), sessionNote)
         .input('studyMode', sql.NVarChar(50), studyMode)
         .input('selectedFlashcards', sql.NVarChar(sql.MAX), selectedFlashcardsJson)
+        .input('databaseIds', sql.NVarChar(sql.MAX), databaseIdsJson)
         .input('orderIndex', sql.Int, orderIndex)
         .query(`
           INSERT INTO PlanningSession (
-            Id, GroupId, SessionName, DatabaseId, SessionNote, StudyMode, SelectedFlashcards, OrderIndex, CreatedAt, UpdatedAt
+            Id, GroupId, SessionName, DatabaseId, SessionNote, StudyMode, SelectedFlashcards, DatabaseIds, OrderIndex, CreatedAt, UpdatedAt
           ) VALUES (
-            @sessionId, @groupId, @sessionName, @databaseId, @sessionNote, @studyMode, @selectedFlashcards, @orderIndex, GETDATE(), GETDATE()
+            @sessionId, @groupId, @sessionName, @databaseId, @sessionNote, @studyMode, @selectedFlashcards, @databaseIds, @orderIndex, GETDATE(), GETDATE()
           )
         `);
+
+      console.log('🔧 INSERT completado, filas afectadas:', insertResult.rowsAffected[0]);
+
+      // CORRECCIÓN CRÍTICA: Verificar que se guardó correctamente y mostrar más detalles
+      const verifyResult = await pool.request()
+        .input('sessionId', sql.UniqueIdentifier, sessionId)
+        .query('SELECT * FROM PlanningSession WHERE Id = @sessionId');
+      
+      const saved = verifyResult.recordset[0];
+      console.log('🔧 Verificación COMPLETA - Registro guardado:');
+      console.log('  - Id:', saved.Id);
+      console.log('  - SessionName:', saved.SessionName);
+      console.log('  - DatabaseId:', saved.DatabaseId);
+      console.log('  - DatabaseIds (raw):', saved.DatabaseIds);
+      console.log('  - SelectedFlashcards (raw):', saved.SelectedFlashcards);
+      
+      // Intentar parsear para verificar que es JSON válido
+      try {
+        const parsedDbIds = JSON.parse(saved.DatabaseIds || '[]');
+        console.log('  - DatabaseIds (parsed):', parsedDbIds);
+      } catch (e) {
+        console.error('  - ERROR parsing DatabaseIds:', e.message);
+      }
 
       return {
         id: sessionId,
         groupId,
         sessionName,
         databaseId,
+        databaseIds: finalDatabaseIds,
         sessionNote,
         studyMode,
         selectedFlashcards: selectedFlashcards || [],
@@ -874,7 +963,7 @@ class DatabaseService {
         updatedAt: new Date()
       };
     } catch (error) {
-      console.error('Error creando sesión de planificación:', error);
+      console.error('❌ Error en createPlanningSession:', error);
       throw error;
     }
   }
@@ -931,6 +1020,14 @@ class DatabaseService {
         setClause.push('DatabaseId = @databaseId');
       }
 
+      if (updates.databaseIds !== undefined) {
+        const databaseIdsJson = updates.databaseIds && updates.databaseIds.length > 0 
+          ? JSON.stringify(updates.databaseIds) 
+          : null;
+        request.input('databaseIds', sql.NVarChar(sql.MAX), databaseIdsJson);
+        setClause.push('DatabaseIds = @databaseIds');
+      }
+
       if (updates.sessionNote !== undefined) {
         request.input('sessionNote', sql.NVarChar(sql.MAX), updates.sessionNote);
         setClause.push('SessionNote = @sessionNote');
@@ -939,6 +1036,14 @@ class DatabaseService {
       if (updates.studyMode !== undefined) {
         request.input('studyMode', sql.NVarChar(50), updates.studyMode);
         setClause.push('StudyMode = @studyMode');
+      }
+
+      if (updates.selectedFlashcards !== undefined) {
+        const selectedFlashcardsJson = updates.selectedFlashcards && updates.selectedFlashcards.length > 0 
+          ? JSON.stringify(updates.selectedFlashcards) 
+          : null;
+        request.input('selectedFlashcards', sql.NVarChar(sql.MAX), selectedFlashcardsJson);
+        setClause.push('SelectedFlashcards = @selectedFlashcards');
       }
 
       if (updates.orderIndex !== undefined) {
