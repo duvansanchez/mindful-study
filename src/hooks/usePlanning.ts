@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PlanningSession, CreatePlanningSessionData } from '@/types';
 
-const API_BASE = '/api';
+const API_BASE = 'http://localhost:3002';
 
 // Obtener sesiones de planificación de un grupo
 export const usePlanningSessionsByGroup = (groupId: string | null) => {
@@ -10,19 +10,26 @@ export const usePlanningSessionsByGroup = (groupId: string | null) => {
     queryFn: async (): Promise<PlanningSession[]> => {
       if (!groupId) return [];
       
-      const response = await fetch(`${API_BASE}/groups/${groupId}/planning-sessions`);
+      // Agregar timestamp para evitar caché
+      const timestamp = Date.now();
+      const response = await fetch(`${API_BASE}/groups/${groupId}/planning-sessions?t=${timestamp}`);
       if (!response.ok) {
         throw new Error('Error obteniendo sesiones de planificación');
       }
       
       const data = await response.json();
+      
       return data.map((session: any) => ({
         ...session,
         createdAt: new Date(session.createdAt),
         updatedAt: new Date(session.updatedAt)
       }));
     },
-    enabled: !!groupId
+    enabled: !!groupId,
+    staleTime: 0, // Sin cache
+    cacheTime: 0, // Sin cache en memoria
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 };
 
@@ -48,8 +55,13 @@ export const useCreatePlanningSession = () => {
       return response.json();
     },
     onSuccess: (_, { groupId }) => {
-      // Invalidar y refrescar las sesiones del grupo
+      // CORRECCIÓN CRÍTICA: Invalidar TODAS las queries relacionadas
+      queryClient.invalidateQueries({ queryKey: ['planning-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['planning-sessions', groupId] });
+      queryClient.invalidateQueries({ queryKey: ['session-flashcards'] });
+      
+      // Forzar refetch inmediato
+      queryClient.refetchQueries({ queryKey: ['planning-sessions', groupId] });
     },
   });
 };

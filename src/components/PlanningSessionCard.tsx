@@ -13,7 +13,7 @@ import {
 
 interface PlanningSessionCardProps {
   session: PlanningSession;
-  database?: Database;
+  databases?: Database[]; // Cambiar a array de bases de datos
   sessionNumber: number;
   onEdit?: (session: PlanningSession) => void;
   onDelete?: (session: PlanningSession) => void;
@@ -43,7 +43,7 @@ const studyModeConfig = {
 
 export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
   session,
-  database,
+  databases = [],
   sessionNumber,
   onEdit,
   onDelete,
@@ -51,6 +51,11 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
 }) => {
   const modeConfig = studyModeConfig[session.studyMode];
   const ModeIcon = modeConfig.icon;
+
+  // Obtener las bases de datos de la sesión
+  const sessionDatabases = databases.filter(db => 
+    session.databaseIds?.includes(db.id) || db.id === session.databaseId
+  );
 
   return (
     <div className="w-full">
@@ -61,14 +66,23 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
           </h3>
           
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            {/* Base de datos */}
+            {/* Bases de datos */}
             <div className="flex items-center gap-1">
               <BookOpen className="w-4 h-4" />
-              <span>{database?.name || 'Base de datos no encontrada'}</span>
-              {database && (
-                <span className="text-xs bg-muted px-2 py-0.5 rounded">
-                  {database.cardCount} tarjetas
-                </span>
+              {sessionDatabases.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {sessionDatabases.map((db, index) => (
+                    <span key={db.id} className="flex items-center gap-1">
+                      <span>{db.name}</span>
+                      <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                        {db.cardCount} tarjetas
+                      </span>
+                      {index < sessionDatabases.length - 1 && <span className="mx-1">•</span>}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span>Base de datos no encontrada</span>
               )}
             </div>
             

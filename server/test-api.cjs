@@ -76,6 +76,14 @@ app.get('/groups/:groupId/planning-sessions', async (req, res) => {
     const sessions = await DatabaseService.getPlanningSessionsByGroup(groupId);
     
     console.log('✅ Sesiones de planificación obtenidas:', sessions.length);
+    sessions.forEach((session, index) => {
+      console.log(`🔥 Sesión ${index + 1}: ${session.sessionName}`);
+      console.log(`  - ID: ${session.id}`);
+      console.log(`  - databaseId: ${session.databaseId}`);
+      console.log(`  - databaseIds: ${JSON.stringify(session.databaseIds)}`);
+      console.log(`  - selectedFlashcards: ${session.selectedFlashcards?.length || 0}`);
+    });
+    
     res.json(sessions);
   } catch (error) {
     console.error('❌ Error obteniendo sesiones de planificación:', error);
@@ -90,6 +98,7 @@ app.post('/groups/:groupId/planning-sessions', async (req, res) => {
     const { 
       sessionName, 
       databaseId, 
+      databaseIds, // Nueva propiedad para múltiples bases de datos
       sessionNote, 
       studyMode,
       selectedFlashcards,
@@ -100,8 +109,10 @@ app.post('/groups/:groupId/planning-sessions', async (req, res) => {
       return res.status(400).json({ error: 'El nombre de la sesión es requerido' });
     }
     
-    if (!databaseId) {
-      return res.status(400).json({ error: 'La base de datos es requerida' });
+    // Validar que haya al menos una base de datos (compatibilidad hacia atrás)
+    const finalDatabaseId = databaseId || (databaseIds && databaseIds.length > 0 ? databaseIds[0] : null);
+    if (!finalDatabaseId) {
+      return res.status(400).json({ error: 'Al menos una base de datos es requerida' });
     }
     
     if (!studyMode || !['review', 'matching', 'overview'].includes(studyMode)) {
@@ -110,18 +121,37 @@ app.post('/groups/:groupId/planning-sessions', async (req, res) => {
     
     console.log('📅 Creando sesión de planificación para grupo:', groupId);
     console.log('📋 Flashcards seleccionadas:', selectedFlashcards?.length || 0);
+    console.log('🗄️ Bases de datos recibidas:', databaseIds);
+    console.log('🔧 DEBUG - Todos los datos recibidos:', {
+      sessionName,
+      databaseId,
+      databaseIds,
+      selectedFlashcards: selectedFlashcards?.length || 0,
+      finalDatabaseId,
+      orderIndex
+    });
+    
+    // CORRECCIÓN CRÍTICA: Asegurar que databaseIds siempre sea un array válido
+    const finalDatabaseIds = databaseIds && Array.isArray(databaseIds) && databaseIds.length > 0 
+      ? databaseIds 
+      : [finalDatabaseId];
+    
+    console.log('🔧 DEBUG - finalDatabaseIds que se enviará a la función:', finalDatabaseIds);
     
     const session = await DatabaseService.createPlanningSession(
       groupId,
       sessionName.trim(),
-      databaseId,
+      finalDatabaseId, // Usar la primera DB para compatibilidad con el esquema actual
       sessionNote?.trim() || '',
       studyMode,
       selectedFlashcards || [],
-      orderIndex
+      orderIndex || null, // Asegurar que orderIndex no sea undefined
+      finalDatabaseIds // Pasar el array corregido
     );
     
     console.log('✅ Sesión de planificación creada:', session.id);
+    console.log('🔧 DEBUG - Sesión creada con databaseIds:', session.databaseIds);
+    console.log('🔧 DEBUG - Sesión creada con selectedFlashcards:', session.selectedFlashcards?.length || 0);
     res.status(201).json(session);
   } catch (error) {
     console.error('❌ Error creando sesión de planificación:', error);

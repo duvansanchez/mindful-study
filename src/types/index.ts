@@ -48,7 +48,8 @@ export interface PlanningSession {
   id: string;
   groupId: string;
   sessionName: string;
-  databaseId: string;
+  databaseId: string; // Mantener para compatibilidad hacia atrás
+  databaseIds?: string[]; // Nueva propiedad para múltiples bases de datos
   sessionNote: string;
   studyMode: 'review' | 'matching' | 'overview';
   orderIndex: number;
@@ -59,9 +60,17 @@ export interface PlanningSession {
 
 export interface CreatePlanningSessionData {
   sessionName: string;
-  databaseId: string;
+  databaseId?: string; // Opcional para compatibilidad hacia atrás
+  databaseIds?: string[]; // Nueva propiedad para múltiples bases de datos
   sessionNote: string;
   studyMode: 'review' | 'matching' | 'overview';
   selectedFlashcards?: string[];
   orderIndex?: number;
+}
+
+// Nuevo tipo para flashcards con información de base de datos
+export interface FlashcardWithDatabase extends Flashcard {
+  databaseId: string;
+  databaseName: string;
+  databaseIcon?: string;
 }

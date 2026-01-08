@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { DatabaseGroup, Database, PlanningSession, Flashcard } from '@/types';
-import { CreatePlanningSessionDialog } from './CreatePlanningSessionDialog';
-import { PlanningSessionCard } from './PlanningSessionCard';
-import { DeleteSessionDialog } from './DeleteSessionDialog';
-import { useSessionFlashcards } from '@/hooks/useSessionFlashcards';
+import { CreatePlanningSessionDialog } from '@/components/CreatePlanningSessionDialog';
+import { EditPlanningSessionDialog } from '@/components/EditPlanningSessionDialog';
+import { PlanningSessionCard } from '@/components/PlanningSessionCard';
+import { DeleteSessionDialog } from '@/components/DeleteSessionDialog';
+import { NotionService } from '@/services/notion';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -31,7 +32,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<PlanningSession | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [sessionToStart, setSessionToStart] = useState<PlanningSession | null>(null);
+  const [sessionToEdit, setSessionToEdit] = useState<PlanningSession | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [isStartingSession, setIsStartingSession] = useState(false);
 
   const { 
     data: sessions = [], 
@@ -41,15 +44,12 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   const reorderMutation = useReorderPlanningSessions();
   const deleteMutation = useDeletePlanningSession();
 
-  // Hook para obtener flashcards de la sesión que se va a iniciar
-  const { data: sessionFlashcards = [], isLoading: flashcardsLoading } = useSessionFlashcards(sessionToStart);
-
   // Filtrar bases de datos del grupo
   const groupDatabases = databases.filter(db => group.databaseIds.includes(db.id));
 
   const handleEditSession = (session: PlanningSession) => {
-    // TODO: Implementar edición
-    console.log('Editar sesión:', session);
+    setSessionToEdit(session);
+    setEditDialogOpen(true);
   };
 
   const handleDeleteSession = (session: PlanningSession) => {
@@ -73,37 +73,53 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     }
   };
 
-  const handleStartSession = (session: PlanningSession) => {
-    console.log('🚀 Iniciando sesión:', {
-      sessionId: session.id,
-      sessionName: session.sessionName,
-      databaseId: session.databaseId,
-      studyMode: session.studyMode,
-      selectedFlashcards: session.selectedFlashcards?.length || 0
-    });
-    setSessionToStart(session);
-  };
-
-  // Efecto para iniciar la sesión cuando las flashcards estén listas
-  React.useEffect(() => {
-    if (sessionToStart && !flashcardsLoading && onStartSession) {
-      console.log('🎯 Flashcards listas para la sesión:', {
-        sessionId: sessionToStart.id,
-        sessionName: sessionToStart.sessionName,
-        databaseId: sessionToStart.databaseId,
-        studyMode: sessionToStart.studyMode,
-        flashcardsCount: sessionFlashcards.length,
-        selectedFlashcardsCount: sessionToStart.selectedFlashcards?.length || 0
+  const handleStartSession = async (session: PlanningSession) => {
+    if (!onStartSession || isStartingSession) return;
+    
+    setIsStartingSession(true);
+    
+    try {
+      // Obtener los databaseIds de la sesión
+      const databaseIds = session.databaseIds || (session.databaseId ? [session.databaseId] : []);
+      
+      if (databaseIds.length === 0) {
+        alert('No hay bases de datos configuradas para esta sesión.');
+        setIsStartingSession(false);
+        return;
+      }
+      
+      // Cargar flashcards de todas las bases de datos
+      const promises = databaseIds.map(async (dbId) => {
+        const flashcards = await NotionService.getFlashcardsFromDatabase(dbId);
+        return flashcards.map(f => ({ ...f, databaseId: dbId }));
       });
       
-      // Llamar a la función de inicio de sesión con los datos necesarios
-      // Incluso si no hay flashcards, permitir que el modo de estudio maneje la situación
-      onStartSession(sessionToStart.databaseId, sessionFlashcards, sessionToStart.studyMode);
+      const results = await Promise.all(promises);
+      const allFlashcards = results.flat();
       
-      // Limpiar el estado
-      setSessionToStart(null);
+      // Filtrar por flashcards seleccionadas si hay alguna
+      let finalFlashcards = allFlashcards;
+      if (session.selectedFlashcards && session.selectedFlashcards.length > 0) {
+        const selectedIds = new Set(session.selectedFlashcards);
+        finalFlashcards = allFlashcards.filter(f => selectedIds.has(f.id));
+      }
+      
+      if (finalFlashcards.length === 0) {
+        alert('No hay flashcards disponibles para esta sesión.');
+        setIsStartingSession(false);
+        return;
+      }
+      
+      // Iniciar la sesión con las flashcards cargadas
+      onStartSession(session.databaseId, finalFlashcards, session.studyMode);
+      
+    } catch (error) {
+      console.error('Error cargando flashcards:', error);
+      alert('Error al cargar las flashcards. Intenta de nuevo.');
+    } finally {
+      setIsStartingSession(false);
     }
-  }, [sessionToStart, sessionFlashcards, flashcardsLoading, onStartSession]);
+  };
 
   const handleDragStart = (e: React.DragEvent, sessionId: string) => {
     setDraggedSession(sessionId);
@@ -256,7 +272,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                   <div className="flex-1">
                     <PlanningSessionCard 
                       session={session}
-                      database={groupDatabases.find(db => db.id === session.databaseId)}
+                      databases={groupDatabases} // Pasar todas las bases de datos del grupo
                       sessionNumber={index + 1}
                       onEdit={handleEditSession}
                       onDelete={handleDeleteSession}
@@ -301,6 +317,19 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleConfirmDelete}
         isDeleting={deleteMutation.isPending}
+      />
+
+      {/* Diálogo de edición de sesión */}
+      <EditPlanningSessionDialog
+        session={sessionToEdit}
+        group={group}
+        databases={groupDatabases}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSuccess={() => {
+          setEditDialogOpen(false);
+          setSessionToEdit(null);
+        }}
       />
     </div>
   );
