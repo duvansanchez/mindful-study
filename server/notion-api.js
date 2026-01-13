@@ -33,6 +33,32 @@ const mapNotionStateToKnowledgeState = (notionState) => {
   }
 };
 
+// Obtener títulos de páginas relacionadas
+const getRelatedPageTitles = async (relationIds) => {
+  if (!relationIds || relationIds.length === 0) return [];
+  
+  try {
+    const titles = [];
+    for (const id of relationIds) {
+      try {
+        const page = await notion.pages.retrieve({ page_id: id });
+        if (page.properties) {
+          const titleProperty = Object.values(page.properties).find((prop) => prop.type === 'title');
+          const title = titleProperty ? extractTextFromProperty(titleProperty) : 'Sin título';
+          titles.push({ id, title });
+        }
+      } catch (error) {
+        console.error(`Error obteniendo página relacionada ${id}:`, error.message);
+        titles.push({ id, title: `Error: ${id}` });
+      }
+    }
+    return titles;
+  } catch (error) {
+    console.error('Error obteniendo títulos de páginas relacionadas:', error);
+    return [];
+  }
+};
+
 // Extraer texto de propiedades de Notion
 const extractTextFromProperty = (property) => {
   if (!property) return '';
@@ -58,6 +84,9 @@ const extractTextFromProperty = (property) => {
       return property.email || '';
     case 'phone_number':
       return property.phone_number || '';
+    case 'relation':
+      // Para relaciones, devolvemos los IDs de las páginas relacionadas
+      return property.relation?.map((rel) => rel.id).join(', ') || '';
     default:
       return '';
   }
@@ -217,6 +246,50 @@ app.get('/databases', async (req, res) => {
   }
 });
 
+// Obtener información de propiedades de una base de datos
+app.get('/databases/:databaseId/properties', async (req, res) => {
+  try {
+    const { databaseId } = req.params;
+    console.log('🔍 Obteniendo propiedades para base de datos:', databaseId);
+    
+    const database = await notion.databases.retrieve({ database_id: databaseId });
+    
+    const properties = {};
+    
+    for (const [key, prop] of Object.entries(database.properties)) {
+      properties[key] = {
+        name: key,
+        type: prop.type,
+        id: prop.id
+      };
+      
+      // Información adicional según el tipo
+      switch (prop.type) {
+        case 'relation':
+          properties[key].relation = {
+            database_id: prop.relation?.database_id,
+            type: prop.relation?.type || 'single_property'
+          };
+          break;
+        case 'select':
+          properties[key].options = prop.select?.options || [];
+          break;
+        case 'multi_select':
+          properties[key].options = prop.multi_select?.options || [];
+          break;
+      }
+    }
+    
+    console.log('📊 Propiedades encontradas:', Object.keys(properties).length);
+    console.log('🔗 Propiedades de relación:', Object.values(properties).filter(p => p.type === 'relation').length);
+    
+    res.json(properties);
+  } catch (error) {
+    console.error('❌ Error fetching database properties:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Obtener flashcards de una base de datos
 app.get('/databases/:databaseId/flashcards', async (req, res) => {
   try {
@@ -275,7 +348,7 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
         
         const notes = notesProperty ? extractTextFromProperty(notesProperty) : '';
 
-        // Buscar conceptos relacionados
+        // Buscar conceptos relacionados (multi_select) - mantenemos por compatibilidad
         const relatedProperty = Object.values(properties).find((prop) => 
           prop.type === 'multi_select' && 
           ['relacionados', 'related', 'conceptos', 'tags', 'conceptos_relacionados', 'conceptos relacionados'].includes(
@@ -285,6 +358,46 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
         
         const relatedConcepts = relatedProperty && relatedProperty.multi_select ? 
           relatedProperty.multi_select.map((s) => s.name) : [];
+
+        // Procesar TODAS las propiedades como información adicional
+        const additionalInfo = {};
+        
+        console.log('📋 Procesando todas las propiedades como información adicional...');
+        
+        for (const [key, prop] of Object.entries(properties)) {
+          // Solo saltar la propiedad de título (ya se usa como título principal)
+          if (prop.type === 'title') continue;
+          
+          // Procesar la propiedad según su tipo
+          let value = '';
+          let displayValue = '';
+          
+          if (prop.type === 'relation') {
+            if (prop.relation && prop.relation.length > 0) {
+              console.log(`🔗 Procesando relación "${key}" con ${prop.relation.length} elementos`);
+              const relationIds = prop.relation.map(rel => rel.id);
+              const relatedTitles = await getRelatedPageTitles(relationIds);
+              value = relationIds;
+              displayValue = relatedTitles.map(r => r.title).join(', ');
+              console.log(`✅ Relación "${key}" procesada:`, displayValue);
+            } else {
+              value = [];
+              displayValue = '';
+            }
+          } else {
+            value = extractTextFromProperty(prop);
+            displayValue = value;
+          }
+          
+          // Agregar TODAS las propiedades, incluso si están vacías (para debug)
+          additionalInfo[key] = {
+            type: prop.type,
+            value: value,
+            displayValue: displayValue
+          };
+          
+          console.log(`📋 Propiedad "${key}" (${prop.type}): "${displayValue}"`);
+        }
 
         // Obtener contenido completo de la página
         console.log('📄 Obteniendo contenido de la página...');
@@ -299,13 +412,19 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
           lastReviewed: null,
           notes,
           relatedConcepts,
+          additionalInfo, // Todas las propiedades adicionales (incluyendo relaciones)
           databaseId,
           createdAt: new Date(page.created_time),
           viewCount: 0,
           reviewNotes: [],
         };
 
-        console.log('✅ Flashcard creada:', { title, state, contentLength: content.length });
+        console.log('✅ Flashcard creada:', { 
+          title, 
+          state, 
+          contentLength: content.length,
+          additionalPropsCount: Object.keys(additionalInfo).length 
+        });
         flashcards.push(flashcard);
       }
     }

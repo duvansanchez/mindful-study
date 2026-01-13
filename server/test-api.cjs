@@ -660,6 +660,133 @@ app.post('/databases/sync', async (req, res) => {
   }
 });
 
+// Ruta alternativa para compatibilidad con el frontend
+app.post('/notion/databases/sync', async (req, res) => {
+  try {
+    console.log('🔄 Sincronización manual de bases de datos iniciada (ruta /notion/databases/sync)...');
+    
+    // Limpiar TODOS los caches
+    databasesCache.clear();
+    console.log('🗑️ Cache de bases de datos limpiado completamente');
+    
+    // Hacer la búsqueda directamente
+    const databases = [];
+    let hasMore = true;
+    let nextCursor = undefined;
+    let totalResults = 0;
+    let allPages = [];
+    
+    // Buscar todas las páginas con paginación completa
+    while (hasMore) {
+      console.log(`📄 Obteniendo página ${Math.floor(totalResults/100) + 1} de búsqueda...`);
+      
+      const searchParams = {
+        query: '',
+        page_size: 100,
+        filter: {
+          value: 'page',
+          property: 'object'
+        }
+      };
+      
+      if (nextCursor) {
+        searchParams.start_cursor = nextCursor;
+      }
+      
+      const response = await notion.search(searchParams);
+      
+      console.log(`📊 Páginas obtenidas en esta búsqueda: ${response.results.length}`);
+      totalResults += response.results.length;
+      
+      allPages.push(...response.results);
+      
+      hasMore = response.has_more;
+      nextCursor = response.next_cursor;
+      
+      if (hasMore) {
+        console.log('📄 Hay más páginas en la búsqueda, continuando...');
+      }
+    }
+
+    console.log(`📊 Total páginas encontradas: ${allPages.length}`);
+    
+    // Agrupar páginas por base de datos
+    const databasePageCounts = new Map();
+    const databaseIds = new Set();
+    
+    for (const item of allPages) {
+      if (item.object === 'page' && item.parent) {
+        let databaseId = null;
+        if (item.parent.type === 'database_id') {
+          databaseId = item.parent.database_id;
+        } else if (item.parent.type === 'data_source_id' && item.parent.database_id) {
+          databaseId = item.parent.database_id;
+        } else if (item.parent.database_id) {
+          databaseId = item.parent.database_id;
+        }
+        
+        if (databaseId) {
+          databasePageCounts.set(databaseId, (databasePageCounts.get(databaseId) || 0) + 1);
+          databaseIds.add(databaseId);
+        }
+      }
+    }
+    
+    console.log(`📊 Bases de datos únicas encontradas: ${databaseIds.size}`);
+    
+    // Obtener información de cada base de datos
+    for (const databaseId of databaseIds) {
+      try {
+        console.log('🔍 Obteniendo info de base de datos:', databaseId);
+        const database = await notion.databases.retrieve({ database_id: databaseId });
+        
+        const title = database.title?.[0]?.plain_text || 'Sin título';
+        const icon = database.icon?.emoji || '📄';
+        
+        // Usar el conteo real de páginas
+        const actualCount = databasePageCounts.get(databaseId) || 0;
+        
+        console.log('✅ Base de datos encontrada:', title, 'con', actualCount, 'páginas');
+        
+        databases.push({
+          id: database.id,
+          name: title,
+          icon: icon,
+          cardCount: actualCount,
+          lastSynced: new Date(database.last_edited_time),
+          source: 'notion',
+        });
+      } catch (dbError) {
+        console.error('❌ Error obteniendo base de datos:', databaseId, dbError.message);
+      }
+    }
+
+    console.log('📊 Total bases de datos procesadas:', databases.length);
+    
+    // Guardar en cache con timestamp nuevo
+    const cacheKey = 'all_databases';
+    databasesCache.set(cacheKey, {
+      databases,
+      timestamp: Date.now()
+    });
+    
+    console.log('💾 Bases de datos guardadas en cache actualizado');
+    
+    res.json({ 
+      success: true, 
+      message: 'Bases de datos sincronizadas correctamente',
+      count: databases.length,
+      databases 
+    });
+  } catch (error) {
+    console.error('❌ Error en sincronización manual:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // Cache para flashcards (5 minutos de TTL)
 const flashcardsCache = new Map();
 const FLASHCARDS_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
@@ -739,16 +866,12 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
             notes = notaProperty.rich_text?.map((t) => t.plain_text).join('') || '';
           }
 
-          // Conceptos relacionados (SIMPLIFICADO)
+          // Conceptos relacionados - ahora se procesan en auxiliaryInfo
           let relatedConcepts = [];
-          const relacionadosProperty = properties['Conceptos Relacionados'];
-          if (relacionadosProperty && relacionadosProperty.type === 'multi_select') {
-            relatedConcepts = relacionadosProperty.multi_select?.map((s) => s.name) || [];
-          }
 
           // Procesar TODAS las propiedades adicionales para información auxiliar
           const auxiliaryInfo = {};
-          const excludedProps = ['Dominio', 'Nota Propia', 'Conceptos Relacionados', 'Ultima vez repasado', 'Último repaso', 'Last reviewed', 'Fecha repaso'];
+          const excludedProps = ['Dominio', 'Nota Propia', 'Ultima vez repasado', 'Último repaso', 'Last reviewed', 'Fecha repaso'];
           
           for (const [propName, propValue] of Object.entries(properties)) {
             // Saltar propiedades ya procesadas, títulos y propiedades de sistema

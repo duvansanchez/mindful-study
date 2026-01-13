@@ -5,8 +5,8 @@ require('dotenv').config();
 const dbConfig = {
   server: process.env.DB_SERVER || 'localhost',
   database: process.env.DB_DATABASE || 'MindfulStudy',
-  user: process.env.DB_USER || 'mindful_user',
-  password: process.env.DB_PASSWORD || 'MindfulStudy2024!',
+  user: process.env.DB_USER || 'sa',
+  password: process.env.DB_PASSWORD || '123',
   options: {
     encrypt: process.env.DB_ENCRYPT === 'true',
     trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
