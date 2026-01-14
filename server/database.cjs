@@ -1557,6 +1557,150 @@ class DatabaseService {
       throw error;
     }
   }
+
+  // ==================== METAS DE AGRUPACIONES ====================
+
+  // Obtener metas de una agrupación
+  static async getGroupGoals(groupId) {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .query(`
+          SELECT 
+            Id,
+            GroupId,
+            Title,
+            Description,
+            Completed,
+            DueDate,
+            CreatedAt,
+            UpdatedAt
+          FROM app.GroupGoals
+          WHERE GroupId = @groupId
+          ORDER BY Completed ASC, CreatedAt DESC
+        `);
+      
+      return result.recordset.map(goal => ({
+        id: goal.Id,
+        groupId: goal.GroupId,
+        title: goal.Title,
+        description: goal.Description,
+        completed: goal.Completed,
+        dueDate: goal.DueDate,
+        createdAt: goal.CreatedAt,
+        updatedAt: goal.UpdatedAt
+      }));
+    } catch (error) {
+      console.error('Error obteniendo metas de agrupación:', error);
+      throw error;
+    }
+  }
+
+  // Crear meta de agrupación
+  static async createGroupGoal(groupId, title, description, dueDate) {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .input('title', sql.NVarChar(500), title)
+        .input('description', sql.NVarChar(sql.MAX), description || null)
+        .input('dueDate', sql.Date, dueDate || null)
+        .query(`
+          INSERT INTO app.GroupGoals (GroupId, Title, Description, DueDate)
+          OUTPUT INSERTED.*
+          VALUES (@groupId, @title, @description, @dueDate)
+        `);
+      
+      const goal = result.recordset[0];
+      return {
+        id: goal.Id,
+        groupId: goal.GroupId,
+        title: goal.Title,
+        description: goal.Description,
+        completed: goal.Completed,
+        dueDate: goal.DueDate,
+        createdAt: goal.CreatedAt,
+        updatedAt: goal.UpdatedAt
+      };
+    } catch (error) {
+      console.error('Error creando meta de agrupación:', error);
+      throw error;
+    }
+  }
+
+  // Actualizar meta de agrupación
+  static async updateGroupGoal(goalId, updates) {
+    try {
+      const pool = await getPool();
+      const setClauses = [];
+      const request = pool.request().input('goalId', sql.UniqueIdentifier, goalId);
+      
+      if (updates.title !== undefined) {
+        setClauses.push('Title = @title');
+        request.input('title', sql.NVarChar(500), updates.title);
+      }
+      if (updates.description !== undefined) {
+        setClauses.push('Description = @description');
+        request.input('description', sql.NVarChar(sql.MAX), updates.description || null);
+      }
+      if (updates.completed !== undefined) {
+        setClauses.push('Completed = @completed');
+        request.input('completed', sql.Bit, updates.completed);
+      }
+      if (updates.dueDate !== undefined) {
+        setClauses.push('DueDate = @dueDate');
+        request.input('dueDate', sql.Date, updates.dueDate || null);
+      }
+      
+      setClauses.push('UpdatedAt = GETDATE()');
+      
+      await request.query(`
+        UPDATE app.GroupGoals 
+        SET ${setClauses.join(', ')}
+        WHERE Id = @goalId
+      `);
+      
+      return true;
+    } catch (error) {
+      console.error('Error actualizando meta de agrupación:', error);
+      throw error;
+    }
+  }
+
+  // Eliminar meta de agrupación
+  static async deleteGroupGoal(goalId) {
+    try {
+      const pool = await getPool();
+      await pool.request()
+        .input('goalId', sql.UniqueIdentifier, goalId)
+        .query(`DELETE FROM app.GroupGoals WHERE Id = @goalId`);
+      
+      return true;
+    } catch (error) {
+      console.error('Error eliminando meta de agrupación:', error);
+      throw error;
+    }
+  }
+
+  // Obtener conteo de metas pendientes de una agrupación
+  static async getPendingGoalsCount(groupId) {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .query(`
+          SELECT COUNT(*) as PendingCount
+          FROM app.GroupGoals
+          WHERE GroupId = @groupId AND Completed = 0
+        `);
+      
+      return result.recordset[0].PendingCount;
+    } catch (error) {
+      console.error('Error obteniendo conteo de metas pendientes:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = {

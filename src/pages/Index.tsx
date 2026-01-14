@@ -41,11 +41,8 @@ const Index = () => {
   const [editingGroup, setEditingGroup] = useState<DatabaseGroup | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<DatabaseGroup | null>(null);
 
-  // Notion hooks - Solo cargar bases de datos cuando sea necesario
-  const { data: databases = [], isLoading: databasesLoading } = useNotionDatabases(
-    // Solo cargar bases de datos cuando estemos en vista de grupo, estadísticas, planificación o necesitemos los datos
-    view === 'group-detail' || view === 'stats' || view === 'planning' || selectedDatabaseId !== null
-  );
+  // Notion hooks - Cargar bases de datos siempre al inicio
+  const { data: databases = [], isLoading: databasesLoading } = useNotionDatabases(true);
   const { data: flashcards = [], isLoading: flashcardsLoading } = useNotionFlashcards(selectedDatabaseId);
   const { data: isConnected = false, isLoading: connectionLoading } = useNotionConnection();
   const updateFlashcardMutation = useUpdateFlashcardState();
