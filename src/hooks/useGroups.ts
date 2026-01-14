@@ -78,3 +78,55 @@ export const useGroupStats = (groupId: string | null) => {
     retry: 1,
   });
 };
+
+// Hook para mover base de datos a carpeta
+export const useMoveDatabaseToFolder = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ 
+      groupId, 
+      databaseId, 
+      folderId 
+    }: { 
+      groupId: string; 
+      databaseId: string; 
+      folderId: string | null 
+    }) => {
+      const response = await fetch(`http://localhost:3002/groups/${groupId}/databases/${databaseId}/move-to-folder`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ folderId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al mover base de datos a carpeta');
+      }
+
+      return await response.json();
+    },
+    onSuccess: (_, variables) => {
+      // Invalidar las queries relacionadas con el grupo específico
+      queryClient.invalidateQueries({ queryKey: ['group-databases', variables.groupId] });
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+};
+
+// Hook para obtener bases de datos de un grupo con información de carpeta
+export const useGroupDatabases = (groupId: string) => {
+  return useQuery({
+    queryKey: ['group-databases', groupId],
+    queryFn: async () => {
+      const response = await fetch(`http://localhost:3002/groups/${groupId}/databases`);
+      if (!response.ok) {
+        throw new Error('Error al obtener bases de datos del grupo');
+      }
+      return await response.json();
+    },
+    enabled: !!groupId,
+    staleTime: 0,
+  });
+};

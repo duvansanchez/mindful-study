@@ -70,6 +70,7 @@ class DatabaseService {
           Id,
           Name,
           Color,
+          FolderId,
           CreatedAt,
           UpdatedAt,
           (SELECT COUNT(*) FROM app.DatabaseGroupMappings WHERE GroupId = dg.Id) as DatabaseCount
@@ -95,6 +96,7 @@ class DatabaseService {
           id: group.Id,
           name: group.Name,
           color: group.Color,
+          folderId: group.FolderId,
           databaseIds: databaseIds,
           createdAt: group.CreatedAt,
           updatedAt: group.UpdatedAt,
@@ -224,7 +226,7 @@ class DatabaseService {
       
       try {
         // Actualizar información básica
-        if (updates.name || updates.color) {
+        if (updates.name || updates.color || updates.folderId !== undefined) {
           const request = transaction.request().input('groupId', sql.UniqueIdentifier, groupId);
           
           let setClause = [];
@@ -235,6 +237,10 @@ class DatabaseService {
           if (updates.color) {
             request.input('color', sql.NVarChar(50), updates.color);
             setClause.push('Color = @color');
+          }
+          if (updates.folderId !== undefined) {
+            request.input('folderId', sql.UniqueIdentifier, updates.folderId);
+            setClause.push('FolderId = @folderId');
           }
           
           await request.query(`
@@ -298,7 +304,7 @@ class DatabaseService {
       const result = await pool.request()
         .input('groupId', sql.UniqueIdentifier, groupId)
         .query(`
-          SELECT NotionDatabaseId, NotionDatabaseName, AddedAt
+          SELECT NotionDatabaseId, NotionDatabaseName, FolderId, AddedAt
           FROM app.DatabaseGroupMappings
           WHERE GroupId = @groupId
           ORDER BY AddedAt
@@ -307,10 +313,32 @@ class DatabaseService {
       return result.recordset.map(db => ({
         id: db.NotionDatabaseId,
         name: db.NotionDatabaseName,
+        folderId: db.FolderId,
         addedAt: db.AddedAt
       }));
     } catch (error) {
       console.error('Error obteniendo bases de datos de agrupación:', error);
+      throw error;
+    }
+  }
+
+  // Mover base de datos a carpeta dentro de una agrupación
+  static async moveDatabaseToFolder(groupId, databaseId, folderId) {
+    try {
+      const pool = await getPool();
+      await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .input('databaseId', sql.NVarChar(255), databaseId)
+        .input('folderId', sql.UniqueIdentifier, folderId)
+        .query(`
+          UPDATE app.DatabaseGroupMappings
+          SET FolderId = @folderId
+          WHERE GroupId = @groupId AND NotionDatabaseId = @databaseId
+        `);
+      
+      return true;
+    } catch (error) {
+      console.error('Error moviendo base de datos a carpeta:', error);
       throw error;
     }
   }
@@ -1294,6 +1322,238 @@ class DatabaseService {
       }
     } catch (error) {
       console.error('Error reordenando carpetas de sesiones:', error);
+      throw error;
+    }
+  }
+
+  // ==================== CARPETAS DE AGRUPACIONES ====================
+
+  // Obtener carpetas de una agrupación específica
+  static async getGroupFoldersByGroup(groupId) {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .query(`
+          SELECT 
+            Id,
+            GroupId,
+            FolderName,
+            Color,
+            Icon,
+            OrderIndex,
+            IsExpanded,
+            CreatedAt,
+            UpdatedAt
+          FROM app.GroupFolders 
+          WHERE GroupId = @groupId
+          ORDER BY OrderIndex ASC, CreatedAt ASC
+        `);
+
+      return result.recordset.map(row => ({
+        id: row.Id,
+        groupId: row.GroupId,
+        folderName: row.FolderName,
+        color: row.Color,
+        icon: row.Icon,
+        orderIndex: row.OrderIndex,
+        isExpanded: row.IsExpanded,
+        createdAt: row.CreatedAt,
+        updatedAt: row.UpdatedAt
+      }));
+    } catch (error) {
+      console.error('Error obteniendo carpetas de agrupación:', error);
+      throw error;
+    }
+  }
+
+  // Obtener todas las carpetas de agrupaciones (mantener para compatibilidad)
+  static async getGroupFolders() {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .query(`
+          SELECT 
+            Id,
+            GroupId,
+            FolderName,
+            Color,
+            Icon,
+            OrderIndex,
+            IsExpanded,
+            CreatedAt,
+            UpdatedAt
+          FROM app.GroupFolders 
+          ORDER BY GroupId, OrderIndex ASC, CreatedAt ASC
+        `);
+
+      return result.recordset.map(row => ({
+        id: row.Id,
+        groupId: row.GroupId,
+        folderName: row.FolderName,
+        color: row.Color,
+        icon: row.Icon,
+        orderIndex: row.OrderIndex,
+        isExpanded: row.IsExpanded,
+        createdAt: row.CreatedAt,
+        updatedAt: row.UpdatedAt
+      }));
+    } catch (error) {
+      console.error('Error obteniendo carpetas de agrupaciones:', error);
+      throw error;
+    }
+  }
+
+  // Crear carpeta de agrupaciones
+  static async createGroupFolder(groupId, folderName, color = '#3B82F6', icon = '📁', orderIndex = null) {
+    try {
+      const pool = await getPool();
+      const folderId = require('crypto').randomUUID();
+      
+      // Si no se proporciona orderIndex, obtener el siguiente disponible
+      if (orderIndex === undefined || orderIndex === null) {
+        const maxOrderResult = await pool.request()
+          .input('groupId', sql.UniqueIdentifier, groupId)
+          .query(`
+            SELECT ISNULL(MAX(OrderIndex), 0) + 1 as NextOrder
+            FROM app.GroupFolders
+            WHERE GroupId = @groupId
+          `);
+        orderIndex = maxOrderResult.recordset[0].NextOrder;
+      }
+
+      await pool.request()
+        .input('folderId', sql.UniqueIdentifier, folderId)
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .input('folderName', sql.NVarChar(255), folderName)
+        .input('color', sql.NVarChar(50), color)
+        .input('icon', sql.NVarChar(10), icon)
+        .input('orderIndex', sql.Int, orderIndex)
+        .query(`
+          INSERT INTO app.GroupFolders (
+            Id, GroupId, FolderName, Color, Icon, OrderIndex, CreatedAt, UpdatedAt
+          ) VALUES (
+            @folderId, @groupId, @folderName, @color, @icon, @orderIndex, GETDATE(), GETDATE()
+          )
+        `);
+
+      return {
+        id: folderId,
+        groupId,
+        folderName,
+        color,
+        icon,
+        orderIndex,
+        isExpanded: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+    } catch (error) {
+      console.error('Error creando carpeta de agrupación:', error);
+      throw error;
+    }
+  }
+
+  // Actualizar carpeta de agrupaciones
+  static async updateGroupFolder(folderId, updates) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      const setClause = [];
+
+      request.input('folderId', sql.UniqueIdentifier, folderId);
+
+      if (updates.folderName !== undefined) {
+        request.input('folderName', sql.NVarChar(255), updates.folderName);
+        setClause.push('FolderName = @folderName');
+      }
+
+      if (updates.color !== undefined) {
+        request.input('color', sql.NVarChar(50), updates.color);
+        setClause.push('Color = @color');
+      }
+
+      if (updates.icon !== undefined) {
+        request.input('icon', sql.NVarChar(10), updates.icon);
+        setClause.push('Icon = @icon');
+      }
+
+      if (updates.orderIndex !== undefined) {
+        request.input('orderIndex', sql.Int, updates.orderIndex);
+        setClause.push('OrderIndex = @orderIndex');
+      }
+
+      if (updates.isExpanded !== undefined) {
+        request.input('isExpanded', sql.Bit, updates.isExpanded);
+        setClause.push('IsExpanded = @isExpanded');
+      }
+
+      if (setClause.length === 0) {
+        return true;
+      }
+
+      setClause.push('UpdatedAt = GETDATE()');
+
+      await request.query(`
+        UPDATE app.GroupFolders 
+        SET ${setClause.join(', ')}
+        WHERE Id = @folderId
+      `);
+
+      return true;
+    } catch (error) {
+      console.error('Error actualizando carpeta de agrupaciones:', error);
+      throw error;
+    }
+  }
+
+  // Eliminar carpeta de agrupaciones
+  static async deleteGroupFolder(folderId) {
+    try {
+      const pool = await getPool();
+      
+      // Las agrupaciones dentro de la carpeta se moverán a "sin carpeta" (FolderId = NULL)
+      // gracias a ON DELETE SET NULL en la foreign key
+      await pool.request()
+        .input('folderId', sql.UniqueIdentifier, folderId)
+        .query(`DELETE FROM app.GroupFolders WHERE Id = @folderId`);
+      
+      return true;
+    } catch (error) {
+      console.error('Error eliminando carpeta de agrupaciones:', error);
+      throw error;
+    }
+  }
+
+  // Reordenar carpetas de agrupaciones
+  static async reorderGroupFolders(groupId, folderOrders) {
+    try {
+      const pool = await getPool();
+      const transaction = new sql.Transaction(pool);
+      
+      await transaction.begin();
+      
+      try {
+        for (const { folderId, orderIndex } of folderOrders) {
+          await transaction.request()
+            .input('folderId', sql.UniqueIdentifier, folderId)
+            .input('groupId', sql.UniqueIdentifier, groupId)
+            .input('orderIndex', sql.Int, orderIndex)
+            .query(`
+              UPDATE app.GroupFolders 
+              SET OrderIndex = @orderIndex, UpdatedAt = GETDATE()
+              WHERE Id = @folderId AND GroupId = @groupId
+            `);
+        }
+        
+        await transaction.commit();
+        return true;
+      } catch (error) {
+        await transaction.rollback();
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error reordenando carpetas de agrupaciones:', error);
       throw error;
     }
   }

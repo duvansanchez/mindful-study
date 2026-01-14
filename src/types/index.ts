@@ -28,6 +28,7 @@ export interface Database {
   cardCount: number;
   lastSynced: Date;
   source: 'notion' | 'airtable' | 'custom';
+  folderId?: string | null;
 }
 
 export interface DatabaseGroup {
@@ -35,6 +36,26 @@ export interface DatabaseGroup {
   name: string;
   databaseIds: string[];
   color: string;
+  folderId?: string | null;
+}
+
+export interface GroupFolder {
+  id: string;
+  groupId?: string;
+  folderName: string;
+  color?: string;
+  icon?: string;
+  orderIndex: number;
+  isExpanded: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateGroupFolderData {
+  folderName: string;
+  color?: string;
+  icon?: string;
+  orderIndex?: number;
 }
 
 export interface Statistics {

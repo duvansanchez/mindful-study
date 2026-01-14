@@ -1,6 +1,7 @@
-import React from 'react';
-import { DatabaseGroup, Database } from '@/types';
+import React, { useState } from 'react';
+import { DatabaseGroup, Database, GroupFolder } from '@/types';
 import { DatabaseCard } from './DatabaseCard';
+import { SessionFolderDialog } from './SessionFolderDialog';
 import { 
   ArrowLeft, 
   Folder, 
@@ -10,8 +11,23 @@ import {
   Settings,
   Calendar,
   Target,
-  Loader2
+  Loader2,
+  FolderPlus,
+  ChevronDown,
+  ChevronRight,
+  MoreVertical,
+  Edit2,
+  Trash2
 } from 'lucide-react';
+import { useGroupFoldersByGroup, useCreateGroupFolder, useUpdateGroupFolder, useDeleteGroupFolder } from '@/hooks/useGroupFolders';
+import { useMoveDatabaseToFolder, useGroupDatabases } from '@/hooks/useGroups';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from 'sonner';
 
 interface GroupDetailViewProps {
   group: DatabaseGroup;
@@ -38,13 +54,169 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
   onShowGroupPlanning,
   databaseCounts
 }) => {
-  const groupDatabases = databases.filter(db => group.databaseIds.includes(db.id));
+  // Estados para carpetas
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+  const [folderToEdit, setFolderToEdit] = useState<GroupFolder | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [draggedDatabase, setDraggedDatabase] = useState<string | null>(null);
+
+  const {
+    data: folders = [],
+    isLoading: foldersLoading
+  } = useGroupFoldersByGroup(group.id);
+
+  const {
+    data: groupDatabasesInfo = [],
+    isLoading: groupDatabasesLoading
+  } = useGroupDatabases(group.id);
+
+  const createFolderMutation = useCreateGroupFolder();
+  const updateFolderMutation = useUpdateGroupFolder();
+  const deleteFolderMutation = useDeleteGroupFolder();
+  const moveDatabaseMutation = useMoveDatabaseToFolder();
+
+  // Combinar información de databases (de Notion) con groupDatabasesInfo (de SQL con folderId)
+  const groupDatabases = databases
+    .filter(db => group.databaseIds.includes(db.id))
+    .map(db => {
+      const dbInfo = groupDatabasesInfo.find((info: any) => info.id === db.id);
+      return {
+        ...db,
+        folderId: dbInfo?.folderId || null
+      };
+    });
   
   // Calcular estadísticas del grupo
   const totalDatabases = groupDatabases.length;
   const totalCards = groupDatabases.reduce((sum, db) => {
     return sum + (databaseCounts[db.id] ?? db.cardCount);
   }, 0);
+
+  // Funciones para manejar carpetas
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(folderId)) {
+        newSet.delete(folderId);
+      } else {
+        newSet.add(folderId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleCreateFolder = () => {
+    setFolderToEdit(null);
+    setFolderDialogOpen(true);
+  };
+
+  const handleEditFolder = (folder: GroupFolder) => {
+    setFolderToEdit(folder);
+    setFolderDialogOpen(true);
+  };
+
+  const handleDeleteFolder = (folder: GroupFolder) => {
+    if (confirm(`¿Estás seguro de eliminar la carpeta "${folder.folderName}"?`)) {
+      deleteFolderMutation.mutate(folder.id, {
+        onSuccess: () => {
+          toast.success('Carpeta eliminada correctamente');
+        },
+        onError: () => {
+          toast.error('Error al eliminar la carpeta');
+        }
+      });
+    }
+  };
+
+  const handleSaveFolder = (data: { folderName: string; color: string; icon: string }) => {
+    if (folderToEdit) {
+      // Editar carpeta existente
+      updateFolderMutation.mutate({
+        folderId: folderToEdit.id,
+        updates: data
+      }, {
+        onSuccess: () => {
+          toast.success('Carpeta actualizada correctamente');
+          setFolderDialogOpen(false);
+          setFolderToEdit(null);
+        },
+        onError: () => {
+          toast.error('Error al actualizar la carpeta');
+        }
+      });
+    } else {
+      // Crear nueva carpeta
+      createFolderMutation.mutate({
+        groupId: group.id,
+        data
+      }, {
+        onSuccess: () => {
+          toast.success('Carpeta creada correctamente');
+          setFolderDialogOpen(false);
+        },
+        onError: () => {
+          toast.error('Error al crear la carpeta');
+        }
+      });
+    }
+  };
+
+  // Organizar bases de datos por carpetas
+  const databasesWithoutFolder = groupDatabases.filter(db => !db.folderId);
+  const databasesByFolder = folders.reduce((acc, folder) => {
+    acc[folder.id] = groupDatabases.filter(db => db.folderId === folder.id);
+    return acc;
+  }, {} as Record<string, Database[]>);
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, databaseId: string) => {
+    setDraggedDatabase(databaseId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('databaseId', databaseId);
+  };
+
+  const handleDropOnFolder = (e: React.DragEvent, folderId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const databaseId = e.dataTransfer.getData('databaseId');
+    if (!databaseId) return;
+
+    const database = groupDatabases.find(db => db.id === databaseId);
+    if (!database) return;
+
+    // Si ya está en la misma carpeta, no hacer nada
+    if (database.folderId === folderId) return;
+
+    // Mover la base de datos a la carpeta
+    moveDatabaseMutation.mutate({
+      groupId: group.id,
+      databaseId: database.id,
+      folderId: folderId
+    }, {
+      onSuccess: () => {
+        toast.success(folderId 
+          ? 'Base de datos movida a la carpeta' 
+          : 'Base de datos movida fuera de la carpeta'
+        );
+      },
+      onError: () => {
+        toast.error('Error al mover la base de datos');
+      }
+    });
+
+    setDraggedDatabase(null);
+  };
+
+  const handleFolderDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragEnd = () => {
+    setDraggedDatabase(null);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -144,30 +316,150 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground">Bases de datos</h2>
-          <span className="text-sm text-muted-foreground">
-            {totalDatabases} base{totalDatabases !== 1 ? 's' : ''} de datos
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCreateFolder}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+            >
+              <FolderPlus className="w-4 h-4" />
+              Nueva carpeta
+            </button>
+            <span className="text-sm text-muted-foreground">
+              {totalDatabases} base{totalDatabases !== 1 ? 's' : ''} de datos
+            </span>
+          </div>
         </div>
         
-        {databasesLoading ? (
+        {databasesLoading || foldersLoading || groupDatabasesLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <span className="ml-3 text-muted-foreground">Cargando bases de datos...</span>
           </div>
-        ) : groupDatabases.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {groupDatabases.map(database => {
-              const actualCount = databaseCounts[database.id] ?? database.cardCount;
-              const databaseWithCount = { ...database, cardCount: actualCount };
+        ) : groupDatabases.length > 0 || folders.length > 0 ? (
+          <div className="space-y-4">
+            {/* Carpetas */}
+            {folders.map((folder) => {
+              const folderDatabases = databasesByFolder[folder.id] || [];
+              const isExpanded = expandedFolders.has(folder.id);
               
               return (
-                <DatabaseCard
-                  key={database.id}
-                  database={databaseWithCount}
-                  onClick={() => onDatabaseClick(database.id)}
-                />
+                <div 
+                  key={folder.id} 
+                  className="bg-card border border-border rounded-lg overflow-hidden"
+                  onDragOver={handleFolderDragOver}
+                  onDrop={(e) => handleDropOnFolder(e, folder.id)}
+                >
+                  {/* Header de la carpeta */}
+                  <div className="flex items-center gap-3 p-4 hover:bg-muted/50 transition-colors">
+                    <button
+                      onClick={() => toggleFolder(folder.id)}
+                      className="flex items-center gap-2 flex-1 text-left"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      )}
+                      <span className="text-xl">{folder.icon}</span>
+                      <span 
+                        className="font-medium"
+                        style={{ color: folder.color }}
+                      >
+                        {folder.folderName}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        ({folderDatabases.length})
+                      </span>
+                    </button>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-2 hover:bg-muted rounded-lg transition-colors">
+                          <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditFolder(folder)}>
+                          <Edit2 className="w-4 h-4 mr-2" />
+                          Editar carpeta
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteFolder(folder)}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Eliminar carpeta
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  
+                  {/* Bases de datos dentro de la carpeta */}
+                  {isExpanded && folderDatabases.length > 0 && (
+                    <div className="px-4 pb-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {folderDatabases.map(database => {
+                          const actualCount = databaseCounts[database.id] ?? database.cardCount;
+                          const databaseWithCount = { ...database, cardCount: actualCount };
+                          
+                          return (
+                            <div
+                              key={database.id}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, database.id)}
+                              onDragEnd={handleDragEnd}
+                              className={`
+                                transition-opacity duration-200
+                                ${draggedDatabase === database.id ? 'opacity-50' : ''}
+                              `}
+                            >
+                              <DatabaseCard
+                                database={databaseWithCount}
+                                onClick={() => onDatabaseClick(database.id)}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             })}
+            
+            {/* Bases de datos sin carpeta */}
+            {databasesWithoutFolder.length > 0 && (
+              <div 
+                className="space-y-4"
+                onDragOver={handleFolderDragOver}
+                onDrop={(e) => handleDropOnFolder(e, null)}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {databasesWithoutFolder.map(database => {
+                    const actualCount = databaseCounts[database.id] ?? database.cardCount;
+                    const databaseWithCount = { ...database, cardCount: actualCount };
+                    
+                    return (
+                      <div
+                        key={database.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, database.id)}
+                        onDragEnd={handleDragEnd}
+                        className={`
+                          transition-opacity duration-200
+                          ${draggedDatabase === database.id ? 'opacity-50' : ''}
+                        `}
+                      >
+                        <DatabaseCard
+                          database={databaseWithCount}
+                          onClick={() => onDatabaseClick(database.id)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-12 bg-card border border-border rounded-lg">
@@ -193,6 +485,15 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
           </div>
         )}
       </section>
+
+      {/* Diálogo de carpetas */}
+      <SessionFolderDialog
+        open={folderDialogOpen}
+        onOpenChange={setFolderDialogOpen}
+        folder={folderToEdit}
+        onSave={handleSaveFolder}
+        isLoading={createFolderMutation.isPending || updateFolderMutation.isPending}
+      />
     </div>
   );
 };
