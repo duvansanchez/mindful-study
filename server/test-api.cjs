@@ -1933,6 +1933,152 @@ app.get('/groups/:groupId/databases', async (req, res) => {
   }
 });
 
+// Mover base de datos a carpeta
+app.put('/groups/:groupId/databases/:databaseId/move-to-folder', async (req, res) => {
+  try {
+    const { groupId, databaseId } = req.params;
+    const { folderId } = req.body;
+    
+    console.log('📁 Moviendo base de datos a carpeta:', { groupId, databaseId, folderId });
+    
+    await DatabaseService.moveDatabaseToFolder(groupId, databaseId, folderId);
+    
+    console.log('✅ Base de datos movida a carpeta');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error moviendo base de datos a carpeta:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== ENDPOINTS DE CARPETAS DE AGRUPACIONES ====================
+
+// Obtener carpetas de una agrupación específica
+app.get('/groups/:groupId/group-folders', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    console.log('📁 Obteniendo carpetas de agrupación para grupo:', groupId);
+    
+    const folders = await DatabaseService.getGroupFoldersByGroup(groupId);
+    
+    console.log('✅ Carpetas obtenidas:', folders.length);
+    res.json(folders);
+  } catch (error) {
+    console.error('❌ Error obteniendo carpetas de agrupación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener todas las carpetas de agrupaciones (mantener para compatibilidad)
+app.get('/group-folders', async (req, res) => {
+  try {
+    console.log('📁 Obteniendo todas las carpetas de agrupaciones');
+    
+    const folders = await DatabaseService.getGroupFolders();
+    
+    console.log('✅ Carpetas obtenidas:', folders.length);
+    res.json(folders);
+  } catch (error) {
+    console.error('❌ Error obteniendo carpetas de agrupaciones:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Crear carpeta de agrupaciones
+app.post('/groups/:groupId/group-folders', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { folderName, color, icon, orderIndex } = req.body;
+    
+    if (!folderName || folderName.trim().length === 0) {
+      return res.status(400).json({ error: 'El nombre de la carpeta es requerido' });
+    }
+    
+    console.log('📁 Creando carpeta de agrupación:', folderName, 'para grupo:', groupId);
+    
+    const folder = await DatabaseService.createGroupFolder(
+      groupId,
+      folderName.trim(),
+      color || '#3B82F6',
+      icon || '📁',
+      orderIndex
+    );
+    
+    console.log('✅ Carpeta de agrupación creada:', folder.id);
+    res.status(201).json(folder);
+  } catch (error) {
+    console.error('❌ Error creando carpeta de agrupación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Actualizar carpeta de agrupaciones
+app.put('/group-folders/:folderId', async (req, res) => {
+  try {
+    const { folderId } = req.params;
+    const updates = req.body;
+    
+    console.log('📁 Actualizando carpeta de agrupaciones:', folderId);
+    
+    const updated = await DatabaseService.updateGroupFolder(folderId, updates);
+    
+    if (updated) {
+      console.log('✅ Carpeta de agrupaciones actualizada');
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Carpeta no encontrada' });
+    }
+  } catch (error) {
+    console.error('❌ Error actualizando carpeta de agrupaciones:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar carpeta de agrupaciones
+app.delete('/group-folders/:folderId', async (req, res) => {
+  try {
+    const { folderId } = req.params;
+    
+    console.log('📁 Eliminando carpeta de agrupaciones:', folderId);
+    
+    const deleted = await DatabaseService.deleteGroupFolder(folderId);
+    
+    if (deleted) {
+      console.log('✅ Carpeta de agrupaciones eliminada');
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Carpeta no encontrada' });
+    }
+  } catch (error) {
+    console.error('❌ Error eliminando carpeta de agrupaciones:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reordenar carpetas de agrupaciones
+app.put('/groups/:groupId/group-folders/reorder', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { folderOrders } = req.body;
+    
+    if (!folderOrders || !Array.isArray(folderOrders)) {
+      return res.status(400).json({ error: 'folderOrders es requerido y debe ser un array' });
+    }
+    
+    console.log('📁 Reordenando carpetas de agrupación para grupo:', groupId);
+    
+    const reordered = await DatabaseService.reorderGroupFolders(groupId, folderOrders);
+    
+    if (reordered) {
+      console.log('✅ Carpetas de agrupación reordenadas');
+      res.json({ success: true });
+    }
+  } catch (error) {
+    console.error('❌ Error reordenando carpetas de agrupación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== ENDPOINTS DE NOTAS Y ESTADÍSTICAS ====================
 
 // Agregar nota de repaso

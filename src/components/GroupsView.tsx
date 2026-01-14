@@ -44,7 +44,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             <GroupCard
               key={group.id}
               group={group}
-              databases={[]} // Se cargarán cuando se haga clic
+              databases={[]}
               onClick={() => onGroupClick(group)}
               onEdit={onEditGroup}
               onDelete={onDeleteGroup}
