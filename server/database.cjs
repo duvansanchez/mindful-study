@@ -4,6 +4,7 @@ require('dotenv').config();
 // Configuración de la base de datos
 const dbConfig = {
   server: process.env.DB_SERVER || 'localhost',
+  port: parseInt(process.env.DB_PORT || '1433'),
   database: process.env.DB_DATABASE || 'MindfulStudy',
   user: process.env.DB_USER || 'sa',
   password: process.env.DB_PASSWORD || '123',
@@ -17,6 +18,8 @@ const dbConfig = {
     min: 0,
     idleTimeoutMillis: 30000,
   },
+  connectionTimeout: 30000,
+  requestTimeout: 30000,
 };
 
 let poolPromise;
@@ -24,6 +27,13 @@ let poolPromise;
 // Inicializar pool de conexiones
 const initializeDatabase = async () => {
   try {
+    console.log('🔧 DEBUG: Intentando conectar a SQL Server...');
+    console.log('🔧 DEBUG: Server:', dbConfig.server);
+    console.log('🔧 DEBUG: Database:', dbConfig.database);
+    console.log('🔧 DEBUG: User:', dbConfig.user);
+    console.log('🔧 DEBUG: Encrypt:', dbConfig.options.encrypt);
+    console.log('🔧 DEBUG: TrustServerCertificate:', dbConfig.options.trustServerCertificate);
+    
     if (!poolPromise) {
       poolPromise = new sql.ConnectionPool(dbConfig).connect();
     }
@@ -32,6 +42,7 @@ const initializeDatabase = async () => {
     return true;
   } catch (error) {
     console.error('❌ Error conectando a SQL Server:', error.message);
+    console.error('🔧 DEBUG: Error completo:', error);
     return false;
   }
 };

@@ -18,12 +18,16 @@ export const ImageModal: React.FC<ImageModalProps> = ({
 }) => {
   const [zoom, setZoom] = React.useState(1);
   const [rotation, setRotation] = React.useState(0);
+  const [position, setPosition] = React.useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
 
-  // Reset zoom and rotation when modal opens
+  // Reset zoom, rotation and position when modal opens
   React.useEffect(() => {
     if (isOpen) {
       setZoom(1);
       setRotation(0);
+      setPosition({ x: 0, y: 0 });
     }
   }, [isOpen]);
 
@@ -57,6 +61,34 @@ export const ImageModal: React.FC<ImageModalProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Handle mouse drag
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoom > 1) {
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX - position.x,
+        y: e.clientY - position.y
+      });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging && zoom > 1) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
   };
 
   if (!isOpen) return null;
@@ -123,15 +155,21 @@ export const ImageModal: React.FC<ImageModalProps> = ({
         </div>
         
         {/* Image container */}
-        <div className="flex-1 overflow-auto bg-black/30 rounded-b-lg p-2">
+        <div 
+          className="flex-1 overflow-hidden bg-black/30 rounded-b-lg p-2"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+        >
           <div className="flex items-center justify-center h-full w-full">
             <img
               src={imageUrl}
               alt={alt || 'Imagen ampliada'}
-              className="max-w-full max-h-full object-contain transition-transform duration-200 ease-out"
+              className="max-w-full max-h-full object-contain transition-transform duration-200 ease-out select-none"
               style={{
-                transform: `scale(${zoom}) rotate(${rotation}deg)`,
-                cursor: zoom > 1 ? 'grab' : 'default'
+                transform: `translate(${position.x}px, ${position.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+                cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
               }}
               draggable={false}
             />
