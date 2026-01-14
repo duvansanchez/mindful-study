@@ -2392,6 +2392,111 @@ app.delete('/planning-sessions/:sessionId', async (req, res) => {
   }
 });
 
+// ==================== ENDPOINTS DE CARPETAS DE SESIONES ====================
+
+// Obtener carpetas de un grupo
+app.get('/groups/:groupId/session-folders', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    console.log('📁 Obteniendo carpetas de sesiones para grupo:', groupId);
+    
+    const folders = await DatabaseService.getSessionFoldersByGroup(groupId);
+    
+    console.log('✅ Carpetas obtenidas:', folders.length);
+    res.json(folders);
+  } catch (error) {
+    console.error('❌ Error obteniendo carpetas:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Crear carpeta
+app.post('/groups/:groupId/session-folders', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { folderName, color, icon, orderIndex } = req.body;
+    
+    console.log('📁 Creando carpeta:', folderName);
+    
+    const folder = await DatabaseService.createSessionFolder(
+      groupId,
+      folderName,
+      color,
+      icon,
+      orderIndex
+    );
+    
+    console.log('✅ Carpeta creada:', folder.id);
+    res.json(folder);
+  } catch (error) {
+    console.error('❌ Error creando carpeta:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Actualizar carpeta
+app.put('/session-folders/:folderId', async (req, res) => {
+  try {
+    const { folderId } = req.params;
+    const updates = req.body;
+    
+    console.log('📁 Actualizando carpeta:', folderId);
+    
+    const updated = await DatabaseService.updateSessionFolder(folderId, updates);
+    
+    if (updated) {
+      console.log('✅ Carpeta actualizada');
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Carpeta no encontrada' });
+    }
+  } catch (error) {
+    console.error('❌ Error actualizando carpeta:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar carpeta
+app.delete('/session-folders/:folderId', async (req, res) => {
+  try {
+    const { folderId } = req.params;
+    
+    console.log('📁 Eliminando carpeta:', folderId);
+    
+    const deleted = await DatabaseService.deleteSessionFolder(folderId);
+    
+    if (deleted) {
+      console.log('✅ Carpeta eliminada');
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Carpeta no encontrada' });
+    }
+  } catch (error) {
+    console.error('❌ Error eliminando carpeta:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reordenar carpetas
+app.put('/groups/:groupId/session-folders/reorder', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { folderOrders } = req.body;
+    
+    console.log('📁 Reordenando carpetas del grupo:', groupId);
+    
+    const reordered = await DatabaseService.reorderSessionFolders(groupId, folderOrders);
+    
+    if (reordered) {
+      console.log('✅ Carpetas reordenadas');
+      res.json({ success: true });
+    }
+  } catch (error) {
+    console.error('❌ Error reordenando carpetas:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`🚀 Test API server running at http://localhost:${port}`);
 });

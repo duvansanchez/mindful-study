@@ -54,8 +54,28 @@ export interface PlanningSession {
   studyMode: 'review' | 'matching' | 'overview';
   orderIndex: number;
   selectedFlashcards?: string[]; // IDs de las flashcards seleccionadas
+  folderId?: string | null; // ID de la carpeta (opcional)
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface SessionFolder {
+  id: string;
+  groupId: string;
+  folderName: string;
+  color?: string;
+  icon?: string;
+  orderIndex: number;
+  isExpanded: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateSessionFolderData {
+  folderName: string;
+  color?: string;
+  icon?: string;
+  orderIndex?: number;
 }
 
 export interface CreatePlanningSessionData {
@@ -66,6 +86,7 @@ export interface CreatePlanningSessionData {
   studyMode: 'review' | 'matching' | 'overview';
   selectedFlashcards?: string[];
   orderIndex?: number;
+  folderId?: string | null; // ID de la carpeta (opcional)
 }
 
 // Nuevo tipo para flashcards con información de base de datos

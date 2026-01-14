@@ -808,6 +808,7 @@ class DatabaseService {
             StudyMode,
             SelectedFlashcards,
             OrderIndex,
+            FolderId,
             CreatedAt,
             UpdatedAt
           FROM PlanningSession 
@@ -863,6 +864,7 @@ class DatabaseService {
           studyMode: row.StudyMode,
           selectedFlashcards: selectedFlashcards,
           orderIndex: row.OrderIndex,
+          folderId: row.FolderId,
           createdAt: row.CreatedAt,
           updatedAt: row.UpdatedAt
         };
@@ -1062,6 +1064,11 @@ class DatabaseService {
         setClause.push('OrderIndex = @orderIndex');
       }
 
+      if (updates.folderId !== undefined) {
+        request.input('folderId', sql.UniqueIdentifier, updates.folderId);
+        setClause.push('FolderId = @folderId');
+      }
+
       if (setClause.length === 0) {
         return true; // No hay nada que actualizar
       }
@@ -1092,6 +1099,201 @@ class DatabaseService {
       return true;
     } catch (error) {
       console.error('Error eliminando sesión de planificación:', error);
+      throw error;
+    }
+  }
+
+  // ==================== CARPETAS DE SESIONES ====================
+
+  // Obtener carpetas de un grupo
+  static async getSessionFoldersByGroup(groupId) {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .query(`
+          SELECT 
+            Id,
+            GroupId,
+            FolderName,
+            Color,
+            Icon,
+            OrderIndex,
+            IsExpanded,
+            CreatedAt,
+            UpdatedAt
+          FROM SessionFolders 
+          WHERE GroupId = @groupId 
+          ORDER BY OrderIndex ASC, CreatedAt ASC
+        `);
+
+      return result.recordset.map(row => ({
+        id: row.Id,
+        groupId: row.GroupId,
+        folderName: row.FolderName,
+        color: row.Color,
+        icon: row.Icon,
+        orderIndex: row.OrderIndex,
+        isExpanded: row.IsExpanded,
+        createdAt: row.CreatedAt,
+        updatedAt: row.UpdatedAt
+      }));
+    } catch (error) {
+      console.error('Error obteniendo carpetas de sesiones:', error);
+      throw error;
+    }
+  }
+
+  // Crear carpeta de sesiones
+  static async createSessionFolder(groupId, folderName, color = '#3B82F6', icon = '📁', orderIndex = null) {
+    try {
+      const pool = await getPool();
+      const folderId = require('crypto').randomUUID();
+      
+      // Si no se proporciona orderIndex, obtener el siguiente disponible
+      if (orderIndex === undefined || orderIndex === null) {
+        const maxOrderResult = await pool.request()
+          .input('groupId', sql.UniqueIdentifier, groupId)
+          .query(`
+            SELECT ISNULL(MAX(OrderIndex), 0) + 1 as NextOrder
+            FROM SessionFolders 
+            WHERE GroupId = @groupId
+          `);
+        orderIndex = maxOrderResult.recordset[0].NextOrder;
+      }
+
+      await pool.request()
+        .input('folderId', sql.UniqueIdentifier, folderId)
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .input('folderName', sql.NVarChar(255), folderName)
+        .input('color', sql.NVarChar(50), color)
+        .input('icon', sql.NVarChar(10), icon)
+        .input('orderIndex', sql.Int, orderIndex)
+        .query(`
+          INSERT INTO SessionFolders (
+            Id, GroupId, FolderName, Color, Icon, OrderIndex, CreatedAt, UpdatedAt
+          ) VALUES (
+            @folderId, @groupId, @folderName, @color, @icon, @orderIndex, GETDATE(), GETDATE()
+          )
+        `);
+
+      return {
+        id: folderId,
+        groupId,
+        folderName,
+        color,
+        icon,
+        orderIndex,
+        isExpanded: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+    } catch (error) {
+      console.error('Error creando carpeta de sesiones:', error);
+      throw error;
+    }
+  }
+
+  // Actualizar carpeta de sesiones
+  static async updateSessionFolder(folderId, updates) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+      const setClause = [];
+
+      request.input('folderId', sql.UniqueIdentifier, folderId);
+
+      if (updates.folderName !== undefined) {
+        request.input('folderName', sql.NVarChar(255), updates.folderName);
+        setClause.push('FolderName = @folderName');
+      }
+
+      if (updates.color !== undefined) {
+        request.input('color', sql.NVarChar(50), updates.color);
+        setClause.push('Color = @color');
+      }
+
+      if (updates.icon !== undefined) {
+        request.input('icon', sql.NVarChar(10), updates.icon);
+        setClause.push('Icon = @icon');
+      }
+
+      if (updates.orderIndex !== undefined) {
+        request.input('orderIndex', sql.Int, updates.orderIndex);
+        setClause.push('OrderIndex = @orderIndex');
+      }
+
+      if (updates.isExpanded !== undefined) {
+        request.input('isExpanded', sql.Bit, updates.isExpanded);
+        setClause.push('IsExpanded = @isExpanded');
+      }
+
+      if (setClause.length === 0) {
+        return true;
+      }
+
+      setClause.push('UpdatedAt = GETDATE()');
+
+      await request.query(`
+        UPDATE SessionFolders 
+        SET ${setClause.join(', ')}
+        WHERE Id = @folderId
+      `);
+
+      return true;
+    } catch (error) {
+      console.error('Error actualizando carpeta de sesiones:', error);
+      throw error;
+    }
+  }
+
+  // Eliminar carpeta de sesiones
+  static async deleteSessionFolder(folderId) {
+    try {
+      const pool = await getPool();
+      
+      // Las sesiones dentro de la carpeta se moverán a "sin carpeta" (FolderId = NULL)
+      // gracias a ON DELETE SET NULL en la foreign key
+      await pool.request()
+        .input('folderId', sql.UniqueIdentifier, folderId)
+        .query(`DELETE FROM SessionFolders WHERE Id = @folderId`);
+      
+      return true;
+    } catch (error) {
+      console.error('Error eliminando carpeta de sesiones:', error);
+      throw error;
+    }
+  }
+
+  // Reordenar carpetas de sesiones
+  static async reorderSessionFolders(groupId, folderOrders) {
+    try {
+      const pool = await getPool();
+      const transaction = new sql.Transaction(pool);
+      
+      await transaction.begin();
+      
+      try {
+        for (const { folderId, orderIndex } of folderOrders) {
+          await transaction.request()
+            .input('folderId', sql.UniqueIdentifier, folderId)
+            .input('groupId', sql.UniqueIdentifier, groupId)
+            .input('orderIndex', sql.Int, orderIndex)
+            .query(`
+              UPDATE SessionFolders 
+              SET OrderIndex = @orderIndex, UpdatedAt = GETDATE()
+              WHERE Id = @folderId AND GroupId = @groupId
+            `);
+        }
+        
+        await transaction.commit();
+        return true;
+      } catch (error) {
+        await transaction.rollback();
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error reordenando carpetas de sesiones:', error);
       throw error;
     }
   }

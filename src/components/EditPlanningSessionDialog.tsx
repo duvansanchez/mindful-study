@@ -86,8 +86,10 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
   // Inicializar formulario cuando se abre el diálogo
   useEffect(() => {
     if (session && open) {
-      // Convertir formato antiguo a nuevo formato
-      const databaseIds = session.databaseId ? [session.databaseId] : [];
+      // Usar databaseIds si existe, sino convertir databaseId a array
+      const databaseIds = session.databaseIds && session.databaseIds.length > 0 
+        ? session.databaseIds 
+        : (session.databaseId ? [session.databaseId] : []);
       
       setFormData({
         sessionName: session.sessionName,
@@ -137,15 +139,19 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
     }
 
     try {
-      // Para compatibilidad con el backend actual, usar la primera base de datos
-      const updateData = {
-        ...formData,
-        databaseId: formData.databaseIds[0] // Temporal: usar primera DB para compatibilidad
+      // Preparar datos de actualización
+      const updates = {
+        sessionName: formData.sessionName,
+        databaseId: formData.databaseIds[0], // Primera DB para compatibilidad
+        databaseIds: formData.databaseIds,
+        sessionNote: formData.sessionNote,
+        studyMode: formData.studyMode,
+        selectedFlashcards: formData.selectedFlashcards
       };
 
       await updateMutation.mutateAsync({
         sessionId: session.id,
-        sessionData: updateData
+        updates: updates
       });
       
       toast.success('Sesión actualizada exitosamente');
