@@ -2079,6 +2079,105 @@ app.put('/groups/:groupId/group-folders/reorder', async (req, res) => {
   }
 });
 
+// ==================== ENDPOINTS DE METAS DE AGRUPACIONES ====================
+
+console.log('🔧 DEBUG: Registrando endpoints de metas de agrupaciones...');
+
+// Obtener metas de una agrupación
+app.get('/groups/:groupId/goals', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    console.log('🎯 Obteniendo metas para grupo:', groupId);
+    
+    const goals = await DatabaseService.getGroupGoals(groupId);
+    
+    console.log('✅ Metas obtenidas:', goals.length);
+    res.json(goals);
+  } catch (error) {
+    console.error('❌ Error obteniendo metas:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+console.log('✅ Endpoint GET /groups/:groupId/goals registrado');
+
+// Obtener conteo de metas pendientes
+app.get('/groups/:groupId/goals/pending-count', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    console.log('🎯 Obteniendo conteo de metas pendientes para grupo:', groupId);
+    
+    const count = await DatabaseService.getPendingGoalsCount(groupId);
+    
+    console.log('✅ Metas pendientes:', count);
+    res.json({ pendingCount: count });
+  } catch (error) {
+    console.error('❌ Error obteniendo conteo de metas pendientes:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Crear meta de agrupación
+app.post('/groups/:groupId/goals', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { title, description, dueDate } = req.body;
+    
+    if (!title || title.trim().length === 0) {
+      return res.status(400).json({ error: 'El título es requerido' });
+    }
+    
+    console.log('🎯 Creando meta para grupo:', groupId);
+    
+    const goal = await DatabaseService.createGroupGoal(
+      groupId,
+      title.trim(),
+      description,
+      dueDate
+    );
+    
+    console.log('✅ Meta creada:', goal.id);
+    res.status(201).json(goal);
+  } catch (error) {
+    console.error('❌ Error creando meta:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Actualizar meta de agrupación
+app.put('/goals/:goalId', async (req, res) => {
+  try {
+    const { goalId } = req.params;
+    const updates = req.body;
+    
+    console.log('🎯 Actualizando meta:', goalId);
+    
+    await DatabaseService.updateGroupGoal(goalId, updates);
+    
+    console.log('✅ Meta actualizada');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error actualizando meta:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar meta de agrupación
+app.delete('/goals/:goalId', async (req, res) => {
+  try {
+    const { goalId } = req.params;
+    
+    console.log('🎯 Eliminando meta:', goalId);
+    
+    await DatabaseService.deleteGroupGoal(goalId);
+    
+    console.log('✅ Meta eliminada');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error eliminando meta:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== ENDPOINTS DE NOTAS Y ESTADÍSTICAS ====================
 
 // Agregar nota de repaso

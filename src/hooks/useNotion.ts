@@ -9,7 +9,8 @@ export const useNotionDatabases = (enabled: boolean = true) => {
     queryKey: ['notion-databases'],
     queryFn: NotionService.getDatabases,
     enabled: enabled,
-    staleTime: 0, // Sin cache para debugging
+    staleTime: 5 * 60 * 1000, // 5 minutos de caché
+    cacheTime: 10 * 60 * 1000, // 10 minutos en memoria
     retry: 2,
   });
 };

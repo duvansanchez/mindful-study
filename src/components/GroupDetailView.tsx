@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DatabaseGroup, Database, GroupFolder } from '@/types';
 import { DatabaseCard } from './DatabaseCard';
 import { SessionFolderDialog } from './SessionFolderDialog';
+import { GoalsAlertDialog } from './GoalsAlertDialog';
 import { 
   ArrowLeft, 
   Folder, 
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useGroupFoldersByGroup, useCreateGroupFolder, useUpdateGroupFolder, useDeleteGroupFolder } from '@/hooks/useGroupFolders';
 import { useMoveDatabaseToFolder, useGroupDatabases } from '@/hooks/useGroups';
+import { usePendingGoalsCount } from '@/hooks/useGroupGoals';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,6 +61,7 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
   const [folderToEdit, setFolderToEdit] = useState<GroupFolder | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [draggedDatabase, setDraggedDatabase] = useState<string | null>(null);
+  const [goalsAlertOpen, setGoalsAlertOpen] = useState(false);
 
   const {
     data: folders = [],
@@ -70,10 +73,22 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
     isLoading: groupDatabasesLoading
   } = useGroupDatabases(group.id);
 
+  const {
+    data: pendingGoalsCount = 0,
+    isLoading: pendingGoalsLoading
+  } = usePendingGoalsCount(group.id);
+
   const createFolderMutation = useCreateGroupFolder();
   const updateFolderMutation = useUpdateGroupFolder();
   const deleteFolderMutation = useDeleteGroupFolder();
   const moveDatabaseMutation = useMoveDatabaseToFolder();
+
+  // Mostrar alerta emergente cuando hay metas pendientes
+  useEffect(() => {
+    if (!pendingGoalsLoading && pendingGoalsCount > 0) {
+      setGoalsAlertOpen(true);
+    }
+  }, [pendingGoalsCount, pendingGoalsLoading]);
 
   // Combinar información de databases (de Notion) con groupDatabasesInfo (de SQL con folderId)
   const groupDatabases = databases
@@ -493,6 +508,15 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
         folder={folderToEdit}
         onSave={handleSaveFolder}
         isLoading={createFolderMutation.isPending || updateFolderMutation.isPending}
+      />
+
+      {/* Diálogo de alerta de metas pendientes */}
+      <GoalsAlertDialog
+        open={goalsAlertOpen}
+        onOpenChange={setGoalsAlertOpen}
+        pendingCount={pendingGoalsCount}
+        groupName={group.name}
+        onViewGoals={() => onShowGroupGoals(group)}
       />
     </div>
   );
