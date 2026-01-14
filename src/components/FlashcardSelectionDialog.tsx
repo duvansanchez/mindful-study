@@ -79,6 +79,15 @@ export const FlashcardSelectionDialog: React.FC<FlashcardSelectionDialogProps> =
   isLoading = false,
   databases = []
 }) => {
+  // Debug: ver qué se está recibiendo
+  useEffect(() => {
+    if (open) {
+      console.log('📊 FlashcardSelectionDialog opened:');
+      console.log('  - flashcards:', flashcards.length);
+      console.log('  - databases:', databases.length, databases.map(d => d.name));
+    }
+  }, [open, flashcards.length, databases.length]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterState, setFilterState] = useState<FilterState>('all');
   const [selectedDatabase, setSelectedDatabase] = useState<string>('all');
@@ -354,7 +363,7 @@ export const FlashcardSelectionDialog: React.FC<FlashcardSelectionDialogProps> =
               </div>
 
               {/* Filtro por base de datos (solo si hay múltiples) */}
-              {databases.length > 1 && (
+              {databases.length > 0 && (
                 <div className="flex items-center gap-2">
                   <Label>Base de datos:</Label>
                   <Select value={selectedDatabase} onValueChange={setSelectedDatabase}>
