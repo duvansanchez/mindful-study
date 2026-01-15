@@ -14,6 +14,8 @@ import { ReferencePointsPanel } from "./ReferencePointsPanel";
 import { CreateReferencePointDialog } from "./CreateReferencePointDialog";
 import { ReferencePointNoteModal } from "./ReferencePointNoteModal";
 import { FloatingReferenceButton } from "./FloatingReferenceButton";
+import { RichTextEditor } from "./RichTextEditor";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 const REFERENCE_HIGHLIGHT_ATTR = 'data-reference-highlight';
 
@@ -2004,44 +2006,17 @@ export function FlashcardReview({
                         {editingNoteId === note.id ? (
                           // Modo edición
                           <div className="space-y-2">
-                            <textarea
+                            <RichTextEditor
                               value={editingNoteText}
-                              onChange={(e) => {
-                                setEditingNoteText(e.target.value);
-                                // Auto-resize del textarea
-                                const target = e.target as HTMLTextAreaElement;
-                                target.style.height = 'auto';
-                                target.style.height = Math.min(target.scrollHeight, 200) + 'px';
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault();
-                                  handleSaveEditNote();
-                                } else if (e.key === 'Escape') {
-                                  e.preventDefault();
-                                  handleCancelEditNote();
-                                }
-                              }}
-                              onFocus={(e) => {
-                                // Auto-resize al hacer focus
-                                const target = e.target as HTMLTextAreaElement;
-                                target.style.height = 'auto';
-                                target.style.height = Math.min(target.scrollHeight, 200) + 'px';
-                              }}
-                              className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:border-primary/50 focus:outline-none transition-colors resize-none min-h-[80px] max-h-[200px]"
-                              autoFocus
-                              placeholder="Edita tu nota... (Shift+Enter para nueva línea, Enter para guardar, Esc para cancelar)"
-                              rows={3}
-                              style={{
-                                height: 'auto',
-                                minHeight: '80px'
-                              }}
+                              onChange={setEditingNoteText}
+                              placeholder="Edita tu nota... Puedes usar **negrita**, *cursiva*, [enlaces](url) e imágenes"
+                              disabled={updateNoteMutation.isPending}
                             />
                             <div className="flex gap-2 justify-end">
                               <button
                                 onClick={handleCancelEditNote}
                                 className="px-3 py-1.5 text-xs rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-1"
-                                title="Cancelar edición (Esc)"
+                                title="Cancelar edición"
                               >
                                 <XIcon className="w-3 h-3" />
                                 Cancelar
@@ -2050,7 +2025,7 @@ export function FlashcardReview({
                                 onClick={handleSaveEditNote}
                                 disabled={!editingNoteText.trim() || updateNoteMutation.isPending}
                                 className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center gap-1"
-                                title="Guardar cambios (Enter)"
+                                title="Guardar cambios"
                               >
                                 {updateNoteMutation.isPending ? (
                                   <>
@@ -2069,8 +2044,8 @@ export function FlashcardReview({
                         ) : (
                           // Modo visualización
                           <>
-                            <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                              {renderFormattedText(note.content)}
+                            <div className="text-sm text-foreground leading-relaxed">
+                              <MarkdownRenderer content={note.content} />
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
@@ -2169,28 +2144,11 @@ export function FlashcardReview({
                     ))}
                   </div>
                   <div className="space-y-2">
-                    <textarea
+                    <RichTextEditor
                       value={noteText}
-                      onChange={(e) => setNoteText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleAddNote();
-                        }
-                      }}
-                      placeholder="Escribe qué no dominabas... (Shift+Enter para nueva línea, Enter para enviar)"
-                      className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:border-primary/50 focus:outline-none transition-colors resize-none min-h-[60px] max-h-[120px]"
-                      autoFocus
-                      rows={2}
-                      style={{
-                        height: 'auto',
-                        minHeight: '60px'
-                      }}
-                      onInput={(e) => {
-                        const target = e.target as HTMLTextAreaElement;
-                        target.style.height = 'auto';
-                        target.style.height = Math.min(target.scrollHeight, 120) + 'px';
-                      }}
+                      onChange={setNoteText}
+                      placeholder="Escribe qué no dominabas... Puedes usar **negrita**, *cursiva*, [enlaces](url) e imágenes"
+                      disabled={addNoteMutation.isPending}
                     />
                     <div className="flex gap-2">
                       <button
