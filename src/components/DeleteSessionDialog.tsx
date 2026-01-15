@@ -52,8 +52,8 @@ export const DeleteSessionDialog: React.FC<DeleteSessionDialogProps> = ({
               {session.sessionName}
             </h4>
             <p className="text-sm text-muted-foreground">
-              Modo: {session.studyMode === 'review' ? 'Repaso Activo' : 
-                     session.studyMode === 'matching' ? 'Modo Matching' : 'Vista General'}
+              Modo: {session.studyMode === 'review' ? 'Modo Repaso Activo' : 
+                     session.studyMode === 'matching' ? 'Modo Matching' : 'Modo Vista General'}
             </p>
             {session.sessionNote && (
               <p className="text-sm text-muted-foreground mt-2">

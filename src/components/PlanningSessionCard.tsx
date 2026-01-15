@@ -23,7 +23,7 @@ interface PlanningSessionCardProps {
 const studyModeConfig = {
   review: {
     icon: BookOpen,
-    label: 'Repaso Activo',
+    label: 'Modo Repaso Activo',
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-100 dark:bg-blue-900/30'
   },
@@ -35,7 +35,7 @@ const studyModeConfig = {
   },
   overview: {
     icon: Eye,
-    label: 'Vista General',
+    label: 'Modo Vista General',
     color: 'text-purple-600 dark:text-purple-400',
     bgColor: 'bg-purple-100 dark:bg-purple-900/30'
   }

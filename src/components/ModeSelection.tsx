@@ -84,7 +84,7 @@ export function ModeSelection({
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
-                        Repaso activo
+                        Modo Repaso Activo
                         <Play className="w-3 md:w-4 h-3 md:h-4 text-primary" />
                       </h4>
                       <p className="text-xs md:text-sm text-muted-foreground leading-relaxed mb-2 md:mb-3">
@@ -112,7 +112,7 @@ export function ModeSelection({
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
-                        Vista general
+                        Modo Vista General
                         <Eye className="w-3 md:w-4 h-3 md:h-4 text-blue-500" />
                       </h4>
                       <p className="text-xs md:text-sm text-muted-foreground leading-relaxed mb-2 md:mb-3">
