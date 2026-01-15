@@ -319,6 +319,9 @@ export function FlashcardReview({
   // Estado para el modal de notas del punto de referencia
   const [noteModalReference, setNoteModalReference] = useState<ReferencePoint | null>(null);
 
+  // Estado para controlar visibilidad de tooltips
+  const [tooltipsVisible, setTooltipsVisible] = useState(false);
+
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
   const [dominioMessage, setDominioMessage] = useState<string | null>(null);
   const [updatingState, setUpdatingState] = useState(false);
@@ -435,6 +438,209 @@ export function FlashcardReview({
     }
   }, [card.id, updatingReviewDate, onNext, activeTooltip]);
 
+  // Función para abrir modal de notas desde tooltip
+  const handleOpenNoteModalFromTooltip = useCallback((referencePoint: ReferencePoint) => {
+    // Limpiar tooltip y resaltados
+    const clearTooltipAndHighlights = () => {
+      // Limpiar tooltip activo
+      if (activeTooltip && activeTooltip.parentNode) {
+        if (activeTooltip.cleanup) {
+          activeTooltip.cleanup();
+        }
+        activeTooltip.remove();
+        setActiveTooltip(null);
+      }
+      
+      // Limpiar resaltados
+      const contentContainer = document.querySelector('.flashcard-content-area');
+      if (contentContainer) {
+        clearReferenceHighlights(contentContainer);
+      }
+    };
+    
+    clearTooltipAndHighlights();
+    // Abrir modal de notas
+    setNoteModalReference(referencePoint);
+  }, [activeTooltip]);
+
+  // Función para mostrar/ocultar SOLO los tooltips (sin afectar resaltados)
+  const handleToggleAllTooltips = useCallback((show: boolean) => {
+    if (show) {
+      // Mostrar tooltips para todos los puntos de referencia
+      const contentArea = document.querySelector('.flashcard-content-area');
+      if (!contentArea) return;
+      
+      const contentRect = contentArea.getBoundingClientRect();
+      
+      // Función para actualizar posiciones de tooltips
+      const updateTooltipPositions = () => {
+        referencePoints.forEach((referencePoint) => {
+          const tooltip = document.querySelector(`[data-tooltip-for="${referencePoint.id}"]`) as HTMLElement;
+          if (!tooltip) return;
+          
+          const highlights = document.querySelectorAll(`[data-reference-id="${referencePoint.id}"]`);
+          if (highlights.length > 0) {
+            const firstHighlight = highlights[0] as HTMLElement;
+            const rect = firstHighlight.getBoundingClientRect();
+            const contentRect = contentArea.getBoundingClientRect();
+            
+            const tooltipLeft = contentRect.left - 280;
+            const tooltipTop = rect.top + (rect.height / 2);
+            
+            tooltip.style.top = `${tooltipTop}px`;
+            tooltip.style.left = `${tooltipLeft}px`;
+          }
+        });
+      };
+      
+      referencePoints.forEach((referencePoint) => {
+        // Buscar el resaltado correspondiente
+        const highlights = document.querySelectorAll(`[data-reference-id="${referencePoint.id}"]`);
+        if (highlights.length > 0) {
+          const firstHighlight = highlights[0] as HTMLElement;
+          
+          // Crear tooltip
+          const tooltip = document.createElement('div') as ExtendedTooltip;
+          tooltip.setAttribute('data-tooltip-for', referencePoint.id.toString());
+          
+          const rect = firstHighlight.getBoundingClientRect();
+          
+          // Posicionar a la izquierda del contenedor con position fixed
+          const tooltipLeft = contentRect.left - 280;
+          const tooltipTop = rect.top + (rect.height / 2);
+          
+          tooltip.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="flex: 1;">📍 ${referencePoint.referenceName}</span>
+            </div>
+          `;
+          
+          tooltip.style.cssText = `
+            position: fixed; 
+            top: ${tooltipTop}px; 
+            left: ${tooltipLeft}px;
+            transform: translateY(-50%);
+            background: ${referencePoint.color}; 
+            color: white; 
+            padding: 8px 12px;
+            border-radius: 8px; 
+            font-size: 14px; 
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); 
+            z-index: 999; 
+            border: 2px solid white;
+            opacity: 0.95; 
+            max-width: 250px;
+            min-width: 180px;
+            word-wrap: break-word; 
+            line-height: 1.3;
+            pointer-events: auto;
+            cursor: pointer;
+            animation: slideInFromLeft 0.3s ease-out;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, top 0.1s ease, left 0.1s ease;
+          `;
+          
+          // Crear flecha apuntando al resaltado
+          const arrow = document.createElement('div');
+          arrow.style.cssText = `
+            position: absolute;
+            right: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+            border-left: 10px solid white;
+            filter: drop-shadow(2px 0 2px rgba(0,0,0,0.2));
+          `;
+          
+          const arrowInner = document.createElement('div');
+          arrowInner.style.cssText = `
+            position: absolute;
+            right: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 8px solid transparent;
+            border-bottom: 8px solid transparent;
+            border-left: 8px solid ${referencePoint.color};
+          `;
+          
+          arrow.appendChild(arrowInner);
+          tooltip.appendChild(arrow);
+          
+          // Agregar efectos hover
+          const handleMouseEnter = () => {
+            tooltip.style.transform = 'translateY(-50%) scale(1.05)';
+            tooltip.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)';
+          };
+          
+          const handleMouseLeave = () => {
+            tooltip.style.transform = 'translateY(-50%) scale(1)';
+            tooltip.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+          };
+          
+          tooltip.addEventListener('mouseenter', handleMouseEnter);
+          tooltip.addEventListener('mouseleave', handleMouseLeave);
+          
+          const handleTooltipClick = () => {
+            handleOpenNoteModalFromTooltip(referencePoint);
+          };
+          
+          tooltip.addEventListener('click', handleTooltipClick);
+          tooltip.cleanup = () => {
+            tooltip.removeEventListener('click', handleTooltipClick);
+            tooltip.removeEventListener('mouseenter', handleMouseEnter);
+            tooltip.removeEventListener('mouseleave', handleMouseLeave);
+          };
+          
+          // Agregar animación CSS si no existe
+          if (!document.getElementById('tooltip-slide-animation-style')) {
+            const style = document.createElement('style');
+            style.id = 'tooltip-slide-animation-style';
+            style.textContent = `
+              @keyframes slideInFromLeft {
+                from { opacity: 0; transform: translateY(-50%) translateX(-20px); }
+                to { opacity: 0.95; transform: translateY(-50%) translateX(0); }
+              }
+            `;
+            document.head.appendChild(style);
+          }
+          
+          document.body.appendChild(tooltip);
+        }
+      });
+      
+      // Agregar listener de scroll para actualizar posiciones
+      const scrollContainer = contentArea.closest('.overflow-y-auto') || window;
+      scrollContainer.addEventListener('scroll', updateTooltipPositions);
+      
+      // Guardar referencia para limpieza
+      (window as any).__tooltipScrollListener = updateTooltipPositions;
+      (window as any).__tooltipScrollContainer = scrollContainer;
+      
+    } else {
+      // Remover listener de scroll
+      if ((window as any).__tooltipScrollListener && (window as any).__tooltipScrollContainer) {
+        (window as any).__tooltipScrollContainer.removeEventListener('scroll', (window as any).__tooltipScrollListener);
+        delete (window as any).__tooltipScrollListener;
+        delete (window as any).__tooltipScrollContainer;
+      }
+      
+      // Ocultar todos los tooltips
+      const tooltips = document.querySelectorAll('[data-tooltip-for]');
+      tooltips.forEach(tooltip => {
+        const extTooltip = tooltip as ExtendedTooltip;
+        if (extTooltip.cleanup) {
+          extTooltip.cleanup();
+        }
+        tooltip.remove();
+      });
+    }
+  }, [referencePoints, handleOpenNoteModalFromTooltip]);
+
   // Manejar navegación con teclado (flechas simples, Enter para revelar)
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -488,6 +694,16 @@ export function FlashcardReview({
         return;
       }
 
+      // Atajo para mostrar/ocultar tooltips de puntos de referencia
+      if (key === 't' || key === 'T') {
+        event.preventDefault();
+        console.log('🎯 Tecla T - Toggle tooltips de puntos de referencia');
+        const newState = !tooltipsVisible;
+        setTooltipsVisible(newState);
+        handleToggleAllTooltips(newState);
+        return;
+      }
+
       // Atajo para repetir al final
       if (key === 'r' || key === 'R') {
         event.preventDefault();
@@ -537,7 +753,7 @@ export function FlashcardReview({
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [onNext, onRepeat, onPrevious, currentIndex, handleNext, handleReveal, handleStateChange, revealed, handleToggleAuxiliary]);
+  }, [onNext, onRepeat, onPrevious, currentIndex, handleNext, handleReveal, handleStateChange, revealed, handleToggleAuxiliary, tooltipsVisible, handleToggleAllTooltips]);
 
   // Función para cerrar y limpiar tooltip
   const handleClose = useCallback(() => {
@@ -577,14 +793,6 @@ export function FlashcardReview({
       clearReferenceHighlights(contentContainer);
     }
   }, [activeTooltip]);
-
-  // Función para abrir modal de notas desde tooltip
-  const handleOpenNoteModalFromTooltip = useCallback((referencePoint: ReferencePoint) => {
-    // Limpiar tooltip y resaltados
-    clearTooltipAndHighlights();
-    // Abrir modal de notas
-    setNoteModalReference(referencePoint);
-  }, [clearTooltipAndHighlights]);
 
   // Función para mostrar todos los puntos de referencia sin tooltips
   const handleShowAllReferences = useCallback(() => {
@@ -1429,7 +1637,7 @@ export function FlashcardReview({
             )}
           </div>
           <div className="text-xs text-muted-foreground/70 hidden sm:block">
-            ⏎ revelar | ← → navegar | 1️⃣2️⃣3️⃣ estados | 🅁 repetir
+            ⏎ revelar | ← → navegar | 1️⃣2️⃣3️⃣ estados | 🅃 tooltips | 🅁 repetir
           </div>
         </div>
         
@@ -1888,6 +2096,8 @@ export function FlashcardReview({
                   onNavigateToReference={handleNavigateToReference}
                   onClearTooltipAndHighlights={clearTooltipAndHighlights}
                   onShowAllReferences={handleShowAllReferences}
+                  onToggleAllTooltips={handleToggleAllTooltips}
+                  tooltipsVisible={tooltipsVisible}
                   isLoading={referencePointsLoading}
                   contentText={extractPlainText()}
                 />
