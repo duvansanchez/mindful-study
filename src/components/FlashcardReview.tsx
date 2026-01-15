@@ -16,6 +16,7 @@ import { ReferencePointNoteModal } from "./ReferencePointNoteModal";
 import { FloatingReferenceButton } from "./FloatingReferenceButton";
 import { RichTextEditor } from "./RichTextEditor";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { ImageModal } from "./ImageModal";
 
 const REFERENCE_HIGHLIGHT_ATTR = 'data-reference-highlight';
 
@@ -324,6 +325,11 @@ export function FlashcardReview({
   // Estado para controlar visibilidad de tooltips
   const [tooltipsVisible, setTooltipsVisible] = useState(false);
 
+  // Estado para ImageModal
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imageModalUrl, setImageModalUrl] = useState("");
+  const [imageModalCaption, setImageModalCaption] = useState("");
+
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
   const [dominioMessage, setDominioMessage] = useState<string | null>(null);
   const [updatingState, setUpdatingState] = useState(false);
@@ -364,6 +370,13 @@ export function FlashcardReview({
     // Guardar la preferencia en localStorage para mantenerla durante la sesión
     localStorage.setItem('flashcard-show-auxiliary', newValue.toString());
   }, [showAuxiliary]);
+
+  // Función para manejar clic en imágenes
+  const handleImageClick = useCallback((imageUrl: string, caption?: string) => {
+    setImageModalUrl(imageUrl);
+    setImageModalCaption(caption || "");
+    setImageModalOpen(true);
+  }, []);
 
   const handleStateChange = useCallback(async (newState: KnowledgeState) => {
     if (updatingState) return;
@@ -1532,14 +1545,15 @@ export function FlashcardReview({
     }, 100);
   };
 
-  const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar o tener en cuenta", "Sinónimo", "definición formal", "ejemplo", "Preguntas", "Active Recall", "Explicación de relación"];
+  const quickNotes = ["No dominaba o no tenía en cuenta", "Próximo a investigar o tener en cuenta", "Sinónimo", "definición formal", "ejemplo", "Estado verde o sólido", "Preguntas", "Active Recall", "Explicación de relación"];
 
   // Mapeo de colores para las notas que coinciden con categorías de puntos de referencia
   const getNoteColor = (noteText: string) => {
     const colorMap: Record<string, string> = {
       "No dominaba o no tenía en cuenta": "#EF4444",
       "Próximo a investigar o tener en cuenta": "#F59E0B", 
-      "ejemplo": "#10B981"
+      "ejemplo": "#3B82F6",
+      "Estado verde o sólido": "#10B981"
     };
     
     // Limpiar el texto de los dos puntos al final si los tiene
@@ -2045,7 +2059,10 @@ export function FlashcardReview({
                           // Modo visualización
                           <>
                             <div className="text-sm text-foreground leading-relaxed">
-                              <MarkdownRenderer content={note.content} />
+                              <MarkdownRenderer 
+                                content={note.content} 
+                                onImageClick={handleImageClick}
+                              />
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
@@ -2213,6 +2230,15 @@ export function FlashcardReview({
       {/* Botón flotante para crear puntos de referencia */}
       <FloatingReferenceButton
         onCreateReference={handleTextSelectionForReference}
+      />
+
+      {/* Modal de imagen */}
+      <ImageModal
+        isOpen={imageModalOpen}
+        onClose={() => setImageModalOpen(false)}
+        imageUrl={imageModalUrl}
+        caption={imageModalCaption}
+        alt={imageModalCaption || "Imagen de nota de repaso"}
       />
     </div>
   );

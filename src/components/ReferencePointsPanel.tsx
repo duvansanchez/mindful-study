@@ -36,7 +36,8 @@ interface ReferencePointsPanelProps {
 const CATEGORIES = [
   { value: 'no-dominaba', label: 'No dominaba o no tenía en cuenta', color: '#EF4444' },
   { value: 'investigar', label: 'Próximo a investigar o tener en cuenta', color: '#F59E0B' },
-  { value: 'ejemplo', label: 'Ejemplo', color: '#10B981' },
+  { value: 'ejemplo', label: 'Ejemplo', color: '#3B82F6' },
+  { value: 'estado-verde-solido', label: 'Estado verde o sólido', color: '#10B981' },
   { value: 'frase', label: 'Frase', color: '#8B5CF6' },
 ];
 

@@ -12,6 +12,7 @@ import { CreateReferencePointDialog } from "./CreateReferencePointDialog";
 import { FlashcardExpandedModal } from "./FlashcardExpandedModal";
 import { FlashcardFilters } from "./FlashcardFilters";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { ImageModal } from "./ImageModal";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -185,7 +186,11 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
                 {reviewNotes.slice(0, 3).map((note) => (
                   <div key={note.id} className="p-2 rounded bg-secondary/50 border border-border/30">
                     <div className="text-xs text-foreground leading-relaxed mb-1">
-                      <MarkdownRenderer content={note.content} className="text-xs" />
+                      <MarkdownRenderer 
+                        content={note.content} 
+                        className="text-xs" 
+                        onImageClick={handleImageClick}
+                      />
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
@@ -360,8 +365,20 @@ export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: 
   const [sortOption, setSortOption] = useState<SortOption>('priority');
   const [filteredCards, setFilteredCards] = useState<Flashcard[]>(flashcards);
 
+  // Estado para ImageModal
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imageModalUrl, setImageModalUrl] = useState("");
+  const [imageModalCaption, setImageModalCaption] = useState("");
+
   // Obtener conteos de notas de repaso
   const { data: notesCounts = {} } = useNotesCountByDatabase(databaseId);
+
+  // Función para manejar clic en imágenes
+  const handleImageClick = (imageUrl: string, caption?: string) => {
+    setImageModalUrl(imageUrl);
+    setImageModalCaption(caption || "");
+    setImageModalOpen(true);
+  };
 
   // Ordenar tarjetas filtradas
   const sortedCards = useMemo(() => {
@@ -523,6 +540,15 @@ export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: 
           </p>
         </div>
       </footer>
+
+      {/* Modal de imagen */}
+      <ImageModal
+        isOpen={imageModalOpen}
+        onClose={() => setImageModalOpen(false)}
+        imageUrl={imageModalUrl}
+        caption={imageModalCaption}
+        alt={imageModalCaption || "Imagen de nota de repaso"}
+      />
     </div>
   );
 }
