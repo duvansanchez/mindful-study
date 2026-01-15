@@ -27,6 +27,8 @@ interface ReferencePointsPanelProps {
   onNavigateToReference: (referencePoint: ReferencePoint) => void;
   onClearTooltipAndHighlights?: () => void;
   onShowAllReferences?: () => void;
+  onToggleAllTooltips?: (show: boolean) => void; // Nueva prop para solo tooltips
+  tooltipsVisible?: boolean; // Estado de visibilidad de tooltips
   isLoading?: boolean;
   contentText?: string; // Texto del contenido para diagnóstico
 }
@@ -43,6 +45,8 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
   onNavigateToReference,
   onClearTooltipAndHighlights,
   onShowAllReferences,
+  onToggleAllTooltips,
+  tooltipsVisible = false,
   isLoading = false,
   contentText = '',
 }) => {
@@ -105,6 +109,15 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
     setNoteReference(referencePoint);
   };
 
+  const handleToggleAllTooltips = () => {
+    const newState = !tooltipsVisible;
+    
+    // Usar la nueva función específica para tooltips si existe
+    if (onToggleAllTooltips) {
+      onToggleAllTooltips(newState);
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (!deletingReference) return;
     
@@ -145,49 +158,52 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
   }
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={300} skipDelayDuration={0}>
       <div className="space-y-3" data-reference-panel="true">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {isCollapsed ? (
-            <ChevronRight className="w-4 h-4" />
-          ) : (
-            <ChevronDown className="w-4 h-4" />
-          )}
-          <Bookmark className="w-4 h-4" />
-          <span>Puntos de Referencia</span>
-          {referencePoints.length > 0 && (
-            <Badge variant="secondary" className="ml-1">
-              {filteredReferencePoints.length}
-            </Badge>
-          )}
-        </button>
-        
-        <div className="flex items-center gap-2">
-          {/* Botón para mostrar todos los puntos de referencia */}
-          {referencePoints.length > 0 && !isCollapsed && onShowAllReferences && (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {isCollapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+            <Bookmark className="w-4 h-4" />
+            <span>Puntos de Referencia</span>
+            {referencePoints.length > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {filteredReferencePoints.length}
+              </Badge>
+            )}
+          </button>
+          
+          {/* Botón para mostrar/ocultar todos los tooltips */}
+          {referencePoints.length > 0 && !isCollapsed && (
             <Button
               size="sm"
-              variant="outline"
-              onClick={onShowAllReferences}
-              className="h-7 px-2 text-xs"
-              title="Mostrar todos los puntos de referencia en el texto"
+              variant={tooltipsVisible ? "default" : "outline"}
+              onClick={handleToggleAllTooltips}
+              className="h-7 px-3 text-xs whitespace-nowrap flex items-center gap-1.5"
+              title={tooltipsVisible ? "Ocultar todos los tooltips (los resaltados permanecen)" : "Mostrar todos los tooltips en el texto"}
             >
-              <Eye className="w-3 h-3 mr-1" />
-              Mostrar todos
+              <Eye className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{tooltipsVisible ? "Ocultar" : "Mostrar"}</span>
             </Button>
           )}
-          
-          {/* Filtro de puntos de referencia */}
-          {referencePoints.length > 0 && !isCollapsed && (
+        </div>
+        
+        {/* Filtro de puntos de referencia - Segunda línea */}
+        {referencePoints.length > 0 && !isCollapsed && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Filtrar:</span>
             <select
               value={referenceFilter}
               onChange={(e) => setReferenceFilter(e.target.value)}
-              className="text-xs px-2 py-1 rounded bg-background border border-border text-foreground focus:border-primary/50 focus:outline-none max-w-32"
+              className="flex-1 text-xs px-2 py-1.5 rounded bg-background border border-border text-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20"
             >
               <option value="all">Todos ({referencePoints.length})</option>
               {CATEGORIES.map((category) => {
@@ -199,8 +215,8 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                 ) : null;
               })}
             </select>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -357,7 +373,7 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                       </div>
 
                       {/* Texto seleccionado (preview) */}
-                      <Tooltip>
+                      <Tooltip delayDuration={300}>
                         <TooltipTrigger asChild>
                           <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded border-l-2 cursor-help hover:bg-muted/70 transition-colors"
                                style={{ borderLeftColor: categoryData.color }}>
@@ -366,7 +382,11 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                             </p>
                           </div>
                         </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-md bg-slate-800 text-white border-slate-700">
+                        <TooltipContent 
+                          side="right" 
+                          className="max-w-md bg-slate-800 text-white border-slate-700"
+                          onPointerDownOutside={(e) => e.preventDefault()}
+                        >
                           <div className="space-y-2">
                             <div className="font-medium text-sm">Texto del punto de referencia:</div>
                             <div className="text-sm leading-relaxed whitespace-pre-wrap">
