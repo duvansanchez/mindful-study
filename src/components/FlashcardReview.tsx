@@ -767,11 +767,31 @@ export function FlashcardReview({
       setActiveTooltip(null);
     }
     
+    // Limpiar TODOS los tooltips flotantes (los que se muestran con el botón/tecla T)
+    const allTooltips = document.querySelectorAll('[data-tooltip-for]');
+    allTooltips.forEach(tooltip => {
+      const extTooltip = tooltip as ExtendedTooltip;
+      if (extTooltip.cleanup) {
+        extTooltip.cleanup();
+      }
+      tooltip.remove();
+    });
+    
+    // Remover listener de scroll si existe
+    if ((window as any).__tooltipScrollListener && (window as any).__tooltipScrollContainer) {
+      (window as any).__tooltipScrollContainer.removeEventListener('scroll', (window as any).__tooltipScrollListener);
+      delete (window as any).__tooltipScrollListener;
+      delete (window as any).__tooltipScrollContainer;
+    }
+    
     // Limpiar todos los resaltados de puntos de referencia
     const contentArea = document.querySelector('.flashcard-content-area');
     if (contentArea) {
       clearReferenceHighlights(contentArea);
     }
+    
+    // Resetear estado de tooltips
+    setTooltipsVisible(false);
     
     onClose();
   }, [activeTooltip, onClose]);
@@ -919,12 +939,30 @@ export function FlashcardReview({
   // Limpiar tooltip al desmontar el componente
   useEffect(() => {
     return () => {
+      // Limpiar tooltip activo
       if (activeTooltip && activeTooltip.parentNode) {
         // Limpiar event listeners si existen
         if (activeTooltip.cleanup) {
           activeTooltip.cleanup();
         }
         activeTooltip.remove();
+      }
+      
+      // Limpiar TODOS los tooltips flotantes
+      const allTooltips = document.querySelectorAll('[data-tooltip-for]');
+      allTooltips.forEach(tooltip => {
+        const extTooltip = tooltip as ExtendedTooltip;
+        if (extTooltip.cleanup) {
+          extTooltip.cleanup();
+        }
+        tooltip.remove();
+      });
+      
+      // Remover listener de scroll si existe
+      if ((window as any).__tooltipScrollListener && (window as any).__tooltipScrollContainer) {
+        (window as any).__tooltipScrollContainer.removeEventListener('scroll', (window as any).__tooltipScrollListener);
+        delete (window as any).__tooltipScrollListener;
+        delete (window as any).__tooltipScrollContainer;
       }
     };
   }, [activeTooltip]);
