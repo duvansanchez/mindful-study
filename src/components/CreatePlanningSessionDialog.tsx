@@ -41,7 +41,7 @@ interface CreatePlanningSessionDialogProps {
 const studyModeOptions = [
   {
     value: 'review' as const,
-    label: 'Repaso Activo',
+    label: 'Modo Repaso Activo',
     description: 'Flashcards tradicionales con retroalimentación',
     icon: BookOpen,
     color: 'text-blue-600'
@@ -55,7 +55,7 @@ const studyModeOptions = [
   },
   {
     value: 'overview' as const,
-    label: 'Vista General',
+    label: 'Modo Vista General',
     description: 'Revisión rápida de todas las tarjetas',
     icon: Eye,
     color: 'text-purple-600'
