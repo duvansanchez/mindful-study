@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Flashcard } from '@/types';
 import { StateBadge } from './StateBadge';
 import { NotionRenderer } from './NotionRenderer';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { 
   X, 
   StickyNote, 
@@ -33,22 +34,9 @@ export const FlashcardExpandedModal: React.FC<FlashcardExpandedModalProps> = ({
   const [showContent, setShowContent] = useState(false);
   const [showReferencePoints, setShowReferencePoints] = useState(false);
   
-  // Cargar datos de la flashcard
   const { data: detailedContent, isLoading: contentLoading } = useFlashcardContent(card.id);
   const { data: reviewNotes = [], isLoading: notesLoading } = useReviewNotes(card.id);
   const { data: referencePoints = [], isLoading: referencePointsLoading } = useReferencePoints(card.id);
-
-  // Función para renderizar texto con formato markdown básico
-  const renderFormattedText = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, index) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        const boldText = part.slice(2, -2);
-        return <strong key={index} className="font-semibold text-foreground">{boldText}</strong>;
-      }
-      return part;
-    });
-  };
 
   if (!isOpen) return null;
 
@@ -170,8 +158,8 @@ export const FlashcardExpandedModal: React.FC<FlashcardExpandedModalProps> = ({
               <div className="space-y-3 max-h-64 overflow-y-auto">
                 {reviewNotes.map((note) => (
                   <div key={note.id} className="bg-card border border-border rounded-lg p-4">
-                    <div className="text-sm text-foreground leading-relaxed mb-3 whitespace-pre-wrap">
-                      {renderFormattedText(note.content)}
+                    <div className="text-sm text-foreground leading-relaxed mb-3">
+                      <MarkdownRenderer content={note.content} />
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Clock className="w-3 h-3" />
