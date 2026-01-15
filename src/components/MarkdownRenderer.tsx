@@ -3,30 +3,34 @@ import React from 'react';
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  onImageClick?: (imageUrl: string, caption?: string) => void;
 }
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ 
   content, 
-  className = "" 
+  className = "",
+  onImageClick
 }) => {
   // Función para procesar el markdown básico
-  const processMarkdown = (text: string) => {
+  const processMarkdown = (text: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
     let currentIndex = 0;
     let key = 0;
 
-    // Patrones de markdown
+    // Patrones de markdown en orden de prioridad
     const patterns = [
-      // Imágenes: ![alt](url)
+      // Imágenes: ![alt](url) - debe ir primero para evitar conflictos con enlaces
       {
         regex: /!\[([^\]]*)\]\(([^)]+)\)/g,
-        render: (match: RegExpMatchArray) => (
+        render: (match: RegExpMatchArray, matchIndex: number) => (
           <div key={key++} className="my-3">
             <img
               src={match[2]}
               alt={match[1] || 'Imagen'}
-              className="max-w-full h-auto rounded-lg shadow-sm border border-border"
+              className="max-w-full h-auto rounded-lg shadow-sm border border-border cursor-pointer hover:opacity-90 transition-opacity"
               loading="lazy"
+              onClick={() => onImageClick?.(match[2], match[1])}
+              title="Haz clic para ver en tamaño completo"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
@@ -52,7 +56,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       // Enlaces: [texto](url)
       {
         regex: /\[([^\]]+)\]\(([^)]+)\)/g,
-        render: (match: RegExpMatchArray) => (
+        render: (match: RegExpMatchArray, matchIndex: number) => (
           <a
             key={key++}
             href={match[2]}
@@ -67,16 +71,16 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       // Negrita: **texto**
       {
         regex: /\*\*([^*]+)\*\*/g,
-        render: (match: RegExpMatchArray) => (
+        render: (match: RegExpMatchArray, matchIndex: number) => (
           <strong key={key++} className="font-semibold text-foreground">
             {match[1]}
           </strong>
         )
       },
-      // Cursiva: *texto*
+      // Cursiva: *texto* (debe ir después de negrita)
       {
-        regex: /\*([^*]+)\*/g,
-        render: (match: RegExpMatchArray) => (
+        regex: /(?<!\*)\*([^*]+)\*(?!\*)/g,
+        render: (match: RegExpMatchArray, matchIndex: number) => (
           <em key={key++} className="italic">
             {match[1]}
           </em>
@@ -84,7 +88,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       }
     ];
 
-    // Procesar cada patrón
+    // Procesar cada patrón secuencialmente
     let processedText = text;
     const replacements: Array<{
       start: number;
@@ -92,14 +96,25 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       element: React.ReactNode;
     }> = [];
 
-    patterns.forEach(pattern => {
+    patterns.forEach((pattern) => {
+      const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
       let match;
-      while ((match = pattern.regex.exec(text)) !== null) {
-        replacements.push({
-          start: match.index,
-          end: match.index + match[0].length,
-          element: pattern.render(match)
-        });
+      
+      while ((match = regex.exec(text)) !== null) {
+        // Verificar que no se superponga con reemplazos existentes
+        const overlaps = replacements.some(r => 
+          (match.index >= r.start && match.index < r.end) ||
+          (match.index + match[0].length > r.start && match.index + match[0].length <= r.end) ||
+          (match.index <= r.start && match.index + match[0].length >= r.end)
+        );
+        
+        if (!overlaps) {
+          replacements.push({
+            start: match.index,
+            end: match.index + match[0].length,
+            element: pattern.render(match, match.index)
+          });
+        }
       }
     });
 
@@ -139,15 +154,15 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   return (
     <div className={`prose prose-sm max-w-none ${className}`}>
       {lines.map((line, index) => {
+        if (line.trim() === '') {
+          return <br key={index} />;
+        }
+        
         const processedLine = processMarkdown(line);
         
         return (
           <div key={index} className={index > 0 ? 'mt-2' : ''}>
-            {processedLine.length === 1 && typeof processedLine[0] === 'string' && processedLine[0] === '' ? (
-              <br />
-            ) : (
-              processedLine
-            )}
+            {processedLine}
           </div>
         );
       })}

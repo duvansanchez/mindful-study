@@ -3,6 +3,7 @@ import { Flashcard } from '@/types';
 import { StateBadge } from './StateBadge';
 import { NotionRenderer } from './NotionRenderer';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { ImageModal } from './ImageModal';
 import { 
   X, 
   StickyNote, 
@@ -34,9 +35,21 @@ export const FlashcardExpandedModal: React.FC<FlashcardExpandedModalProps> = ({
   const [showContent, setShowContent] = useState(false);
   const [showReferencePoints, setShowReferencePoints] = useState(false);
   
+  // Estado para ImageModal
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imageModalUrl, setImageModalUrl] = useState("");
+  const [imageModalCaption, setImageModalCaption] = useState("");
+  
   const { data: detailedContent, isLoading: contentLoading } = useFlashcardContent(card.id);
   const { data: reviewNotes = [], isLoading: notesLoading } = useReviewNotes(card.id);
   const { data: referencePoints = [], isLoading: referencePointsLoading } = useReferencePoints(card.id);
+
+  // Función para manejar clic en imágenes
+  const handleImageClick = (imageUrl: string, caption?: string) => {
+    setImageModalUrl(imageUrl);
+    setImageModalCaption(caption || "");
+    setImageModalOpen(true);
+  };
 
   if (!isOpen) return null;
 
@@ -159,7 +172,10 @@ export const FlashcardExpandedModal: React.FC<FlashcardExpandedModalProps> = ({
                 {reviewNotes.map((note) => (
                   <div key={note.id} className="bg-card border border-border rounded-lg p-4">
                     <div className="text-sm text-foreground leading-relaxed mb-3">
-                      <MarkdownRenderer content={note.content} />
+                      <MarkdownRenderer 
+                        content={note.content} 
+                        onImageClick={handleImageClick}
+                      />
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Clock className="w-3 h-3" />
@@ -281,6 +297,15 @@ export const FlashcardExpandedModal: React.FC<FlashcardExpandedModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Modal de imagen */}
+      <ImageModal
+        isOpen={imageModalOpen}
+        onClose={() => setImageModalOpen(false)}
+        imageUrl={imageModalUrl}
+        caption={imageModalCaption}
+        alt={imageModalCaption || "Imagen de nota de repaso"}
+      />
     </div>
   );
 };

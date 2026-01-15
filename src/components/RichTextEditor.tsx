@@ -83,6 +83,30 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }
   };
 
+  // Manejar pegado de imágenes desde el portapapeles
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // Verificar si es una imagen
+      if (item.type.startsWith('image/')) {
+        event.preventDefault();
+        
+        const file = item.getAsFile();
+        if (file) {
+          // Crear URL temporal para la imagen
+          const imageUrl = URL.createObjectURL(file);
+          const imageMarkdown = `![Imagen pegada](${imageUrl})`;
+          insertText(imageMarkdown);
+        }
+        break;
+      }
+    }
+  };
+
   // Manejar subida de archivo de imagen
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -171,6 +195,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         ref={textareaRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onPaste={handlePaste}
         placeholder={placeholder}
         disabled={disabled}
         className="border-0 resize-none focus-visible:ring-0 min-h-[120px]"
@@ -236,6 +261,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       <div className="p-2 border-t border-border bg-muted/20">
         <div className="text-xs text-muted-foreground">
           <span className="font-medium">Formato:</span> **negrita**, *cursiva*, [enlace](url), ![imagen](url)
+          <br />
+          <span className="font-medium">Imágenes:</span> Pega con Ctrl+V, sube archivos o inserta URL
         </div>
       </div>
     </div>
