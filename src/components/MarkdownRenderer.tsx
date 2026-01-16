@@ -11,10 +11,74 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   className = "",
   onImageClick
 }) => {
-  // Función para procesar el markdown básico
-  const processMarkdown = (text: string): React.ReactNode[] => {
+  // Función para detectar y procesar tablas markdown
+  const processTable = (lines: string[], startIndex: number): { element: React.ReactNode; endIndex: number } | null => {
+    if (startIndex >= lines.length) return null;
+    
+    const headerLine = lines[startIndex];
+    const separatorLine = lines[startIndex + 1];
+    
+    // Verificar si es una tabla válida
+    if (!headerLine || !separatorLine) return null;
+    if (!headerLine.includes('|') || !separatorLine.includes('|')) return null;
+    if (!separatorLine.match(/^\s*\|?[\s\-\|:]+\|?\s*$/)) return null;
+    
+    // Extraer headers
+    const headers = headerLine.split('|').map(h => h.trim()).filter(h => h !== '');
+    
+    // Encontrar todas las filas de la tabla
+    const rows: string[][] = [];
+    let currentIndex = startIndex + 2; // Empezar después del separador
+    
+    while (currentIndex < lines.length) {
+      const line = lines[currentIndex];
+      if (!line || !line.includes('|')) break;
+      
+      const cells = line.split('|').map(c => c.trim()).filter(c => c !== '');
+      if (cells.length > 0) {
+        rows.push(cells);
+        currentIndex++;
+      } else {
+        break;
+      }
+    }
+    
+    // Si no hay filas, no es una tabla válida
+    if (rows.length === 0) return null;
+    
+    const tableElement = (
+      <div className="my-4 overflow-x-auto">
+        <table className="min-w-full border border-border rounded-lg overflow-hidden">
+          <thead className="bg-muted/50">
+            <tr>
+              {headers.map((header, i) => (
+                <th key={i} className="px-3 py-2 text-left text-sm font-semibold text-foreground border-b border-border">
+                  {processInlineMarkdown(header)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex} className="px-3 py-2 text-sm text-foreground border-b border-border/30">
+                    {processInlineMarkdown(cell)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+    
+    return { element: tableElement, endIndex: currentIndex - 1 };
+  };
+
+  // Función para procesar markdown inline (negrita, cursiva, enlaces, etc.)
+  const processInlineMarkdown = (text: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
-    let currentIndex = 0;
     let key = 0;
 
     // Patrones de markdown en orden de prioridad
@@ -23,11 +87,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       {
         regex: /!\[([^\]]*)\]\(([^)]+)\)/g,
         render: (match: RegExpMatchArray, matchIndex: number) => (
-          <div key={key++} className="my-3">
+          <span key={key++} className="inline-block">
             <img
               src={match[2]}
               alt={match[1] || 'Imagen'}
-              className="max-w-full h-auto rounded-lg shadow-sm border border-border cursor-pointer hover:opacity-90 transition-opacity"
+              className="max-w-full h-auto max-h-20 rounded border border-border cursor-pointer hover:opacity-90 transition-opacity inline-block"
               loading="lazy"
               onClick={() => onImageClick?.(match[2], match[1])}
               title="Haz clic para ver en tamaño completo"
@@ -37,20 +101,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                 const parent = target.parentElement;
                 if (parent) {
                   parent.innerHTML = `
-                    <div class="p-3 bg-muted rounded-lg text-center text-muted-foreground border border-dashed">
-                      📷 Error cargando imagen<br>
-                      <small class="text-xs opacity-70">${match[2].substring(0, 50)}...</small>
-                    </div>
+                    <span class="text-xs text-muted-foreground">📷 Error cargando imagen</span>
                   `;
                 }
               }}
             />
-            {match[1] && (
-              <p className="text-sm text-muted-foreground text-center mt-2 italic">
-                {match[1]}
-              </p>
-            )}
-          </div>
+          </span>
         )
       },
       // Enlaces: [texto](url)
@@ -89,7 +145,6 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     ];
 
     // Procesar cada patrón secuencialmente
-    let processedText = text;
     const replacements: Array<{
       start: number;
       end: number;
@@ -148,24 +203,91 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     return parts.length > 0 ? parts : [text];
   };
 
-  // Dividir por saltos de línea y procesar cada línea
+  // Función para procesar encabezados y otros elementos de bloque
+  const processBlockElement = (line: string): React.ReactNode | null => {
+    // Encabezados: ### Título
+    const headerMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headerMatch) {
+      const level = headerMatch[1].length;
+      const text = headerMatch[2];
+      const processedText = processInlineMarkdown(text);
+      
+      const HeaderTag = `h${Math.min(level, 6)}` as keyof JSX.IntrinsicElements;
+      const sizeClasses = {
+        1: 'text-2xl font-bold',
+        2: 'text-xl font-bold', 
+        3: 'text-lg font-semibold',
+        4: 'text-base font-semibold',
+        5: 'text-sm font-semibold',
+        6: 'text-xs font-semibold'
+      };
+      
+      return (
+        <HeaderTag className={`${sizeClasses[level as keyof typeof sizeClasses]} text-foreground mt-4 mb-2`}>
+          {processedText}
+        </HeaderTag>
+      );
+    }
+    
+    // Separadores: ---
+    if (line.trim() === '---') {
+      return <hr className="my-4 border-border" />;
+    }
+    
+    return null;
+  };
+
+  // Procesar el contenido completo
   const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentLineIndex = 0;
+  let elementKey = 0;
+
+  while (currentLineIndex < lines.length) {
+    const line = lines[currentLineIndex];
+    
+    // Intentar procesar como tabla
+    const tableResult = processTable(lines, currentLineIndex);
+    if (tableResult) {
+      elements.push(
+        <div key={elementKey++}>
+          {tableResult.element}
+        </div>
+      );
+      currentLineIndex = tableResult.endIndex + 1;
+      continue;
+    }
+    
+    // Intentar procesar como elemento de bloque (encabezados, separadores)
+    const blockElement = processBlockElement(line);
+    if (blockElement) {
+      elements.push(
+        <div key={elementKey++}>
+          {blockElement}
+        </div>
+      );
+      currentLineIndex++;
+      continue;
+    }
+    
+    // Procesar como línea normal
+    if (line.trim() === '') {
+      elements.push(<br key={elementKey++} />);
+    } else {
+      const processedLine = processInlineMarkdown(line);
+      elements.push(
+        <div key={elementKey++} className={elements.length > 0 ? 'mt-2' : ''}>
+          {processedLine}
+        </div>
+      );
+    }
+    
+    currentLineIndex++;
+  }
   
   return (
     <div className={`prose prose-sm max-w-none ${className}`}>
-      {lines.map((line, index) => {
-        if (line.trim() === '') {
-          return <br key={index} />;
-        }
-        
-        const processedLine = processMarkdown(line);
-        
-        return (
-          <div key={index} className={index > 0 ? 'mt-2' : ''}>
-            {processedLine}
-          </div>
-        );
-      })}
+      {elements}
     </div>
   );
 };

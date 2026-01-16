@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Image, Bold, Italic, Link2, Type } from 'lucide-react';
+import { Image, Bold, Italic, Link2, Type, Table } from 'lucide-react';
 
 interface RichTextEditorProps {
   value: string;
@@ -123,6 +123,15 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }
   };
 
+  // Insertar tabla básica
+  const handleInsertTable = () => {
+    const tableMarkdown = `| Característica | Columna 1 | Columna 2 |
+| --- | --- | --- |
+| Fila 1 | Dato 1 | Dato 2 |
+| Fila 2 | Dato 3 | Dato 4 |`;
+    insertText(tableMarkdown);
+  };
+
   return (
     <div className={`border border-border rounded-lg ${className}`}>
       {/* Barra de herramientas */}
@@ -187,6 +196,18 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           className="h-8 w-8 p-0"
         >
           <Type className="w-4 h-4" />
+        </Button>
+        
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleInsertTable}
+          disabled={disabled}
+          title="Insertar tabla"
+          className="h-8 w-8 p-0"
+        >
+          <Table className="w-4 h-4" />
         </Button>
       </div>
 
@@ -260,7 +281,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       {/* Ayuda de formato */}
       <div className="p-2 border-t border-border bg-muted/20">
         <div className="text-xs text-muted-foreground">
-          <span className="font-medium">Formato:</span> **negrita**, *cursiva*, [enlace](url), ![imagen](url)
+          <span className="font-medium">Formato:</span> **negrita**, *cursiva*, [enlace](url), ![imagen](url), ### encabezado
+          <br />
+          <span className="font-medium">Tablas:</span> | Col1 | Col2 | (usa el botón de tabla para insertar)
           <br />
           <span className="font-medium">Imágenes:</span> Pega con Ctrl+V, sube archivos o inserta URL
         </div>
