@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ZoomIn, ZoomOut, RotateCw, Download, Pen, Eraser } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCw, Download, Pen, Eraser, Highlighter } from 'lucide-react';
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -24,10 +24,11 @@ export const ImageModal: React.FC<ImageModalProps> = ({
   
   // Estados para dibujo
   const [isDrawing, setIsDrawing] = React.useState(false);
-  const [drawingMode, setDrawingMode] = React.useState<'pen' | 'eraser' | null>(null);
-  const [isDrawingActive, setIsDrawingActive] = React.useState(false);
-  const [lastDrawPoint, setLastDrawPoint] = React.useState<{ x: number; y: number } | null>(null);
+  const [drawingMode, setDrawingMode] = React.useState<'pen' | 'highlighter' | 'eraser' | null>(null);
   const [drawingColor, setDrawingColor] = React.useState('#ff0000'); // Color por defecto: rojo
+  const [highlighterColor, setHighlighterColor] = React.useState('#ffff00'); // Color por defecto del resaltador: amarillo
+  const [highlighterOpacity, setHighlighterOpacity] = React.useState(0.4); // Opacidad del resaltador (0.1 a 0.8)
+  const [highlighterThickness, setHighlighterThickness] = React.useState(15); // Grosor del resaltador (5 a 30)
   const [showColorPicker, setShowColorPicker] = React.useState(false);
   
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -41,8 +42,6 @@ export const ImageModal: React.FC<ImageModalProps> = ({
       setPosition({ x: 0, y: 0 });
       setDrawingMode(null);
       setIsDrawing(false);
-      setIsDrawingActive(false);
-      setLastDrawPoint(null);
       
       // Limpiar canvas
       if (canvasRef.current) {
@@ -76,6 +75,11 @@ export const ImageModal: React.FC<ImageModalProps> = ({
         case 'D':
           e.preventDefault();
           toggleDrawingMode('pen');
+          break;
+        case 'h':
+        case 'H':
+          e.preventDefault();
+          toggleDrawingMode('highlighter');
           break;
         case 'e':
         case 'E':
@@ -128,7 +132,7 @@ export const ImageModal: React.FC<ImageModalProps> = ({
         const imgNaturalRatio = img.naturalWidth / img.naturalHeight;
         
         // Calcular el tamaño que tendría la imagen sin zoom para llenar el contenedor
-        let baseWidth, baseHeight;
+        let baseWidth: number, baseHeight: number;
         
         if (imgNaturalRatio > (containerRect.width / containerRect.height)) {
           // La imagen es más ancha proporcionalmente
@@ -184,13 +188,11 @@ export const ImageModal: React.FC<ImageModalProps> = ({
     document.body.removeChild(link);
   };
 
-  const toggleDrawingMode = (mode: 'pen' | 'eraser') => {
+  const toggleDrawingMode = (mode: 'pen' | 'highlighter' | 'eraser') => {
     if (drawingMode === mode) {
       setDrawingMode(null);
-      setIsDrawingActive(false);
     } else {
       setDrawingMode(mode);
-      setIsDrawingActive(true);
     }
   };
 
@@ -203,7 +205,7 @@ export const ImageModal: React.FC<ImageModalProps> = ({
     }
   };
 
-  // Colores predefinidos
+  // Colores predefinidos para lápiz
   const predefinedColors = [
     '#ff0000', // Rojo
     '#00ff00', // Verde
@@ -215,6 +217,20 @@ export const ImageModal: React.FC<ImageModalProps> = ({
     '#800080', // Púrpura
     '#000000', // Negro
     '#ffffff', // Blanco
+  ];
+
+  // Colores predefinidos para resaltador (colores fluorescentes típicos)
+  const highlighterColors = [
+    '#ffff00', // Amarillo fluorescente clásico
+    '#00ff41', // Verde fluorescente
+    '#ff6b9d', // Rosa fluorescente
+    '#00d4ff', // Azul fluorescente
+    '#ff8c00', // Naranja fluorescente
+    '#c724b1', // Magenta fluorescente
+    '#39ff14', // Verde neón
+    '#ff073a', // Rojo fluorescente
+    '#bf00ff', // Violeta fluorescente
+    '#ffb347', // Melocotón fluorescente
   ];
 
   // Funciones de dibujo
@@ -256,7 +272,6 @@ export const ImageModal: React.FC<ImageModalProps> = ({
     if (!coords) return;
     
     setIsDrawing(true);
-    setLastDrawPoint(coords);
     
     const ctx = canvasRef.current.getContext('2d');
     if (ctx) {
@@ -264,16 +279,24 @@ export const ImageModal: React.FC<ImageModalProps> = ({
       ctx.moveTo(coords.x, coords.y);
       
       // Configurar el estilo de dibujo
-      ctx.lineWidth = drawingMode === 'pen' ? 2 / zoom : 8 / zoom; // Ajustar grosor por zoom
+      if (drawingMode === 'pen') {
+        ctx.lineWidth = 2 / zoom;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = drawingColor;
+        ctx.globalAlpha = 1.0; // Opaco
+      } else if (drawingMode === 'highlighter') {
+        ctx.lineWidth = highlighterThickness / zoom; // Usar grosor ajustable
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = highlighterColor;
+        ctx.globalAlpha = highlighterOpacity; // Usar opacidad ajustable
+      } else {
+        ctx.lineWidth = 8 / zoom;
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.globalAlpha = 1.0;
+      }
+      
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      
-      if (drawingMode === 'pen') {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.strokeStyle = drawingColor; // Usar el color seleccionado
-      } else {
-        ctx.globalCompositeOperation = 'destination-out';
-      }
     }
   };
 
@@ -288,16 +311,33 @@ export const ImageModal: React.FC<ImageModalProps> = ({
     
     const ctx = canvasRef.current.getContext('2d');
     if (ctx) {
+      // Configurar el estilo de dibujo ANTES de cada trazo
+      if (drawingMode === 'pen') {
+        ctx.lineWidth = 2 / zoom;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = drawingColor;
+        ctx.globalAlpha = 1.0;
+      } else if (drawingMode === 'highlighter') {
+        ctx.lineWidth = highlighterThickness / zoom; // Usar grosor ajustable
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = highlighterColor;
+        ctx.globalAlpha = highlighterOpacity;
+      } else {
+        ctx.lineWidth = 8 / zoom;
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.globalAlpha = 1.0;
+      }
+      
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
       ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
     }
-    
-    setLastDrawPoint(coords);
   };
 
   const stopDrawing = () => {
     setIsDrawing(false);
-    setLastDrawPoint(null);
   };
 
   // Handle mouse events - un solo manejador que decide qué hacer
@@ -397,31 +437,96 @@ export const ImageModal: React.FC<ImageModalProps> = ({
               <Pen className="w-4 h-4" />
             </button>
             
-            {/* Color selector - solo visible cuando está en modo lápiz */}
-            {drawingMode === 'pen' && (
+            <button
+              onClick={() => toggleDrawingMode('highlighter')}
+              className={`p-2 text-white rounded-lg transition-colors ${
+                drawingMode === 'highlighter' ? 'bg-yellow-500' : 'hover:bg-white/20'
+              }`}
+              title="Resaltador (H)"
+            >
+              <Highlighter className="w-4 h-4" />
+            </button>
+            
+            {/* Color selector - visible para lápiz y resaltador */}
+            {(drawingMode === 'pen' || drawingMode === 'highlighter') && (
               <div className="relative" data-color-picker>
                 <button
                   onClick={() => setShowColorPicker(!showColorPicker)}
                   className="p-2 text-white hover:bg-white/20 rounded-lg transition-colors border-2 border-white/30"
                   title="Seleccionar color"
-                  style={{ backgroundColor: drawingColor }}
+                  style={{ backgroundColor: drawingMode === 'pen' ? drawingColor : highlighterColor }}
                 >
                   <div className="w-4 h-4 rounded-full border border-white/50" />
                 </button>
                 
                 {/* Panel de colores */}
                 {showColorPicker && (
-                  <div className="absolute top-full mt-2 left-0 bg-black/80 backdrop-blur-sm rounded-lg p-3 border border-white/20 z-50">
+                  <div className="absolute top-full mt-2 left-0 bg-black/80 backdrop-blur-sm rounded-lg p-3 border border-white/20 z-50 min-w-[280px]">
+                    <div className="text-white text-xs mb-2 font-medium">
+                      {drawingMode === 'pen' ? 'Colores de lápiz' : 'Colores de resaltador'}
+                    </div>
+                    
+                    {/* Control de opacidad - solo para resaltador */}
+                    {drawingMode === 'highlighter' && (
+                      <div className="mb-3 space-y-3">
+                        {/* Control de opacidad */}
+                        <div className="p-2 bg-white/10 rounded">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-white text-xs font-medium">Opacidad</span>
+                            <span className="text-white text-xs">{Math.round(highlighterOpacity * 100)}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.1"
+                            max="0.8"
+                            step="0.05"
+                            value={highlighterOpacity}
+                            onChange={(e) => setHighlighterOpacity(parseFloat(e.target.value))}
+                            className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                          />
+                          <div className="flex justify-between text-white text-xs mt-1 opacity-70">
+                            <span>Muy sutil (10%)</span>
+                            <span>Intenso (80%)</span>
+                          </div>
+                        </div>
+                        
+                        {/* Control de grosor */}
+                        <div className="p-2 bg-white/10 rounded">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-white text-xs font-medium">Grosor</span>
+                            <span className="text-white text-xs">{highlighterThickness}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="5"
+                            max="30"
+                            step="1"
+                            value={highlighterThickness}
+                            onChange={(e) => setHighlighterThickness(parseInt(e.target.value))}
+                            className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                          />
+                          <div className="flex justify-between text-white text-xs mt-1 opacity-70">
+                            <span>Fino (5px)</span>
+                            <span>Grueso (30px)</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="grid grid-cols-5 gap-2 mb-3">
-                      {predefinedColors.map((color) => (
+                      {(drawingMode === 'pen' ? predefinedColors : highlighterColors).map((color) => (
                         <button
                           key={color}
                           onClick={() => {
-                            setDrawingColor(color);
+                            if (drawingMode === 'pen') {
+                              setDrawingColor(color);
+                            } else {
+                              setHighlighterColor(color);
+                            }
                             setShowColorPicker(false);
                           }}
                           className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
-                            drawingColor === color ? 'border-white' : 'border-white/30'
+                            (drawingMode === 'pen' ? drawingColor : highlighterColor) === color ? 'border-white' : 'border-white/30'
                           }`}
                           style={{ backgroundColor: color }}
                           title={`Color ${color}`}
@@ -433,8 +538,14 @@ export const ImageModal: React.FC<ImageModalProps> = ({
                     <div className="flex items-center gap-2">
                       <input
                         type="color"
-                        value={drawingColor}
-                        onChange={(e) => setDrawingColor(e.target.value)}
+                        value={drawingMode === 'pen' ? drawingColor : highlighterColor}
+                        onChange={(e) => {
+                          if (drawingMode === 'pen') {
+                            setDrawingColor(e.target.value);
+                          } else {
+                            setHighlighterColor(e.target.value);
+                          }
+                        }}
                         className="w-8 h-8 rounded border border-white/30 bg-transparent cursor-pointer"
                         title="Color personalizado"
                       />
@@ -486,7 +597,7 @@ export const ImageModal: React.FC<ImageModalProps> = ({
           <div className="flex items-center gap-4">
             {/* Keyboard shortcuts help */}
             <div className="text-white text-xs opacity-70">
-              <span className="font-medium">Atajos:</span> +/- (zoom), D (dibujar), E (borrar), C (limpiar)
+              <span className="font-medium">Atajos:</span> +/- (zoom), D (dibujar), H (resaltar), E (borrar), C (limpiar)
             </div>
             
             <button
@@ -521,7 +632,7 @@ export const ImageModal: React.FC<ImageModalProps> = ({
               style={{
                 transform: `translate(${position.x}px, ${position.y}px) scale(${zoom}) rotate(${rotation}deg)`,
                 transformOrigin: 'center',
-                cursor: drawingMode ? (drawingMode === 'pen' ? 'crosshair' : 'grab') : 
+                cursor: drawingMode ? (drawingMode === 'pen' ? 'crosshair' : drawingMode === 'highlighter' ? 'cell' : 'grab') : 
                        zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
               }}
               onMouseDown={handleMouseDown}
