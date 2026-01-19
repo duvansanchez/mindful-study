@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Flashcard } from "@/types";
-import { X, Check, RotateCcw, Shuffle, Trophy, Clock, Loader2 } from "lucide-react";
+import { X, Check, RotateCcw, Shuffle, Trophy, Clock, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface MatchingPair {
   id: string;
   title: string;
   content: string;
+  fullContent: string; // Contenido completo sin truncar
   flashcardId: string;
 }
 
@@ -27,6 +28,7 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showErrorMessage, setShowErrorMessage] = useState(false);
+  const [expandedContents, setExpandedContents] = useState<Set<string>>(new Set()); // Track expanded content items
 
   // Cargar contenido de todas las flashcards al inicio
   useEffect(() => {
@@ -151,29 +153,36 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
             extractedContent = card.content || "Sin contenido disponible";
           }
 
-          // Limitar longitud para la interfaz
+          // Guardar el contenido completo
+          const fullContent = extractedContent;
+          
+          // Crear versión truncada para la interfaz
+          let truncatedContent = extractedContent;
           if (extractedContent.length > 200) {
             const lastSpace = extractedContent.lastIndexOf(' ', 200);
             const cutPoint = lastSpace > 160 ? lastSpace : 200;
-            extractedContent = extractedContent.substring(0, cutPoint) + '...';
+            truncatedContent = extractedContent.substring(0, cutPoint) + '...';
           }
 
-          console.log('🔍 Contenido final para', card.title, ':', extractedContent);
+          console.log('🔍 Contenido final para', card.title, ':', truncatedContent);
           
           gamePairs.push({
             id: card.id,
             title: card.title,
-            content: extractedContent || "Sin contenido disponible",
+            content: truncatedContent,
+            fullContent: fullContent,
             flashcardId: card.id
           });
           
         } catch (error) {
           console.error('❌ Error cargando contenido para', card.title, ':', error);
           // En caso de error, usar el contenido básico
+          const fallbackContent = card.content || "Sin contenido disponible";
           gamePairs.push({
             id: card.id,
             title: card.title,
-            content: card.content || "Sin contenido disponible",
+            content: fallbackContent,
+            fullContent: fallbackContent,
             flashcardId: card.id
           });
         }
@@ -250,9 +259,23 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
     setStartTime(new Date());
     setEndTime(null);
     setShowErrorMessage(false);
+    setExpandedContents(new Set()); // Reset expanded contents
     
     const shuffled = [...pairs].sort(() => Math.random() - 0.5);
     setShuffledContents(shuffled);
+  };
+
+  const toggleContentExpansion = (contentId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the content selection
+    setExpandedContents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(contentId)) {
+        newSet.delete(contentId);
+      } else {
+        newSet.add(contentId);
+      }
+      return newSet;
+    });
   };
 
   const getElapsedTime = (): string => {
@@ -419,25 +442,84 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
 
             {/* Contenidos (derecha) */}
             <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-center mb-4 text-primary">
-                Contenido de Notion
-              </h3>
-              {shuffledContents.map((pair) => (
-                <div
-                  key={`content-${pair.id}`}
-                  onClick={() => handleContentClick(pair.id)}
-                  className={getItemStyle(pair.id, false)}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-primary">
+                  Contenido de Notion
+                </h3>
+                <button
+                  onClick={() => {
+                    const expandableContent = shuffledContents.filter(pair => pair.fullContent.length > pair.content.length);
+                    
+                    if (expandableContent.length === 0) return;
+                    
+                    const expandableIds = expandableContent.map(pair => pair.id);
+                    const allExpandableAreExpanded = expandableIds.every(id => expandedContents.has(id));
+                    
+                    if (allExpandableAreExpanded) {
+                      // Contraer todos
+                      setExpandedContents(new Set());
+                    } else {
+                      // Expandir todos los que tienen contenido adicional
+                      setExpandedContents(new Set(expandableIds));
+                    }
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+                  title="Mostrar/ocultar todo el contenido"
                 >
-                  <div className="flex items-center gap-3">
-                    {correctMatches.has(pair.id) && (
-                      <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
-                    )}
-                    <div className="text-sm leading-relaxed">
-                      {pair.content}
+                  {(() => {
+                    const expandableContent = shuffledContents.filter(pair => pair.fullContent.length > pair.content.length);
+                    const expandableIds = expandableContent.map(pair => pair.id);
+                    const allExpandableAreExpanded = expandableIds.length > 0 && expandableIds.every(id => expandedContents.has(id));
+                    
+                    return allExpandableAreExpanded ? (
+                      <>
+                        <EyeOff className="w-4 h-4" />
+                        Ocultar todos
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-4 h-4" />
+                        Mostrar todos
+                      </>
+                    );
+                  })()}
+                </button>
+              </div>
+              {shuffledContents.map((pair) => {
+                const isExpanded = expandedContents.has(pair.id);
+                const hasMoreContent = pair.fullContent.length > pair.content.length;
+                const displayContent = isExpanded ? pair.fullContent : pair.content;
+                
+                return (
+                  <div
+                    key={`content-${pair.id}`}
+                    onClick={() => handleContentClick(pair.id)}
+                    className={getItemStyle(pair.id, false)}
+                  >
+                    <div className="flex items-start gap-3">
+                      {correctMatches.has(pair.id) && (
+                        <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      )}
+                      <div className="text-sm leading-relaxed flex-1">
+                        {displayContent}
+                      </div>
+                      {hasMoreContent && (
+                        <button
+                          onClick={(e) => toggleContentExpansion(pair.id, e)}
+                          className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex-shrink-0"
+                          title={isExpanded ? "Mostrar menos" : "Mostrar más"}
+                        >
+                          {isExpanded ? (
+                            <EyeOff className="w-4 h-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="w-4 h-4 text-muted-foreground" />
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
