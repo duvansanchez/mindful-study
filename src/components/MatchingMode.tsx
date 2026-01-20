@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Flashcard } from "@/types";
-import { X, Check, RotateCcw, Shuffle, Trophy, Clock, Loader2, Eye, EyeOff } from "lucide-react";
+import { X, Check, RotateCcw, Shuffle, Trophy, Clock, Loader2, Eye, EyeOff, Network, Link2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RelationshipNetworkModal } from "./RelationshipNetworkModal";
 
 interface MatchingPair {
   id: string;
@@ -9,6 +10,15 @@ interface MatchingPair {
   content: string;
   fullContent: string; // Contenido completo sin truncar
   flashcardId: string;
+}
+
+interface Relationship {
+  id: string;
+  fromId: string;
+  toId: string;
+  fromType: 'title' | 'content';
+  toType: 'title' | 'content';
+  reason?: string; // Opcional: razón de la relación
 }
 
 interface MatchingModeProps {
@@ -29,6 +39,12 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [showErrorMessage, setShowErrorMessage] = useState(false);
   const [expandedContents, setExpandedContents] = useState<Set<string>>(new Set()); // Track expanded content items
+  
+  // Estados para el modo de relaciones
+  const [relationshipMode, setRelationshipMode] = useState(false);
+  const [relationships, setRelationships] = useState<Relationship[]>([]);
+  const [selectedForRelation, setSelectedForRelation] = useState<{id: string, type: 'title' | 'content'} | null>(null);
+  const [showRelationshipModal, setShowRelationshipModal] = useState(false);
 
   // Cargar contenido de todas las flashcards al inicio
   useEffect(() => {
@@ -203,6 +219,11 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
   }, [cards]);
 
   const handleTitleClick = (titleId: string) => {
+    if (relationshipMode) {
+      handleRelationshipClick(titleId, 'title');
+      return;
+    }
+    
     if (correctMatches.has(titleId)) return;
     
     setSelectedTitle(titleId);
@@ -214,6 +235,11 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
   };
 
   const handleContentClick = (contentId: string) => {
+    if (relationshipMode) {
+      handleRelationshipClick(contentId, 'content');
+      return;
+    }
+    
     if (correctMatches.has(contentId)) return;
     
     setSelectedContent(contentId);
@@ -221,6 +247,36 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
     
     if (selectedTitle) {
       tryMatch(selectedTitle, contentId);
+    }
+  };
+
+  const handleRelationshipClick = (id: string, type: 'title' | 'content') => {
+    if (!selectedForRelation) {
+      // Primer elemento seleccionado
+      setSelectedForRelation({ id, type });
+    } else {
+      // Segundo elemento seleccionado - crear relación
+      if (selectedForRelation.id !== id) {
+        const newRelationship: Relationship = {
+          id: `${selectedForRelation.id}-${id}-${Date.now()}`,
+          fromId: selectedForRelation.id,
+          toId: id,
+          fromType: selectedForRelation.type,
+          toType: type
+        };
+        
+        // Verificar que no exista ya esta relación
+        const exists = relationships.some(rel => 
+          (rel.fromId === newRelationship.fromId && rel.toId === newRelationship.toId) ||
+          (rel.fromId === newRelationship.toId && rel.toId === newRelationship.fromId)
+        );
+        
+        if (!exists) {
+          setRelationships(prev => [...prev, newRelationship]);
+        }
+      }
+      
+      setSelectedForRelation(null);
     }
   };
 
@@ -261,6 +317,12 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
     setShowErrorMessage(false);
     setExpandedContents(new Set()); // Reset expanded contents
     
+    // Reset relationship mode
+    setRelationshipMode(false);
+    setRelationships([]);
+    setSelectedForRelation(null);
+    setShowRelationshipModal(false);
+    
     const shuffled = [...pairs].sort(() => Math.random() - 0.5);
     setShuffledContents(shuffled);
   };
@@ -278,6 +340,21 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
     });
   };
 
+  const toggleRelationshipMode = () => {
+    setRelationshipMode(!relationshipMode);
+    setSelectedForRelation(null);
+    setSelectedTitle(null);
+    setSelectedContent(null);
+  };
+
+  const removeRelationship = (relationshipId: string) => {
+    setRelationships(prev => prev.filter(rel => rel.id !== relationshipId));
+  };
+
+  const getRelationshipsForItem = (itemId: string) => {
+    return relationships.filter(rel => rel.fromId === itemId || rel.toId === itemId);
+  };
+
   const getElapsedTime = (): string => {
     const end = endTime || new Date();
     const elapsed = Math.floor((end.getTime() - startTime.getTime()) / 1000);
@@ -290,17 +367,29 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
     const isSelected = isTitle ? selectedTitle === id : selectedContent === id;
     const isCorrect = correctMatches.has(id);
     const isIncorrect = incorrectMatches.has(id);
+    const isSelectedForRelation = selectedForRelation?.id === id;
+    const hasRelationships = getRelationshipsForItem(id).length > 0;
     
-    let baseStyle = "p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ";
+    let baseStyle = "p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 relative ";
     
-    if (isCorrect) {
-      baseStyle += "bg-green-50 border-green-300 text-green-800 dark:bg-green-900/20 dark:border-green-600 dark:text-green-200 cursor-default ";
-    } else if (isIncorrect) {
-      baseStyle += "bg-red-50 border-red-300 text-red-800 dark:bg-red-900/20 dark:border-red-600 dark:text-red-200 animate-pulse ";
-    } else if (isSelected) {
-      baseStyle += "bg-blue-50 border-blue-400 text-blue-800 dark:bg-blue-900/20 dark:border-blue-500 dark:text-blue-200 scale-105 ";
+    if (relationshipMode) {
+      if (isSelectedForRelation) {
+        baseStyle += "bg-purple-50 border-purple-400 text-purple-800 dark:bg-purple-900/20 dark:border-purple-500 dark:text-purple-200 scale-105 ";
+      } else if (hasRelationships) {
+        baseStyle += "bg-blue-50 border-blue-300 text-blue-800 dark:bg-blue-900/20 dark:border-blue-600 dark:text-blue-200 ";
+      } else {
+        baseStyle += "bg-card border-border hover:border-purple/50 hover:bg-purple-50/50 dark:hover:bg-purple-900/10 ";
+      }
     } else {
-      baseStyle += "bg-card border-border hover:border-primary/50 hover:bg-accent/50 ";
+      if (isCorrect) {
+        baseStyle += "bg-green-50 border-green-300 text-green-800 dark:bg-green-900/20 dark:border-green-600 dark:text-green-200 cursor-default ";
+      } else if (isIncorrect) {
+        baseStyle += "bg-red-50 border-red-300 text-red-800 dark:bg-red-900/20 dark:border-red-600 dark:text-red-200 animate-pulse ";
+      } else if (isSelected) {
+        baseStyle += "bg-blue-50 border-blue-400 text-blue-800 dark:bg-blue-900/20 dark:border-blue-500 dark:text-blue-200 scale-105 ";
+      } else {
+        baseStyle += "bg-card border-border hover:border-primary/50 hover:bg-accent/50 ";
+      }
     }
     
     return baseStyle;
@@ -369,6 +458,35 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
             {correctMatches.size} / {pairs.length} completados
           </div>
           
+          {relationships.length > 0 && (
+            <div className="text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Link2 className="w-4 h-4" />
+                {relationships.length} relaciones
+              </span>
+            </div>
+          )}
+          
+          <Button
+            onClick={() => setShowRelationshipModal(!showRelationshipModal)}
+            variant="outline"
+            size="sm"
+            className={`flex items-center gap-2 ${relationships.length > 0 ? 'text-blue-600 border-blue-300' : ''}`}
+          >
+            <Network className="w-4 h-4" />
+            Ver Red
+          </Button>
+          
+          <Button
+            onClick={toggleRelationshipMode}
+            variant={relationshipMode ? "default" : "outline"}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Zap className="w-4 h-4" />
+            {relationshipMode ? 'Salir de relaciones' : 'Modo relaciones'}
+          </Button>
+          
           <Button
             onClick={resetGame}
             variant="outline"
@@ -389,6 +507,30 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
           </div>
         </div>
       )}
+
+      {/* Relationship mode instructions */}
+      {relationshipMode && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-20">
+          <div className="bg-purple-500 text-white px-6 py-3 rounded-lg shadow-lg">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              {selectedForRelation ? 
+                'Selecciona otro elemento para crear una relación' : 
+                'Selecciona dos elementos para relacionarlos'
+              }
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Relationship Network Modal */}
+      <RelationshipNetworkModal
+        isOpen={showRelationshipModal}
+        onClose={() => setShowRelationshipModal(false)}
+        pairs={pairs}
+        relationships={relationships}
+        onRemoveRelationship={removeRelationship}
+      />
 
       {/* Game completed overlay */}
       {isCompleted && (
@@ -431,10 +573,19 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
                   className={getItemStyle(pair.id, true)}
                 >
                   <div className="flex items-center gap-3">
-                    {correctMatches.has(pair.id) && (
+                    {correctMatches.has(pair.id) && !relationshipMode && (
                       <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
                     )}
-                    <div className="font-medium">{pair.title}</div>
+                    {relationshipMode && selectedForRelation?.id === pair.id && (
+                      <Zap className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                    )}
+                    <div className="font-medium flex-1">{pair.title}</div>
+                    {getRelationshipsForItem(pair.id).length > 0 && (
+                      <div className="flex items-center gap-1 text-blue-500">
+                        <Link2 className="w-4 h-4" />
+                        <span className="text-xs">{getRelationshipsForItem(pair.id).length}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -497,25 +648,36 @@ export default function MatchingMode({ cards, onClose }: MatchingModeProps) {
                     className={getItemStyle(pair.id, false)}
                   >
                     <div className="flex items-start gap-3">
-                      {correctMatches.has(pair.id) && (
+                      {correctMatches.has(pair.id) && !relationshipMode && (
                         <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      )}
+                      {relationshipMode && selectedForRelation?.id === pair.id && (
+                        <Zap className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
                       )}
                       <div className="text-sm leading-relaxed flex-1">
                         {displayContent}
                       </div>
-                      {hasMoreContent && (
-                        <button
-                          onClick={(e) => toggleContentExpansion(pair.id, e)}
-                          className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex-shrink-0"
-                          title={isExpanded ? "Mostrar menos" : "Mostrar más"}
-                        >
-                          {isExpanded ? (
-                            <EyeOff className="w-4 h-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="w-4 h-4 text-muted-foreground" />
-                          )}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {getRelationshipsForItem(pair.id).length > 0 && (
+                          <div className="flex items-center gap-1 text-blue-500">
+                            <Link2 className="w-4 h-4" />
+                            <span className="text-xs">{getRelationshipsForItem(pair.id).length}</span>
+                          </div>
+                        )}
+                        {hasMoreContent && (
+                          <button
+                            onClick={(e) => toggleContentExpansion(pair.id, e)}
+                            className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                            title={isExpanded ? "Mostrar menos" : "Mostrar más"}
+                          >
+                            {isExpanded ? (
+                              <EyeOff className="w-4 h-4 text-muted-foreground" />
+                            ) : (
+                              <Eye className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
