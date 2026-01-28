@@ -86,28 +86,45 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       // Imágenes: ![alt](url) - debe ir primero para evitar conflictos con enlaces
       {
         regex: /!\[([^\]]*)\]\(([^)]+)\)/g,
-        render: (match: RegExpMatchArray, matchIndex: number) => (
-          <span key={key++} className="inline-block">
-            <img
-              src={match[2]}
-              alt={match[1] || 'Imagen'}
-              className="max-w-full h-auto max-h-20 rounded border border-border cursor-pointer hover:opacity-90 transition-opacity inline-block"
-              loading="lazy"
-              onClick={() => onImageClick?.(match[2], match[1])}
-              title="Haz clic para ver en tamaño completo"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                const parent = target.parentElement;
-                if (parent) {
-                  parent.innerHTML = `
-                    <span class="text-xs text-muted-foreground">📷 Error cargando imagen</span>
-                  `;
-                }
-              }}
-            />
-          </span>
-        )
+        render: (match: RegExpMatchArray, matchIndex: number) => {
+          const alt = match[1] || 'Imagen';
+          const src = match[2];
+          
+          // Verificar si es una imagen base64
+          const isBase64 = src.startsWith('data:image/');
+          
+          return (
+            <span key={key++} className="inline-block my-2">
+              <img
+                src={src}
+                alt={alt}
+                className={`max-w-full h-auto rounded border border-border cursor-pointer hover:opacity-90 transition-opacity ${
+                  isBase64 ? 'max-h-40' : 'max-h-20'
+                }`}
+                loading="lazy"
+                onClick={() => onImageClick?.(src, alt)}
+                title="Haz clic para ver en tamaño completo"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  const parent = target.parentElement;
+                  if (parent) {
+                    parent.innerHTML = `
+                      <div class="flex items-center gap-2 p-2 bg-muted/50 rounded border border-border text-xs text-muted-foreground">
+                        <span>📷</span>
+                        <span>Error cargando imagen: ${alt}</span>
+                      </div>
+                    `;
+                  }
+                }}
+              />
+              {alt && alt !== 'Imagen' && (
+                <div className="text-xs text-muted-foreground mt-1 text-center">
+                  {alt}
+                </div>
+              )}
+            </span>
+          );
+        }
       },
       // Enlaces: [texto](url)
       {

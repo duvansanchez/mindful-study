@@ -8,7 +8,8 @@ import {
   StickyNote,
   Calendar,
   Edit3,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 
 interface PlanningSessionCardProps {
@@ -18,6 +19,7 @@ interface PlanningSessionCardProps {
   onEdit?: (session: PlanningSession) => void;
   onDelete?: (session: PlanningSession) => void;
   onStartSession?: (session: PlanningSession) => void;
+  isStarting?: boolean;
 }
 
 const studyModeConfig = {
@@ -47,7 +49,8 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
   sessionNumber,
   onEdit,
   onDelete,
-  onStartSession
+  onStartSession,
+  isStarting = false
 }) => {
   const modeConfig = studyModeConfig[session.studyMode];
   const ModeIcon = modeConfig.icon;
@@ -146,11 +149,24 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
         
         <button 
           onClick={() => onStartSession?.(session)}
-          className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
-          disabled={!onStartSession}
+          className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
+            isStarting 
+              ? 'bg-primary/20 text-primary cursor-not-allowed' 
+              : 'bg-primary/10 text-primary hover:bg-primary/20'
+          }`}
+          disabled={!onStartSession || isStarting}
         >
-          <BarChart3 className="w-3 h-3" />
-          <span>Iniciar sesión</span>
+          {isStarting ? (
+            <>
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Cargando...</span>
+            </>
+          ) : (
+            <>
+              <BarChart3 className="w-3 h-3" />
+              <span>Iniciar sesión</span>
+            </>
+          )}
         </button>
       </div>
     </div>

@@ -52,6 +52,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   const [sessionToEdit, setSessionToEdit] = useState<PlanningSession | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isStartingSession, setIsStartingSession] = useState(false);
+  const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
   
   // Estados para carpetas
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
@@ -279,6 +280,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     if (!onStartSession || isStartingSession) return;
     
     setIsStartingSession(true);
+    setStartingSessionId(session.id);
     
     try {
       // Obtener los databaseIds de la sesión
@@ -286,7 +288,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       
       if (databaseIds.length === 0) {
         alert('No hay bases de datos configuradas para esta sesión.');
-        setIsStartingSession(false);
         return;
       }
       
@@ -308,7 +309,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       
       if (finalFlashcards.length === 0) {
         alert('No hay flashcards disponibles para esta sesión.');
-        setIsStartingSession(false);
         return;
       }
       
@@ -320,6 +320,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       alert('Error al cargar las flashcards. Intenta de nuevo.');
     } finally {
       setIsStartingSession(false);
+      setStartingSessionId(null);
     }
   };
 
@@ -475,6 +476,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                             onEdit={handleEditSession}
                             onDelete={handleDeleteSession}
                             onStartSession={handleStartSession}
+                            isStarting={startingSessionId === session.id}
                           />
                         </div>
                       ))}
@@ -526,6 +528,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                           onEdit={handleEditSession}
                           onDelete={handleDeleteSession}
                           onStartSession={handleStartSession}
+                          isStarting={startingSessionId === session.id}
                         />
                       </div>
                     </div>
