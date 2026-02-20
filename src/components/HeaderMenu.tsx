@@ -30,6 +30,10 @@ export const HeaderMenu: React.FC<HeaderMenuProps> = ({ currentView, onNavigate 
   ];
 
   const getCurrentLabel = () => {
+    if (currentView === 'groups-general-info') {
+      return 'Agrupaciones';
+    }
+
     const current = menuItems.find(item => item.id === currentView);
     return current?.label || 'Inicio';
   };

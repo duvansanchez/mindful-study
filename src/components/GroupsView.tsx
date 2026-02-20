@@ -3,6 +3,7 @@ import { DatabaseGroup } from '@/types';
 import { GroupCard } from './GroupCard';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { Folder, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface GroupsViewProps {
   groups: DatabaseGroup[];
@@ -10,6 +11,7 @@ interface GroupsViewProps {
   onGroupClick: (group: DatabaseGroup) => void;
   onEditGroup: (group: DatabaseGroup) => void;
   onDeleteGroup: (group: DatabaseGroup) => void;
+  onShowGeneralInfo: () => void;
 }
 
 export const GroupsView: React.FC<GroupsViewProps> = ({
@@ -17,7 +19,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   groupsLoading,
   onGroupClick,
   onEditGroup,
-  onDeleteGroup
+  onDeleteGroup,
+  onShowGeneralInfo
 }) => {
   return (
     <div className="space-y-6 animate-fade-in">
@@ -29,7 +32,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             Organiza tus bases de datos de Notion por temas o proyectos
           </p>
         </div>
-        <CreateGroupDialog />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={onShowGeneralInfo}>
+            Información general agrupaciones
+          </Button>
+          <CreateGroupDialog />
+        </div>
       </div>
       
       {/* Content */}

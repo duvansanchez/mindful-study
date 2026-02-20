@@ -6,6 +6,7 @@ import { GroupDetailView } from "@/components/GroupDetailView";
 import { GroupStatsDetailView } from "@/components/GroupStatsDetailView";
 import { GroupGoalsView } from "@/components/GroupGoalsView";
 import { PlanningView } from "@/components/PlanningView";
+import { GroupGeneralInfoView } from "@/components/GroupGeneralInfoView";
 import { StatsView } from "@/components/StatsView";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
@@ -22,7 +23,7 @@ import { KnowledgeState, Flashcard, DatabaseGroup } from "@/types";
 import { AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type View = 'home' | 'groups' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
+type View = 'home' | 'groups' | 'groups-general-info' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
@@ -498,6 +499,14 @@ const Index = () => {
             onGroupClick={handleGroupClick}
             onEditGroup={setEditingGroup}
             onDeleteGroup={setDeletingGroup}
+            onShowGeneralInfo={() => setView('groups-general-info')}
+          />
+        )}
+
+        {view === 'groups-general-info' && (
+          <GroupGeneralInfoView
+            groups={groups}
+            onBack={() => setView('groups')}
           />
         )}
 
