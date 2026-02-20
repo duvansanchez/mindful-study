@@ -2744,6 +2744,40 @@ app.put('/groups/:groupId/session-folders/reorder', async (req, res) => {
   }
 });
 
+// ==================== ENDPOINTS DE NOTAS GLOBALES ====================
+
+// Obtener notas globales del módulo "Información general agrupaciones"
+app.get('/global-notes/group-info', async (req, res) => {
+  try {
+    const setting = await DatabaseService.getGlobalSetting('group_info_notes');
+    const notes = setting ? setting.value : '';
+    
+    res.json({ notes });
+  } catch (error) {
+    console.error('❌ Error obteniendo notas globales:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Guardar notas globales del módulo "Información general agrupaciones"
+app.put('/global-notes/group-info', async (req, res) => {
+  try {
+    const { notes } = req.body;
+    
+    if (notes === undefined || notes === null) {
+      return res.status(400).json({ error: 'Las notas son requeridas' });
+    }
+    
+    await DatabaseService.setGlobalSetting('group_info_notes', notes || '', 'string');
+    
+    console.log('✅ Notas globales actualizadas');
+    res.json({ success: true, notes });
+  } catch (error) {
+    console.error('❌ Error guardando notas globales:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`🚀 Test API server running at http://localhost:${port}`);
 });

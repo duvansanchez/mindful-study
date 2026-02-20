@@ -197,6 +197,32 @@ BEGIN
 END
 GO
 
+-- ==================== MIGRACIÓN 9: Tabla GlobalSettings para notas globales ====================
+PRINT '';
+PRINT '9. Verificando tabla GlobalSettings...';
+
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='GlobalSettings' AND xtype='U')
+BEGIN
+    PRINT '   -> Creando tabla GlobalSettings...';
+    CREATE TABLE [dbo].[GlobalSettings] (
+        [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+        [SettingKey] NVARCHAR(255) NOT NULL UNIQUE,
+        [SettingValue] NVARCHAR(MAX),
+        [SettingType] NVARCHAR(50) DEFAULT 'string', -- string, json, etc
+        [CreatedAt] DATETIME2 DEFAULT GETUTCDATE(),
+        [UpdatedAt] DATETIME2 DEFAULT GETUTCDATE(),
+        
+        CONSTRAINT CK_GlobalSettings_Key CHECK (LEN(TRIM(SettingKey)) > 0)
+    );
+    
+    PRINT '   ✅ Tabla GlobalSettings creada';
+END
+ELSE
+BEGIN
+    PRINT '   ✅ Tabla GlobalSettings ya existe';
+END
+GO
+
 PRINT '';
 PRINT '========================================';
 PRINT '✅ Actualización de esquema completada';

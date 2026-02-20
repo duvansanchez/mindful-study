@@ -1701,6 +1701,75 @@ class DatabaseService {
       throw error;
     }
   }
+
+  // ==================== CONFIGURACIÓN GLOBAL ====================
+
+  // Obtener configuración global
+  static async getGlobalSetting(settingKey) {
+    try {
+      const pool = await getPool();
+      
+      const result = await pool.request()
+        .input('settingKey', sql.NVarChar(255), settingKey)
+        .query(`
+          SELECT SettingValue, SettingType
+          FROM GlobalSettings
+          WHERE SettingKey = @settingKey
+        `);
+      
+      if (result.recordset.length === 0) {
+        return null;
+      }
+      
+      const setting = result.recordset[0];
+      return {
+        value: setting.SettingValue,
+        type: setting.SettingType
+      };
+    } catch (error) {
+      console.error('Error obteniendo configuración global:', error);
+      return null;
+    }
+  }
+
+  // Guardar o actualizar configuración global
+  static async setGlobalSetting(settingKey, settingValue, settingType = 'string') {
+    try {
+      const pool = await getPool();
+      
+      // Verificar si existe
+      const existsResult = await pool.request()
+        .input('settingKey', sql.NVarChar(255), settingKey)
+        .query('SELECT Id FROM GlobalSettings WHERE SettingKey = @settingKey');
+      
+      if (existsResult.recordset.length === 0) {
+        // Crear nueva
+        await pool.request()
+          .input('settingKey', sql.NVarChar(255), settingKey)
+          .input('settingValue', sql.NVarChar(sql.MAX), settingValue || '')
+          .input('settingType', sql.NVarChar(50), settingType)
+          .query(`
+            INSERT INTO GlobalSettings (SettingKey, SettingValue, SettingType)
+            VALUES (@settingKey, @settingValue, @settingType)
+          `);
+      } else {
+        // Actualizar existente
+        await pool.request()
+          .input('settingKey', sql.NVarChar(255), settingKey)
+          .input('settingValue', sql.NVarChar(sql.MAX), settingValue || '')
+          .query(`
+            UPDATE GlobalSettings
+            SET SettingValue = @settingValue
+            WHERE SettingKey = @settingKey
+          `);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error guardando configuración global:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = {
