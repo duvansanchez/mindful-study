@@ -13,6 +13,38 @@ const notion = new Client({
   auth: process.env.VITE_NOTION_TOKEN 
 });
 
+async function retrieveNotionDatabase(databaseId) {
+  if (notion.databases?.retrieve) {
+    return notion.databases.retrieve({ database_id: databaseId });
+  }
+
+  if (notion.dataSources?.retrieve) {
+    return notion.dataSources.retrieve({ data_source_id: databaseId });
+  }
+
+  throw new Error('Notion SDK no soporta retrieve de databases ni dataSources');
+}
+
+async function queryNotionDatabase(databaseId, pageSize = 100, startCursor) {
+  if (notion.databases?.query) {
+    return notion.databases.query({
+      database_id: databaseId,
+      page_size: pageSize,
+      start_cursor: startCursor,
+    });
+  }
+
+  if (notion.dataSources?.query) {
+    return notion.dataSources.query({
+      data_source_id: databaseId,
+      page_size: pageSize,
+      start_cursor: startCursor,
+    });
+  }
+
+  throw new Error('Notion SDK no soporta query de databases ni dataSources');
+}
+
 // Test de conexión
 app.get('/test', async (req, res) => {
   try {
@@ -33,15 +65,12 @@ app.get('/databases', async (req, res) => {
     const databaseId = '2c576585-c8ed-8120-961b-e9ad0498e162';
     
     try {
-      const database = await notion.databases.retrieve({ database_id: databaseId });
+      const database = await retrieveNotionDatabase(databaseId);
       const title = database.title?.[0]?.plain_text || 'Conceptos - Terminos de Advanced IT Support';
       const icon = database.icon?.emoji || '📄';
       
       // Obtener conteo de páginas
-      const pagesResponse = await notion.databases.query({
-        database_id: databaseId,
-        page_size: 100,
-      });
+      const pagesResponse = await queryNotionDatabase(databaseId, 100);
       
       const databases = [{
         id: database.id,
@@ -70,10 +99,7 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
     const { databaseId } = req.params;
     console.log('🔍 Obteniendo flashcards para:', databaseId);
     
-    const response = await notion.databases.query({
-      database_id: databaseId,
-      page_size: 100,
-    });
+    const response = await queryNotionDatabase(databaseId, 100);
 
     const flashcards = [];
 

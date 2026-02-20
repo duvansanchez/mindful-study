@@ -1,5 +1,4 @@
 import { Client } from '@notionhq/client';
-import { Client } from '@notionhq/client';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -15,6 +14,38 @@ app.use(express.json());
 const notion = new Client({ 
   auth: process.env.VITE_NOTION_TOKEN 
 });
+
+const retrieveNotionDatabase = async (databaseId) => {
+  if (notion.databases?.retrieve) {
+    return notion.databases.retrieve({ database_id: databaseId });
+  }
+
+  if (notion.dataSources?.retrieve) {
+    return notion.dataSources.retrieve({ data_source_id: databaseId });
+  }
+
+  throw new Error('Notion SDK no soporta retrieve de databases ni dataSources');
+};
+
+const queryNotionDatabase = async (databaseId, pageSize = 100, startCursor) => {
+  if (notion.databases?.query) {
+    return notion.databases.query({
+      database_id: databaseId,
+      page_size: pageSize,
+      start_cursor: startCursor,
+    });
+  }
+
+  if (notion.dataSources?.query) {
+    return notion.dataSources.query({
+      data_source_id: databaseId,
+      page_size: pageSize,
+      start_cursor: startCursor,
+    });
+  }
+
+  throw new Error('Notion SDK no soporta query de databases ni dataSources');
+};
 
 // Mapeo de estados de conocimiento
 const mapNotionStateToKnowledgeState = (notionState) => {
@@ -203,22 +234,13 @@ app.get('/databases', async (req, res) => {
           
           try {
             console.log('🔍 Obteniendo info de base de datos:', databaseId);
-            const database = await notion.databases.retrieve({ database_id: databaseId });
+            const database = await retrieveNotionDatabase(databaseId);
             
             const title = database.title?.[0]?.plain_text || 'Sin título';
             const icon = database.icon?.emoji || '📄';
             
             // Obtener el conteo real de páginas en la base de datos
-            const pagesResponse = await notion.databases.query({
-              database_id: databaseId,
-              page_size: 100,
-            });
-            
-            // Obtener el conteo real de páginas en la base de datos
-            const pagesResponse = await notion.databases.query({
-              database_id: databaseId,
-              page_size: 100,
-            });
+            const pagesResponse = await queryNotionDatabase(databaseId, 100);
             
             console.log('✅ Base de datos encontrada:', title, 'con', pagesResponse.results.length, 'páginas');
             
@@ -252,7 +274,7 @@ app.get('/databases/:databaseId/properties', async (req, res) => {
     const { databaseId } = req.params;
     console.log('🔍 Obteniendo propiedades para base de datos:', databaseId);
     
-    const database = await notion.databases.retrieve({ database_id: databaseId });
+    const database = await retrieveNotionDatabase(databaseId);
     
     const properties = {};
     
@@ -297,10 +319,7 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
     console.log('🔍 Obteniendo flashcards para base de datos:', databaseId);
     
     // Usar la API específica de databases.query en lugar de search
-    const response = await notion.databases.query({
-      database_id: databaseId,
-      page_size: 100,
-    });
+    const response = await queryNotionDatabase(databaseId, 100);
 
     console.log('📊 Páginas encontradas en la base de datos:', response.results.length);
 

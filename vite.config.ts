@@ -6,7 +6,8 @@ import path from "path";
 export default defineConfig({
   server: {
     host: true, // Permite conexiones desde otros dispositivos en la red
-    port: 8080,
+    port: 8082,
+    strictPort: true, // No intenta otro puerto si el 8082 está ocupado
     proxy: {
       '/api': {
         target: 'http://localhost:3002',
