@@ -1,17 +1,31 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { ArrowLeft, Calendar, Loader2, Target } from 'lucide-react';
-import { DatabaseGroup, PlanningSession } from '@/types';
+import { DatabaseGroup, Flashcard, PlanningSession } from '@/types';
 import { GroupGoal } from '@/hooks/useGroupGoals';
+import { NotionService } from '@/services/notion';
 
 const API_BASE = 'http://localhost:3002';
 
 interface GroupGeneralInfoViewProps {
   groups: DatabaseGroup[];
   onBack: () => void;
+  onStartSession?: (databaseId: string, flashcards: Flashcard[], studyMode: string) => void;
 }
 
-export const GroupGeneralInfoView: React.FC<GroupGeneralInfoViewProps> = ({ groups, onBack }) => {
+type PlanningSessionApi = Omit<PlanningSession, 'createdAt' | 'updatedAt'> & {
+  createdAt: string;
+  updatedAt: string;
+};
+
+type GroupGoalApi = Omit<GroupGoal, 'createdAt' | 'updatedAt'> & {
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const GroupGeneralInfoView: React.FC<GroupGeneralInfoViewProps> = ({ groups, onBack, onStartSession }) => {
+  const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
+
   const planningQueries = useQueries({
     queries: groups.map((group) => ({
       queryKey: ['planning-sessions', 'general-info', group.id],
@@ -21,8 +35,8 @@ export const GroupGeneralInfoView: React.FC<GroupGeneralInfoViewProps> = ({ grou
           return [];
         }
 
-        const data = await response.json();
-        return data.map((session: any) => ({
+        const data = await response.json() as PlanningSessionApi[];
+        return data.map((session) => ({
           ...session,
           createdAt: new Date(session.createdAt),
           updatedAt: new Date(session.updatedAt)
@@ -41,8 +55,8 @@ export const GroupGeneralInfoView: React.FC<GroupGeneralInfoViewProps> = ({ grou
           return [];
         }
 
-        const data = await response.json();
-        return data.map((goal: any) => ({
+        const data = await response.json() as GroupGoalApi[];
+        return data.map((goal) => ({
           ...goal,
           createdAt: new Date(goal.createdAt),
           updatedAt: new Date(goal.updatedAt)
@@ -53,6 +67,46 @@ export const GroupGeneralInfoView: React.FC<GroupGeneralInfoViewProps> = ({ grou
   });
 
   const isLoading = planningQueries.some((q) => q.isLoading) || goalsQueries.some((q) => q.isLoading);
+
+  const handleStartSession = async (session: PlanningSession) => {
+    if (!onStartSession || startingSessionId) return;
+
+    setStartingSessionId(session.id);
+    try {
+      const databaseIds = session.databaseIds || (session.databaseId ? [session.databaseId] : []);
+
+      if (databaseIds.length === 0) {
+        alert('No hay bases de datos configuradas para esta sesión.');
+        return;
+      }
+
+      const promises = databaseIds.map(async (dbId) => {
+        const flashcards = await NotionService.getFlashcardsFromDatabase(dbId);
+        return flashcards.map((flashcard) => ({ ...flashcard, databaseId: dbId }));
+      });
+
+      const results = await Promise.all(promises);
+      const allFlashcards = results.flat();
+
+      let finalFlashcards = allFlashcards;
+      if (session.selectedFlashcards && session.selectedFlashcards.length > 0) {
+        const selectedIds = new Set(session.selectedFlashcards);
+        finalFlashcards = allFlashcards.filter((flashcard) => selectedIds.has(flashcard.id));
+      }
+
+      if (finalFlashcards.length === 0) {
+        alert('No hay flashcards disponibles para esta sesión.');
+        return;
+      }
+
+      onStartSession(session.databaseId, finalFlashcards, session.studyMode);
+    } catch (error) {
+      console.error('Error cargando flashcards desde información general:', error);
+      alert('Error al cargar las flashcards. Intenta de nuevo.');
+    } finally {
+      setStartingSessionId(null);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -109,8 +163,15 @@ export const GroupGeneralInfoView: React.FC<GroupGeneralInfoViewProps> = ({ grou
                   {planningSessions.length > 0 ? (
                     <ul className="space-y-1">
                       {planningSessions.map((session) => (
-                        <li key={session.id} className="text-sm text-muted-foreground">
-                          {session.sessionName} ({session.studyMode})
+                        <li key={session.id} className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                          <span>{session.sessionName} ({session.studyMode})</span>
+                          <button
+                            onClick={() => handleStartSession(session)}
+                            disabled={startingSessionId === session.id}
+                            className="px-2 py-1 rounded border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                          >
+                            {startingSessionId === session.id ? 'Cargando...' : 'Usar planificación'}
+                          </button>
                         </li>
                       ))}
                     </ul>

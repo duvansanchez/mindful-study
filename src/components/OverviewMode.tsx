@@ -27,9 +27,10 @@ type SortOption = 'priority' | 'alphabetical' | 'created';
 
 interface FlashcardOverviewCardProps {
   card: Flashcard;
+  onImageClick: (imageUrl: string, caption?: string) => void;
 }
 
-const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) => {
+const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onImageClick }) => {
   const [isRevealed, setIsRevealed] = useState(false);
   const [showCreateReferenceDialog, setShowCreateReferenceDialog] = useState(false);
   const [showExpandedModal, setShowExpandedModal] = useState(false);
@@ -186,10 +187,10 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card }) =
                 {reviewNotes.slice(0, 3).map((note) => (
                   <div key={note.id} className="p-2 rounded bg-secondary/50 border border-border/30">
                     <div className="text-xs text-foreground leading-relaxed mb-1">
-                      <MarkdownRenderer 
-                        content={note.content} 
-                        className="text-xs" 
-                        onImageClick={handleImageClick}
+                      <MarkdownRenderer
+                        content={note.content}
+                        className="text-xs"
+                        onImageClick={onImageClick}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -519,7 +520,7 @@ export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: 
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sortedCards.map((card) => (
-                <FlashcardOverviewCard key={card.id} card={card} />
+                <FlashcardOverviewCard key={card.id} card={card} onImageClick={handleImageClick} />
               ))}
             </div>
           )}

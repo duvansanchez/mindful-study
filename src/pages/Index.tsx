@@ -401,7 +401,7 @@ const Index = () => {
     
     // Configurar el modo de estudio
     setPendingMode(studyMode as 'review' | 'matching');
-    setPreviousView('planning'); // Para regresar a planificación al cerrar
+    setPreviousView(view); // Regresar a la vista desde donde se inició la sesión
     
     // Navegar directamente al modo de estudio seleccionado
     if (studyMode === 'overview') {
@@ -507,6 +507,7 @@ const Index = () => {
           <GroupGeneralInfoView
             groups={groups}
             onBack={() => setView('groups')}
+            onStartSession={handleStartPlannedSession}
           />
         )}
 
