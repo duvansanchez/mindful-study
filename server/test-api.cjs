@@ -59,6 +59,143 @@ app.post('/clear-cache', (req, res) => {
   res.json({ success: true, message: 'Cache limpiado correctamente' });
 });
 
+// ==================== ENDPOINTS DE EXÁMENES ====================
+
+console.log('🔧 DEBUG: Registrando endpoints de exámenes...');
+
+// TEST: Endpoint simple para verificar
+app.get('/test-exams-route', (req, res) => {
+  console.log('🧪 TEST: Endpoint de prueba de exámenes llamado');
+  res.json({ message: 'Endpoints de exámenes están registrados', timestamp: new Date().toISOString() });
+});
+
+// Crear documento de examen
+app.post('/groups/:groupId/exams', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { examName, examData, timeLimit = 0, description } = req.body;
+    
+    if (!examName || examName.trim().length === 0) {
+      return res.status(400).json({ error: 'El nombre del examen es requerido' });
+    }
+    
+    if (!examData || examData.length === 0) {
+      return res.status(400).json({ error: 'El examen debe contener preguntas' });
+    }
+    
+    const exam = await DatabaseService.createExamDocument(groupId, examName.trim(), examData, timeLimit);
+    
+    console.log('✅ Documento de examen creado:', examName);
+    res.status(201).json(exam);
+  } catch (error) {
+    console.error('❌ Error creando documento de examen:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener exámenes de un grupo
+app.get('/groups/:groupId/exams', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    
+    const exams = await DatabaseService.getExamsByGroup(groupId);
+    
+    res.json(exams);
+  } catch (error) {
+    console.error('❌ Error obteniendo exámenes del grupo:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener un examen específico
+app.get('/exams/:examId', async (req, res) => {
+  try {
+    const { examId } = req.params;
+    
+    const exam = await DatabaseService.getExamDocument(examId);
+    
+    if (!exam) {
+      return res.status(404).json({ error: 'Examen no encontrado' });
+    }
+    
+    res.json(exam);
+  } catch (error) {
+    console.error('❌ Error obteniendo examen:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Registrar intento de examen
+app.post('/exams/:examId/submit', async (req, res) => {
+  try {
+    const { examId } = req.params;
+    const { groupId, examName, totalQuestions, correctAnswers, answers, duration } = req.body;
+    
+    if (!groupId || !examName || !answers) {
+      return res.status(400).json({ error: 'Datos incompletos para registrar el intento' });
+    }
+    
+    const attempt = await DatabaseService.recordExamAttempt(
+      examId,
+      groupId,
+      examName,
+      totalQuestions,
+      correctAnswers,
+      answers,
+      duration || 0
+    );
+    
+    console.log('✅ Intento de examen registrado:', examName);
+    res.status(201).json(attempt);
+  } catch (error) {
+    console.error('❌ Error registrando intento de examen:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener intentos de un examen
+app.get('/exams/:examId/attempts', async (req, res) => {
+  try {
+    const { examId } = req.params;
+    
+    const attempts = await DatabaseService.getExamAttempts(examId);
+    
+    res.json(attempts);
+  } catch (error) {
+    console.error('❌ Error obteniendo intentos de examen:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener intentos de exámenes de un grupo
+app.get('/groups/:groupId/exam-attempts', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    
+    const attempts = await DatabaseService.getGroupExamAttempts(groupId);
+    
+    res.json(attempts);
+  } catch (error) {
+    console.error('❌ Error obteniendo intentos de examen del grupo:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar documento de examen
+app.delete('/exams/:examId', async (req, res) => {
+  try {
+    const { examId } = req.params;
+    
+    await DatabaseService.deleteExamDocument(examId);
+    
+    console.log('✅ Documento de examen eliminado:', examId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error eliminando documento de examen:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== ENDPOINTS DE PLANIFICACIÓN (TEMP) ====================
 
 console.log('🔧 DEBUG: Registrando endpoints de planificación TEMP...');

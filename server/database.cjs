@@ -1770,6 +1770,232 @@ class DatabaseService {
       throw error;
     }
   }
+
+  // ==================== EXÁMENES ====================
+
+  // Crear documento de examen
+  static async createExamDocument(groupId, examName, examData, timeLimit = 0) {
+    try {
+      const pool = await getPool();
+      const examDataStr = JSON.stringify(examData);
+      const totalQuestions = Array.isArray(examData) ? examData.length : (examData.questions?.length || 0);
+      
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .input('examName', sql.NVarChar(255), examName)
+        .input('examData', sql.NVarChar(sql.MAX), examDataStr)
+        .input('timeLimit', sql.Int, timeLimit)
+        .input('totalQuestions', sql.Int, totalQuestions)
+        .query(`
+          INSERT INTO ExamDocuments (GroupId, ExamName, ExamData, TimeLimit, TotalQuestions)
+          OUTPUT INSERTED.Id, INSERTED.GroupId, INSERTED.ExamName, INSERTED.ExamData, INSERTED.TimeLimit, INSERTED.TotalQuestions, INSERTED.CreatedAt, INSERTED.UpdatedAt
+          VALUES (@groupId, @examName, @examData, @timeLimit, @totalQuestions)
+        `);
+      
+      if (result.recordset.length === 0) return null;
+      
+      const exam = result.recordset[0];
+      return {
+        id: exam.Id,
+        groupId: exam.GroupId,
+        examName: exam.ExamName,
+        examData: JSON.parse(exam.ExamData),
+        timeLimit: exam.TimeLimit,
+        totalQuestions: exam.TotalQuestions,
+        createdAt: exam.CreatedAt,
+        updatedAt: exam.UpdatedAt
+      };
+    } catch (error) {
+      console.error('Error creando documento de examen:', error);
+      throw error;
+    }
+  }
+
+  // Obtener exámenes de un grupo
+  static async getExamsByGroup(groupId) {
+    try {
+      const pool = await getPool();
+      
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .query(`
+          SELECT Id, GroupId, ExamName, ExamData, TimeLimit, TotalQuestions, CreatedAt, UpdatedAt
+          FROM ExamDocuments
+          WHERE GroupId = @groupId
+          ORDER BY CreatedAt DESC
+        `);
+      
+      return result.recordset.map(exam => ({
+        id: exam.Id,
+        groupId: exam.GroupId,
+        examName: exam.ExamName,
+        examData: JSON.parse(exam.ExamData),
+        timeLimit: exam.TimeLimit,
+        totalQuestions: exam.TotalQuestions,
+        createdAt: exam.CreatedAt,
+        updatedAt: exam.UpdatedAt
+      }));
+    } catch (error) {
+      console.error('Error obteniendo exámenes del grupo:', error);
+      return [];
+    }
+  }
+
+  // Obtener un examen específico
+  static async getExamDocument(examId) {
+    try {
+      const pool = await getPool();
+      
+      const result = await pool.request()
+        .input('examId', sql.UniqueIdentifier, examId)
+        .query(`
+          SELECT Id, GroupId, ExamName, ExamData, TimeLimit, TotalQuestions, CreatedAt, UpdatedAt
+          FROM ExamDocuments
+          WHERE Id = @examId
+        `);
+      
+      if (result.recordset.length === 0) return null;
+      
+      const exam = result.recordset[0];
+      return {
+        id: exam.Id,
+        groupId: exam.GroupId,
+        examName: exam.ExamName,
+        examData: JSON.parse(exam.ExamData),
+        timeLimit: exam.TimeLimit,
+        totalQuestions: exam.TotalQuestions,
+        createdAt: exam.CreatedAt,
+        updatedAt: exam.UpdatedAt
+      };
+    } catch (error) {
+      console.error('Error obteniendo documento de examen:', error);
+      return null;
+    }
+  }
+
+  // Guardar intento de examen
+  static async recordExamAttempt(examDocumentId, groupId, examName, totalQuestions, correctAnswers, answers, duration) {
+    try {
+      const pool = await getPool();
+      const score = (correctAnswers / totalQuestions) * 100;
+      const answersStr = JSON.stringify(answers);
+      
+      const result = await pool.request()
+        .input('examDocumentId', sql.UniqueIdentifier, examDocumentId)
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .input('examName', sql.NVarChar(255), examName)
+        .input('totalQuestions', sql.Int, totalQuestions)
+        .input('correctAnswers', sql.Int, correctAnswers)
+        .input('score', sql.Decimal(5, 2), score)
+        .input('answers', sql.NVarChar(sql.MAX), answersStr)
+        .input('duration', sql.Int, duration)
+        .query(`
+          INSERT INTO ExamAttempts (ExamDocumentId, GroupId, ExamName, TotalQuestions, CorrectAnswers, Score, Answers, Duration)
+          OUTPUT INSERTED.Id, INSERTED.ExamDocumentId, INSERTED.GroupId, INSERTED.ExamName, INSERTED.TotalQuestions, INSERTED.CorrectAnswers, INSERTED.Score, INSERTED.Answers, INSERTED.Duration, INSERTED.CreatedAt
+          VALUES (@examDocumentId, @groupId, @examName, @totalQuestions, @correctAnswers, @score, @answers, @duration)
+        `);
+      
+      if (result.recordset.length === 0) return null;
+      
+      const attempt = result.recordset[0];
+      return {
+        id: attempt.Id,
+        examDocumentId: attempt.ExamDocumentId,
+        groupId: attempt.GroupId,
+        examName: attempt.ExamName,
+        totalQuestions: attempt.TotalQuestions,
+        correctAnswers: attempt.CorrectAnswers,
+        score: attempt.Score,
+        answers: JSON.parse(attempt.Answers),
+        duration: attempt.Duration,
+        createdAt: attempt.CreatedAt
+      };
+    } catch (error) {
+      console.error('Error registrando intento de examen:', error);
+      throw error;
+    }
+  }
+
+  // Obtener intentos de un examen
+  static async getExamAttempts(examDocumentId) {
+    try {
+      const pool = await getPool();
+      
+      const result = await pool.request()
+        .input('examDocumentId', sql.UniqueIdentifier, examDocumentId)
+        .query(`
+          SELECT Id, ExamDocumentId, GroupId, ExamName, TotalQuestions, CorrectAnswers, Score, Answers, Duration, CreatedAt
+          FROM ExamAttempts
+          WHERE ExamDocumentId = @examDocumentId
+          ORDER BY CreatedAt DESC
+        `);
+      
+      return result.recordset.map(attempt => ({
+        id: attempt.Id,
+        examDocumentId: attempt.ExamDocumentId,
+        groupId: attempt.GroupId,
+        examName: attempt.ExamName,
+        totalQuestions: attempt.TotalQuestions,
+        correctAnswers: attempt.CorrectAnswers,
+        score: attempt.Score,
+        answers: JSON.parse(attempt.Answers),
+        duration: attempt.Duration,
+        createdAt: attempt.CreatedAt
+      }));
+    } catch (error) {
+      console.error('Error obteniendo intentos de examen:', error);
+      return [];
+    }
+  }
+
+  // Obtener intentos de exámenes de un grupo
+  static async getGroupExamAttempts(groupId) {
+    try {
+      const pool = await getPool();
+      
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .query(`
+          SELECT Id, ExamDocumentId, GroupId, ExamName, TotalQuestions, CorrectAnswers, Score, Answers, Duration, CreatedAt
+          FROM ExamAttempts
+          WHERE GroupId = @groupId
+          ORDER BY CreatedAt DESC
+        `);
+      
+      return result.recordset.map(attempt => ({
+        id: attempt.Id,
+        examDocumentId: attempt.ExamDocumentId,
+        groupId: attempt.GroupId,
+        examName: attempt.ExamName,
+        totalQuestions: attempt.TotalQuestions,
+        correctAnswers: attempt.CorrectAnswers,
+        score: attempt.Score,
+        answers: JSON.parse(attempt.Answers),
+        duration: attempt.Duration,
+        createdAt: attempt.CreatedAt
+      }));
+    } catch (error) {
+      console.error('Error obteniendo intentos de examen del grupo:', error);
+      return [];
+    }
+  }
+
+  // Eliminar documento de examen
+  static async deleteExamDocument(examId) {
+    try {
+      const pool = await getPool();
+      
+      await pool.request()
+        .input('examId', sql.UniqueIdentifier, examId)
+        .query('DELETE FROM ExamDocuments WHERE Id = @examId');
+      
+      return true;
+    } catch (error) {
+      console.error('Error eliminando documento de examen:', error);
+      throw error;
+    }
+  }
+
 }
 
 module.exports = {

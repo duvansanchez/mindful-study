@@ -7,6 +7,9 @@ import { GroupStatsDetailView } from "@/components/GroupStatsDetailView";
 import { GroupGoalsView } from "@/components/GroupGoalsView";
 import { PlanningView } from "@/components/PlanningView";
 import { GroupGeneralInfoView } from "@/components/GroupGeneralInfoView";
+import { ExamsView } from "@/components/ExamsView";
+import { ExamMode } from "@/components/ExamMode";
+import { ExamResults } from "@/components/ExamResults";
 import { StatsView } from "@/components/StatsView";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
@@ -22,8 +25,9 @@ import { useRecordStudySession } from "@/hooks/useStudyTracking";
 import { KnowledgeState, Flashcard, DatabaseGroup } from "@/types";
 import { AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 
-type View = 'home' | 'groups' | 'groups-general-info' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
+type View = 'home' | 'groups' | 'groups-general-info' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'exams' | 'exam-player' | 'exam-results' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
@@ -41,6 +45,15 @@ const Index = () => {
   // Estados para los diálogos de agrupaciones
   const [editingGroup, setEditingGroup] = useState<DatabaseGroup | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<DatabaseGroup | null>(null);
+
+  // Estados para exámenes
+  const [currentExamId, setCurrentExamId] = useState<string | null>(null);
+  const [currentExamName, setCurrentExamName] = useState<string>('');
+  const [currentExamQuestions, setCurrentExamQuestions] = useState<any[]>([]);
+  const [currentExamTimeLimit, setCurrentExamTimeLimit] = useState<number>(0);
+  const [examAnswers, setExamAnswers] = useState<Record<string | number, string>>({});
+  const [examResults, setExamResults] = useState<any>(null);
+  const [examDuration, setExamDuration] = useState<number>(0);
 
   // Notion hooks - Cargar bases de datos siempre al inicio
   const { data: databases = [], isLoading: databasesLoading } = useNotionDatabases(true);
@@ -110,6 +123,11 @@ const Index = () => {
   const handleShowGroupPlanning = (group: DatabaseGroup) => {
     setSelectedGroup(group);
     setView('planning');
+  };
+
+  const handleShowGroupExams = (group: DatabaseGroup) => {
+    setSelectedGroup(group);
+    setView('exams');
   };
 
   const handleBackToHome = () => {
@@ -212,6 +230,7 @@ const Index = () => {
       };
     } catch (error) {
       console.error('Error updating flashcard state:', error);
+      toast.error('Error al actualizar el estado de la tarjeta');
       return { success: false };
     }
   };
@@ -254,7 +273,7 @@ const Index = () => {
 
       } catch (error) {
         console.error('Error updating review date:', error);
-        // No bloquear el flujo si falla la actualización de fecha
+        toast.error('No se pudo actualizar la fecha de repaso', { duration: 2000 });
       }
     }
     
@@ -371,6 +390,79 @@ const Index = () => {
     setView(previousView);
     setSelectedDatabaseId(null);
     setIsPlannedSession(false); // Limpiar el estado de sesión planificada
+  };
+
+  // Handlers para exámenes
+  const handleStartExam = (examId: string, examName: string, questions: any[], timeLimit: number) => {
+    setCurrentExamId(examId);
+    setCurrentExamName(examName);
+    setCurrentExamQuestions(questions);
+    setCurrentExamTimeLimit(timeLimit);
+    setExamAnswers({});
+    setPreviousView(view);
+    setView('exam-player');
+  };
+
+  const handleExamSubmit = (answers: Record<string | number, string>, duration: number) => {
+    // Calcular resultados
+    const correct = Object.entries(answers).filter(([questionId, answer]) => {
+      const question = currentExamQuestions.find(q => q.id.toString() === questionId);
+      return question && question.correctAnswer === answer;
+    }).length;
+
+    const score = Math.round((correct / currentExamQuestions.length) * 100);
+
+    setExamResults({
+      examId: currentExamId,
+      examName: currentExamName,
+      totalQuestions: currentExamQuestions.length,
+      correctAnswers: correct,
+      score,
+      duration,
+      timestamp: new Date(),
+      answers: answers
+    });
+
+    // Guardar en servidor
+    saveExamAttempt(answers, correct, score, duration);
+
+    setView('exam-results');
+  };
+
+  const saveExamAttempt = async (answers: Record<string | number, string>, correctAnswers: number, score: number, duration: number) => {
+    try {
+      const response = await fetch(`http://localhost:3002/exams/${currentExamId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groupId: selectedGroup?.id,
+          examName: currentExamName,
+          totalQuestions: currentExamQuestions.length,
+          correctAnswers,
+          score,
+          answers,
+          duration
+        })
+      });
+
+      if (response.ok) {
+        console.log('✅ Intento de examen guardado');
+      } else {
+        toast.error('No se pudo guardar el intento del examen');
+      }
+    } catch (error) {
+      console.error('Error guardando intento:', error);
+      toast.error('Error de conexión al guardar el examen');
+    }
+  };
+
+  const handleExamBack = () => {
+    setView('exams');
+    setCurrentExamId(null);
+    setCurrentExamName('');
+    setCurrentExamQuestions([]);
+    setExamAnswers({});
+    setExamResults(null);
   };
 
   const handleStartPlannedSession = (databaseId: string, flashcards: Flashcard[], studyMode: string) => {
@@ -526,6 +618,7 @@ const Index = () => {
             onShowGroupStats={handleShowGroupStats}
             onShowGroupGoals={handleShowGroupGoals}
             onShowGroupPlanning={handleShowGroupPlanning}
+            onShowGroupExams={handleShowGroupExams}
             databaseCounts={databaseCounts}
           />
         )}
@@ -551,6 +644,14 @@ const Index = () => {
             databases={databases}
             onBack={() => setView('group-detail')}
             onStartSession={handleStartPlannedSession}
+          />
+        )}
+
+        {view === 'exams' && selectedGroup && (
+          <ExamsView
+            group={selectedGroup}
+            onBack={() => setView('group-detail')}
+            onStartExam={handleStartExam}
           />
         )}
       </main>
@@ -614,6 +715,26 @@ const Index = () => {
           currentIndex={currentCardIndex}
           totalCards={reviewCards.length}
           cardsToRepeatCount={cardsToRepeat.length}
+        />
+      )}
+
+      {/* Exam Mode */}
+      {view === 'exam-player' && (
+        <ExamMode
+          examName={currentExamName}
+          questions={currentExamQuestions}
+          timeLimit={currentExamTimeLimit}
+          onSubmit={handleExamSubmit}
+          onBack={handleExamBack}
+        />
+      )}
+
+      {/* Exam Results */}
+      {view === 'exam-results' && examResults && (
+        <ExamResults
+          attempt={examResults}
+          questions={currentExamQuestions}
+          onBack={handleExamBack}
         />
       )}
 

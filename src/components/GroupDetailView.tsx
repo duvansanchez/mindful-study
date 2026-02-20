@@ -18,7 +18,8 @@ import {
   ChevronRight,
   MoreVertical,
   Edit2,
-  Trash2
+  Trash2,
+  ClipboardList
 } from 'lucide-react';
 import { useGroupFoldersByGroup, useCreateGroupFolder, useUpdateGroupFolder, useDeleteGroupFolder } from '@/hooks/useGroupFolders';
 import { useMoveDatabaseToFolder, useGroupDatabases } from '@/hooks/useGroups';
@@ -41,6 +42,7 @@ interface GroupDetailViewProps {
   onShowGroupStats: (group: DatabaseGroup) => void;
   onShowGroupGoals: (group: DatabaseGroup) => void;
   onShowGroupPlanning: (group: DatabaseGroup) => void;
+  onShowGroupExams: (group: DatabaseGroup) => void;
   databaseCounts: Record<string, number>;
 }
 
@@ -54,6 +56,7 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
   onShowGroupStats,
   onShowGroupGoals,
   onShowGroupPlanning,
+  onShowGroupExams,
   databaseCounts
 }) => {
   // Estados para carpetas
@@ -280,7 +283,7 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
       </div>
 
       {/* Acciones rápidas del grupo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <button 
           onClick={() => onShowGroupStats(group)}
           className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left"
@@ -323,6 +326,21 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
           </div>
           <p className="text-sm text-muted-foreground">
             Programa sesiones de estudio para este grupo
+          </p>
+        </button>
+
+        <button 
+          onClick={() => onShowGroupExams(group)}
+          className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg group-hover:bg-orange-200 dark:group-hover:bg-orange-900/50 transition-colors">
+              <ClipboardList className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+            </div>
+            <h3 className="font-medium text-foreground">Exámenes</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Crea y realiza exámenes de evaluación para este grupo
           </p>
         </button>
       </div>

@@ -116,3 +116,48 @@ export interface FlashcardWithDatabase extends Flashcard {
   databaseName: string;
   databaseIcon?: string;
 }
+// ==================== TIPOS PARA EXÁMENES ====================
+
+export type ExamQuestionType = 'multiple' | 'essay' | 'true-false';
+
+export interface ExamQuestion {
+  id: string | number;
+  question: string;
+  type: ExamQuestionType;
+  options?: string[]; // Para multiple choice
+  correctAnswer?: string | string[];
+  explanation?: string;
+  timeLimit?: number; // segundos opcional
+}
+
+export interface ExamDocument {
+  id: string;
+  groupId: string;
+  examName: string;
+  description?: string;
+  timeLimit: number; // segundos, 0 = sin límite
+  totalQuestions: number;
+  questions: ExamQuestion[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ExamAttempt {
+  id: string;
+  examDocumentId: string;
+  groupId: string;
+  examName: string;
+  totalQuestions: number;
+  correctAnswers: number;
+  score: number; // Porcentaje (0-100)
+  answers: Record<string | number, string>; // {questionId: answer}
+  duration: number; // segundos
+  createdAt: Date;
+}
+
+export interface CreateExamDocumentData {
+  examName: string;
+  description?: string;
+  timeLimit?: number;
+  questions: ExamQuestion[];
+}

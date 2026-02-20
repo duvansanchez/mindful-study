@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KnowledgeState } from '@/types';
+import { toast } from 'sonner';
 
 interface StudySession {
   flashcardId: string;
@@ -49,6 +50,7 @@ export const useRecordStudySession = () => {
     },
     onError: (error) => {
       console.error('Error recording study session:', error);
+      toast.error('No se pudo registrar la sesión de estudio', { duration: 3000 });
     },
   });
 };

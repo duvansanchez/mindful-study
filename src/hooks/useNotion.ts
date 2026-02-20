@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { NotionService } from '@/services/notion';
 import { Database, Flashcard, KnowledgeState, Statistics } from '@/types';
+import { toast } from 'sonner';
 
 // Hook para obtener bases de datos
 export const useNotionDatabases = (enabled: boolean = true) => {
@@ -126,6 +127,7 @@ export const useMultipleNotionFlashcards = (databaseIds: string[]) => {
       } catch (err) {
         console.error('❌ Error cargando flashcards:', err);
         setError(err as Error);
+        toast.error('Error al cargar las flashcards. Verifica que el servidor esté activo.');
       } finally {
         setIsLoading(false);
       }
