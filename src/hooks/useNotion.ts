@@ -10,9 +10,10 @@ export const useNotionDatabases = (enabled: boolean = true) => {
     queryKey: ['notion-databases'],
     queryFn: NotionService.getDatabases,
     enabled: enabled,
-    staleTime: 5 * 60 * 1000, // 5 minutos de caché
-    cacheTime: 10 * 60 * 1000, // 10 minutos en memoria
-    retry: 2,
+    staleTime: 10 * 60 * 1000, // 10 minutos de caché
+    cacheTime: 20 * 60 * 1000, // 20 minutos en memoria
+    retry: 1, // un solo reintento — más reintentos agravan el rate limit
+    retryDelay: 5000, // esperar 5 segundos antes de reintentar
   });
 };
 
@@ -22,8 +23,9 @@ export const useNotionFlashcards = (databaseId: string | null) => {
     queryKey: ['notion-flashcards', databaseId],
     queryFn: () => databaseId ? NotionService.getFlashcardsFromDatabase(databaseId) : Promise.resolve([]),
     enabled: !!databaseId,
-    staleTime: 2 * 60 * 1000, // 2 minutos
-    retry: 2,
+    staleTime: 5 * 60 * 1000, // 5 minutos de caché
+    retry: 1,
+    retryDelay: 5000,
   });
 };
 

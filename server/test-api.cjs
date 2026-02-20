@@ -664,10 +664,18 @@ app.get('/databases', async (req, res) => {
     });
     
     console.log('💾 Bases de datos guardadas en cache por 15 minutos');
-    
+
     res.json(databases);
   } catch (error) {
     console.error('❌ Error general:', error);
+    // Si Notion devuelve rate limit (429), servir caché aunque esté vencido
+    if (error.status === 429 || error.code === 'rate_limited') {
+      const stale = databasesCache.get('all_databases');
+      if (stale) {
+        console.log('⚡ Rate limit de Notion — sirviendo caché vencido como fallback');
+        return res.json(stale.databases);
+      }
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -1180,6 +1188,14 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
     res.json(flashcards);
   } catch (error) {
     console.error('❌ Error fetching flashcards:', error);
+    // Si Notion devuelve rate limit (429), servir caché aunque esté vencido
+    if (error.status === 429 || error.code === 'rate_limited') {
+      const stale = flashcardsCache.get(req.params.databaseId);
+      if (stale) {
+        console.log('⚡ Rate limit de Notion — sirviendo caché vencido de flashcards como fallback');
+        return res.json(stale.flashcards);
+      }
+    }
     res.status(500).json({ error: error.message });
   }
 });
