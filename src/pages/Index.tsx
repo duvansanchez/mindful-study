@@ -11,6 +11,7 @@ import { ExamsView } from "@/components/ExamsView";
 import { ExamMode } from "@/components/ExamMode";
 import { ExamResults } from "@/components/ExamResults";
 import { StatsView } from "@/components/StatsView";
+import { SmartReviewView } from "@/components/SmartReviewView";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
 import MatchingMode from "@/components/MatchingMode";
@@ -27,7 +28,7 @@ import { AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 
-type View = 'home' | 'groups' | 'groups-general-info' | 'stats' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'exams' | 'exam-player' | 'exam-results' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
+type View = 'home' | 'groups' | 'groups-general-info' | 'stats' | 'smart-review' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'exams' | 'exam-player' | 'exam-results' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
@@ -95,6 +96,9 @@ const Index = () => {
         break;
       case 'stats':
         setView('stats');
+        break;
+      case 'smart-review':
+        setView('smart-review');
         break;
       case 'settings':
         // Por ahora, solo mostrar un mensaje
@@ -605,6 +609,10 @@ const Index = () => {
 
         {view === 'stats' && (
           <StatsView onBack={handleBackToHome} />
+        )}
+
+        {view === 'smart-review' && (
+          <SmartReviewView groups={groups} onBack={handleBackToHome} />
         )}
 
         {view === 'group-detail' && selectedGroup && (

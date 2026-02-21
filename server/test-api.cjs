@@ -2483,6 +2483,41 @@ app.get('/last-study/:groupId', async (req, res) => {
   }
 });
 
+// Resumen de sesiones por flashcard (batch) — debe ir ANTES de rutas con parámetro
+app.get('/flashcards/sessions-summary', async (req, res) => {
+  try {
+    const { groupId } = req.query;
+    const summary = await DatabaseService.getFlashcardSessionsSummary(groupId || null);
+    res.json(summary);
+  } catch (error) {
+    console.error('Error getting sessions summary:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Racha de días consecutivos de estudio
+app.get('/study-streak', async (req, res) => {
+  try {
+    const result = await DatabaseService.getStudyStreak();
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting study streak:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Calendario de actividad (últimos N días)
+app.get('/study-calendar', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 90;
+    const calendar = await DatabaseService.getStudyCalendar(days);
+    res.json(calendar);
+  } catch (error) {
+    console.error('Error getting study calendar:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Endpoint para obtener el número de veces que se ha repasado una flashcard
 app.get('/flashcards/:flashcardId/review-count', async (req, res) => {
   try {

@@ -150,6 +150,48 @@ export const useFlashcardReviewCount = (flashcardId?: string) => {
   });
 };
 
+// Hook para obtener racha de días consecutivos de estudio
+export const useStudyStreak = () => {
+  return useQuery({
+    queryKey: ['study-streak'],
+    queryFn: async (): Promise<{ streak: number; lastStudied: string | null }> => {
+      const response = await fetch('/api/study-streak');
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+// Hook para obtener el calendario de actividad (heatmap)
+export const useStudyCalendar = (days = 90) => {
+  return useQuery({
+    queryKey: ['study-calendar', days],
+    queryFn: async (): Promise<{ date: string; count: number }[]> => {
+      const response = await fetch(`/api/study-calendar?days=${days}`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+// Hook para obtener resumen de sesiones por flashcard (batch)
+export const useFlashcardSessionsSummary = (groupId?: string) => {
+  return useQuery({
+    queryKey: ['flashcard-sessions-summary', groupId ?? 'all'],
+    queryFn: async (): Promise<{ FlashcardId: string; sessionCount: number; lastStudiedAt: string | null; latestState: string | null }[]> => {
+      const url = groupId
+        ? `/api/flashcards/sessions-summary?groupId=${groupId}`
+        : '/api/flashcards/sessions-summary';
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return response.json();
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
 // Hook para obtener conteos de notas de repaso por base de datos
 export const useNotesCountByDatabase = (databaseId?: string) => {
   return useQuery({

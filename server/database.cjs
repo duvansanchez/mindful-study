@@ -616,6 +616,109 @@ class DatabaseService {
     }
   }
 
+  static async getFlashcardSessionsSummary(groupId) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+
+      let query;
+      if (groupId) {
+        request.input('GroupId', sql.UniqueIdentifier, groupId);
+        query = `
+          SELECT FlashcardId,
+                 COUNT(*) as sessionCount,
+                 MAX(StudiedAt) as lastStudiedAt,
+                 MAX(NewState) as latestState
+          FROM app.StudySessions
+          WHERE GroupId = @GroupId
+          GROUP BY FlashcardId
+        `;
+      } else {
+        query = `
+          SELECT FlashcardId,
+                 COUNT(*) as sessionCount,
+                 MAX(StudiedAt) as lastStudiedAt,
+                 MAX(NewState) as latestState
+          FROM app.StudySessions
+          GROUP BY FlashcardId
+        `;
+      }
+
+      const result = await request.query(query);
+      return result.recordset;
+    } catch (error) {
+      console.error('Error getting flashcard sessions summary:', error);
+      throw error;
+    }
+  }
+
+  static async getStudyStreak() {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+
+      const result = await request.query(`
+        SELECT DISTINCT CAST(StudiedAt AS DATE) as StudyDay
+        FROM app.StudySessions
+        ORDER BY StudyDay DESC
+      `);
+
+      const days = result.recordset.map(r => r.StudyDay.toISOString().split('T')[0]);
+      if (days.length === 0) return { streak: 0, lastStudied: null };
+
+      let streak = 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      for (let i = 0; i < days.length; i++) {
+        const expected = new Date(today);
+        expected.setDate(today.getDate() - i);
+        const expectedStr = expected.toISOString().split('T')[0];
+
+        if (days[i] === expectedStr) {
+          streak++;
+        } else {
+          // Permitir que hoy no tenga sesión aún (streak sigue activo desde ayer)
+          if (i === 0 && days[0] === new Date(today.getTime() - 86400000).toISOString().split('T')[0]) {
+            continue;
+          }
+          break;
+        }
+      }
+
+      return { streak, lastStudied: days[0] };
+    } catch (error) {
+      console.error('Error getting study streak:', error);
+      throw error;
+    }
+  }
+
+  static async getStudyCalendar(days = 90) {
+    try {
+      const pool = await getPool();
+      const request = pool.request();
+
+      request.input('Days', sql.Int, days);
+
+      const result = await request.query(`
+        SELECT CAST(StudiedAt AS DATE) as StudyDay,
+               COUNT(*) as sessionCount
+        FROM app.StudySessions
+        WHERE StudiedAt >= DATEADD(DAY, -@Days, GETUTCDATE())
+        GROUP BY CAST(StudiedAt AS DATE)
+        ORDER BY StudyDay ASC
+      `);
+
+      return result.recordset.map(r => ({
+        date: r.StudyDay.toISOString().split('T')[0],
+        count: r.sessionCount,
+      }));
+    } catch (error) {
+      console.error('Error getting study calendar:', error);
+      throw error;
+    }
+  }
+
   static async getNotesCountByDatabase(databaseId) {
     try {
       const pool = await getPool();
