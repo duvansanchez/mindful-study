@@ -314,8 +314,8 @@ export const SmartReviewView: React.FC<SmartReviewViewProps> = ({ groups, onBack
 
           <div className="border border-border rounded-xl p-4 space-y-2 text-xs text-muted-foreground">
             <p className="font-medium text-foreground text-sm">Cómo se calcula</p>
-            <p><span className="font-medium text-orange-500">En riesgo</span>: tarjetas verde/sólido sin repasar en más del doble de su intervalo normal.</p>
-            <p><span className="font-medium text-purple-500">Problemáticas</span>: más de 3 sesiones de repaso pero siguen en estado "tocado".</p>
+            <p><span className="font-medium text-orange-500">En riesgo</span>: tarjetas verdes o sólidas que llevan demasiado tiempo sin repasarse — más de 14 días para verdes y más de 42 días para sólidas. Estas tarjetas corren el riesgo de olvidarse.</p>
+            <p><span className="font-medium text-purple-500">Problemáticas</span>: tarjetas que has repasado más de 3 veces pero siguen en estado "tocado". Puede que necesiten un enfoque de estudio diferente.</p>
           </div>
         </div>
       )}
