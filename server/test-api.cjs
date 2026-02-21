@@ -934,9 +934,9 @@ app.post('/notion/databases/sync', async (req, res) => {
   }
 });
 
-// Cache para flashcards (5 minutos de TTL)
+// Cache para flashcards (30 minutos de TTL)
 const flashcardsCache = new Map();
-const FLASHCARDS_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+const FLASHCARDS_CACHE_TTL = 30 * 60 * 1000; // 30 minutos
 
 // Obtener flashcards de una base de datos (MÉTODO ORIGINAL QUE FUNCIONABA)
 app.get('/databases/:databaseId/flashcards', async (req, res) => {
@@ -964,24 +964,24 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
     while (hasMore) {
       console.log(`📄 Página ${pagesProcessed + 1}...`);
       
-      const response = await notion.search({
-        query: '',
-        page_size: 100,
-        start_cursor: nextCursor,
-        filter: {
-          value: 'page',
-          property: 'object'
-        }
+      const queryBody = { page_size: 100 };
+      if (nextCursor) queryBody.start_cursor = nextCursor;
+
+      const queryRes = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.VITE_NOTION_TOKEN}`,
+          'Notion-Version': '2022-06-28',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(queryBody),
       });
-      
-      const pagesInThisDb = response.results.filter((page) => 
-        page.object === 'page' &&
-        page.parent && 
-        page.parent.database_id === databaseId
-      );
-      
-      console.log(`📊 Páginas totales en esta búsqueda: ${response.results.length}`);
-      console.log(`📊 Páginas de esta DB específica: ${pagesInThisDb.length}`);
+      const response = await queryRes.json();
+      if (response.object === 'error') throw new Error(response.message);
+
+      const pagesInThisDb = response.results;
+
+      console.log(`📊 Páginas obtenidas de esta DB: ${pagesInThisDb.length}`);
       
       // Procesar TODAS las páginas encontradas de esta base de datos
       const batchPromises = pagesInThisDb.map(async (page) => {
@@ -1931,22 +1931,22 @@ app.get('/groups/:groupId/stats', async (req, res) => {
         
         // Usar consulta directa a la base de datos
         while (hasMore) {
-          const response = await notion.search({
-            query: '',
-            page_size: 100,
-            start_cursor: nextCursor,
-            filter: {
-              value: 'page',
-              property: 'object'
-            }
+          const queryBody = { page_size: 100 };
+          if (nextCursor) queryBody.start_cursor = nextCursor;
+
+          const queryRes = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.VITE_NOTION_TOKEN}`,
+              'Notion-Version': '2022-06-28',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(queryBody),
           });
-          
-          // Filtrar páginas que pertenecen a esta base de datos específica
-          const pagesInThisDb = response.results.filter((page) => 
-            page.object === 'page' &&
-            page.parent && 
-            page.parent.database_id === dbId
-          );
+          const response = await queryRes.json();
+          if (response.object === 'error') throw new Error(response.message);
+
+          const pagesInThisDb = response.results;
           
           // Procesar páginas para estadísticas
           for (const page of pagesInThisDb) {
@@ -1971,15 +1971,6 @@ app.get('/groups/:groupId/stats', async (req, res) => {
           
           hasMore = response.has_more;
           nextCursor = response.next_cursor;
-          
-          // Si no encontramos páginas en esta respuesta, salir para evitar bucle infinito
-          if (pagesInThisDb.length === 0 && response.results.length > 0) {
-            // Continuar buscando si hay más páginas pero ninguna de esta DB
-            continue;
-          } else if (pagesInThisDb.length === 0) {
-            // No hay más páginas relevantes
-            break;
-          }
         }
         
         const endTime = Date.now();
