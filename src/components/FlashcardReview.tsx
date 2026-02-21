@@ -3,7 +3,7 @@ import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
 import type { NotionBlock } from "./NotionRenderer";
-import { ChevronDown, ChevronUp, ChevronRight, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon, Bookmark } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon, Bookmark, ExternalLink } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFlashcardContent } from "@/hooks/useNotion";
@@ -1777,9 +1777,20 @@ export function FlashcardReview({
 
             {/* Front of card - Title */}
             <div className="text-center animate-slide-up">
-              <h1 className="text-2xl sm:text-3xl font-semibold text-foreground mb-2">
-                {card.title}
-              </h1>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">
+                  {card.title}
+                </h1>
+                <a
+                  href={`https://www.notion.so/${card.id.replace(/-/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Abrir en Notion"
+                  className="text-muted-foreground/50 hover:text-muted-foreground transition-colors flex-shrink-0"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
               <StateBadge state={card.state} size="sm" />
             </div>
 
@@ -1888,9 +1899,20 @@ export function FlashcardReview({
                     <div className="text-foreground max-w-none">
                       {/* Show title in revealed content too */}
                       <div className="mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-border">
-                        <h2 className="text-xl sm:text-2xl font-semibold text-foreground mb-2">
-                          {card.title}
-                        </h2>
+                        <div className="flex items-center gap-2 mb-2">
+                          <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
+                            {card.title}
+                          </h2>
+                          <a
+                            href={`https://www.notion.so/${card.id.replace(/-/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Abrir en Notion"
+                            className="text-muted-foreground/50 hover:text-muted-foreground transition-colors flex-shrink-0"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </div>
                         <StateBadge state={card.state} size="sm" />
                       </div>
                       
