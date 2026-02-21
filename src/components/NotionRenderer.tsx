@@ -148,7 +148,7 @@ const TableBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
 
 // Componente para toggle con carga automática optimizada
 const ToggleBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
-  const [isOpen, setIsOpen] = useState(true); // Abierto por defecto
+  const [isOpen, setIsOpen] = useState(false); // Cerrado por defecto
   const [children, setChildren] = useState<NotionBlock[]>(block.children || []);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(!!block.children?.length);

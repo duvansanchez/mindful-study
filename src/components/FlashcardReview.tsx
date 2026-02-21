@@ -290,12 +290,7 @@ export function FlashcardReview({
   cardsToRepeatCount = 0
 }: FlashcardReviewProps) {
   const [revealed, setRevealed] = useState(false);
-  // Estado para mantener la preferencia de información adicional durante la sesión
-  const [showAuxiliary, setShowAuxiliary] = useState(() => {
-    // Recuperar la preferencia guardada en localStorage
-    const saved = localStorage.getItem('flashcard-show-auxiliary');
-    return saved === 'true';
-  });
+  const [showAuxiliary, setShowAuxiliary] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [showNotesPanel, setShowNotesPanel] = useState(false);
@@ -424,9 +419,9 @@ export function FlashcardReview({
         setLastReviewMessage(result.lastReviewMessage);
       }
       
-      // Resetear estado del componente (EXCEPTO showAuxiliary que se mantiene)
+      // Resetear estado del componente al cambiar de flashcard
       setRevealed(false);
-      // NO resetear showAuxiliary - mantener la preferencia del usuario
+      setShowAuxiliary(false);
       setShowNoteInput(false);
       setNoteText("");
       setLastReviewMessage(null);
