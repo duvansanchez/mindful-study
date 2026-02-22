@@ -442,7 +442,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
               return <ToggleBlock key={key} block={block} />;
             }
             return (
-              <h1 key={key} className="text-2xl font-bold mt-6 mb-3 whitespace-pre-wrap">
+              <h1 key={key} id={key} className="text-2xl font-bold mt-6 mb-3 whitespace-pre-wrap scroll-mt-4">
                 <RichTextRenderer richText={richText} />
               </h1>
             );
@@ -452,7 +452,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
               return <ToggleBlock key={key} block={block} />;
             }
             return (
-              <h2 key={key} className="text-xl font-semibold mt-5 mb-2 whitespace-pre-wrap">
+              <h2 key={key} id={key} className="text-xl font-semibold mt-5 mb-2 whitespace-pre-wrap scroll-mt-4">
                 <RichTextRenderer richText={richText} />
               </h2>
             );
@@ -462,7 +462,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
               return <ToggleBlock key={key} block={block} />;
             }
             return (
-              <h3 key={key} className="text-lg font-medium mt-4 mb-2 whitespace-pre-wrap">
+              <h3 key={key} id={key} className="text-lg font-medium mt-4 mb-2 whitespace-pre-wrap scroll-mt-4">
                 <RichTextRenderer richText={richText} />
               </h3>
             );

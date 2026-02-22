@@ -3,7 +3,7 @@ import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
 import type { NotionBlock } from "./NotionRenderer";
-import { ChevronDown, ChevronUp, ChevronRight, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon, Bookmark, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon, Bookmark, ExternalLink, Hash } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFlashcardContent } from "@/hooks/useNotion";
@@ -303,6 +303,9 @@ export function FlashcardReview({
   const [noteFilter, setNoteFilter] = useState<string>('all');
   const [showReviewNotes, setShowReviewNotes] = useState(false);
 
+  // Estado para sección de headers
+  const [showHeaders, setShowHeaders] = useState(false);
+
   // Banner + modal de notas de repaso al entrar a la tarjeta
   const [showNotesPromptBanner, setShowNotesPromptBanner] = useState(false);
   const [showNotesModal, setShowNotesModal] = useState(false);
@@ -357,6 +360,23 @@ export function FlashcardReview({
 
   // Cargar conteo de repasos
   const { data: reviewCount = 0, isLoading: reviewCountLoading } = useFlashcardReviewCount(card.id);
+
+  // Extraer headings del contenido para el panel de navegación
+  const contentHeaders = useMemo(() => {
+    if (!detailedContent?.blocks) return [];
+    return detailedContent.blocks
+      .filter(b => b.type === 'heading_1' || b.type === 'heading_2' || b.type === 'heading_3')
+      .map(b => ({
+        id: b.id,
+        type: b.type as 'heading_1' | 'heading_2' | 'heading_3',
+        text: b.content?.rich_text?.map((r: { plain_text: string }) => r.plain_text).join('') || '',
+      }));
+  }, [detailedContent?.blocks]);
+
+  const handleScrollToHeader = useCallback((headingId: string) => {
+    const el = document.getElementById(headingId);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   const handleReveal = useCallback(() => {
     setRevealed(true);
@@ -2171,6 +2191,48 @@ export function FlashcardReview({
                   </>
                 )}
               </div>
+
+              {/* Headers */}
+              {contentHeaders.length > 0 && (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setShowHeaders(!showHeaders)}
+                    className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showHeaders ? (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    )}
+                    <Hash className="w-3.5 h-3.5" />
+                    <span>Headers</span>
+                    <span className="ml-1 px-2 py-0.5 text-xs bg-secondary text-secondary-foreground rounded-full">
+                      {contentHeaders.length}
+                    </span>
+                  </button>
+
+                  {showHeaders && (
+                    <div className="space-y-0.5">
+                      {contentHeaders.map(h => (
+                        <button
+                          key={h.id}
+                          onClick={() => handleScrollToHeader(h.id)}
+                          title={h.text}
+                          className={`w-full text-left text-xs py-1 px-2 rounded hover:bg-secondary/70 transition-colors truncate block ${
+                            h.type === 'heading_1'
+                              ? 'font-semibold text-foreground'
+                              : h.type === 'heading_2'
+                              ? 'pl-4 font-medium text-foreground/80'
+                              : 'pl-6 text-muted-foreground'
+                          }`}
+                        >
+                          {h.text || '(sin texto)'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Puntos de referencia */}
                 <ReferencePointsPanel
