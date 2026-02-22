@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
-import { Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, ArrowUpDown, Bookmark, Maximize2 } from "lucide-react";
+import { Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, ArrowUpDown, Bookmark, Maximize2, ChevronRight, ChevronDown } from "lucide-react";
 import { useFlashcardContent } from "@/hooks/useNotion";
 import { useReviewNotes } from "@/hooks/useReviewNotes";
 import { useNotesCountByDatabase } from "@/hooks/useStudyTracking";
@@ -32,6 +32,8 @@ interface FlashcardOverviewCardProps {
 
 const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onImageClick }) => {
   const [isRevealed, setIsRevealed] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [showReferencePoints, setShowReferencePoints] = useState(false);
   const [showCreateReferenceDialog, setShowCreateReferenceDialog] = useState(false);
   const [showExpandedModal, setShowExpandedModal] = useState(false);
   const [selectedTextForReference, setSelectedTextForReference] = useState("");
@@ -170,95 +172,115 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onI
         <div className="space-y-4">
           {/* Notas de repaso */}
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-muted-foreground" />
+            <button
+              onClick={() => setShowNotes(v => !v)}
+              className="flex items-center gap-2 hover:text-foreground transition-colors w-full text-left"
+            >
+              {showNotes ? (
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+              )}
+              <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground font-medium">
                 Notas de repaso ({reviewNotes.length})
               </span>
-            </div>
-            
-            {notesLoading ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground p-2">
-                <div className="animate-spin rounded-full h-3 w-3 border-b border-muted-foreground"></div>
-                Cargando notas...
-              </div>
-            ) : reviewNotes.length > 0 ? (
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {reviewNotes.slice(0, 3).map((note) => (
-                  <div key={note.id} className="p-2 rounded bg-secondary/50 border border-border/30">
-                    <div className="text-xs text-foreground leading-relaxed mb-1">
-                      <MarkdownRenderer
-                        content={note.content}
-                        className="text-xs"
-                        onImageClick={onImageClick}
-                      />
+            </button>
+
+            {showNotes && (
+              notesLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground p-2">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b border-muted-foreground"></div>
+                  Cargando notas...
+                </div>
+              ) : reviewNotes.length > 0 ? (
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {reviewNotes.slice(0, 3).map((note) => (
+                    <div key={note.id} className="p-2 rounded bg-secondary/50 border border-border/30">
+                      <div className="text-xs text-foreground leading-relaxed mb-1">
+                        <MarkdownRenderer
+                          content={note.content}
+                          className="text-xs"
+                          onImageClick={onImageClick}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
+                  ))}
+                  {reviewNotes.length > 3 && (
+                    <p className="text-xs text-muted-foreground text-center py-1">
+                      +{reviewNotes.length - 3} notas más
                     </p>
-                  </div>
-                ))}
-                {reviewNotes.length > 3 && (
-                  <p className="text-xs text-muted-foreground text-center py-1">
-                    +{reviewNotes.length - 3} notas más
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic p-2">
-                Sin notas de repaso registradas
-              </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic p-2">
+                  Sin notas de repaso registradas
+                </p>
+              )
             )}
           </div>
 
           {/* Puntos de referencia */}
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Bookmark className="w-4 h-4 text-muted-foreground" />
+            <button
+              onClick={() => setShowReferencePoints(v => !v)}
+              className="flex items-center gap-2 hover:text-foreground transition-colors w-full text-left"
+            >
+              {showReferencePoints ? (
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+              )}
+              <Bookmark className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground font-medium">
                 Puntos de referencia ({referencePoints.length})
               </span>
-            </div>
-            
-            {referencePointsLoading ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground p-2">
-                <div className="animate-spin rounded-full h-3 w-3 border-b border-muted-foreground"></div>
-                Cargando puntos...
-              </div>
-            ) : referencePoints.length > 0 ? (
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {referencePoints.slice(0, 3).map((point) => (
-                  <div key={point.id} className="p-2 rounded bg-secondary/50 border border-border/30">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div 
-                        className="w-2 h-2 rounded-full flex-shrink-0" 
-                        style={{ backgroundColor: point.color }}
-                      />
-                      <span className="text-xs font-medium text-foreground truncate">
-                        {point.referenceName}
-                      </span>
+            </button>
+
+            {showReferencePoints && (
+              referencePointsLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground p-2">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b border-muted-foreground"></div>
+                  Cargando puntos...
+                </div>
+              ) : referencePoints.length > 0 ? (
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {referencePoints.slice(0, 3).map((point) => (
+                    <div key={point.id} className="p-2 rounded bg-secondary/50 border border-border/30">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: point.color }}
+                        />
+                        <span className="text-xs font-medium text-foreground truncate">
+                          {point.referenceName}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground leading-relaxed mb-1 line-clamp-2">
+                        "{point.selectedText}"
+                      </div>
+                      <button
+                        onClick={() => handleNavigateToReference(point)}
+                        className="text-xs text-primary hover:text-primary/80 transition-colors"
+                      >
+                        Ir al texto
+                      </button>
                     </div>
-                    <div className="text-xs text-muted-foreground leading-relaxed mb-1 line-clamp-2">
-                      "{point.selectedText}"
-                    </div>
-                    <button
-                      onClick={() => handleNavigateToReference(point)}
-                      className="text-xs text-primary hover:text-primary/80 transition-colors"
-                    >
-                      Ir al texto
-                    </button>
-                  </div>
-                ))}
-                {referencePoints.length > 3 && (
-                  <p className="text-xs text-muted-foreground text-center py-1">
-                    +{referencePoints.length - 3} puntos más
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic p-2">
-                Sin puntos de referencia creados
-              </p>
+                  ))}
+                  {referencePoints.length > 3 && (
+                    <p className="text-xs text-muted-foreground text-center py-1">
+                      +{referencePoints.length - 3} puntos más
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic p-2">
+                  Sin puntos de referencia creados
+                </p>
+              )
             )}
           </div>
         </div>
