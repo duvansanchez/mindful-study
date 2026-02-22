@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { ArrowLeft, BarChart3, ChevronDown, ChevronRight, RotateCcw, Clock, TrendingUp, Calendar } from 'lucide-react';
-import { DatabaseGroup } from '@/types';
-import { useGroupStats } from '@/hooks/useGroups';
+import { DatabaseGroup, GroupFolder } from '@/types';
+import { useGroupStats, useGroupDatabases } from '@/hooks/useGroups';
+import { useGroupFoldersByGroup } from '@/hooks/useGroupFolders';
 import { useMultiPeriodStats, useLastStudyDate, useFlashcardReviewCount } from '@/hooks/useStudyTracking';
 import { StateBadge } from './StateBadge';
 import { useQuery } from '@tanstack/react-query';
@@ -33,14 +34,39 @@ export const GroupStatsDetailView: React.FC<GroupStatsDetailViewProps> = ({
   onBack
 }) => {
   const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [selectedPeriod, setSelectedPeriod] = useState<'day' | 'week' | 'month'>('day');
-  
+
   const { data: groupStats, isLoading: isLoadingStats, refetch: refetchStats } = useGroupStats(group.id);
   const studyStats = useMultiPeriodStats(group.id);
   const { data: lastStudied, refetch: refetchLastStudied } = useLastStudyDate(group.id);
-  
-  const groupDatabases = databases.filter(db => group.databaseIds.includes(db.id));
-  
+  const { data: folders = [] } = useGroupFoldersByGroup(group.id);
+  const { data: groupDatabasesInfo = [] } = useGroupDatabases(group.id);
+
+  // Combinar bases de datos de Notion con folderId de SQL
+  const groupDatabases = databases
+    .filter(db => group.databaseIds.includes(db.id))
+    .map(db => {
+      const dbInfo = (groupDatabasesInfo as Array<{ id: string; folderId?: string | null }>)
+        .find(gdb => gdb.id === db.id);
+      return { ...db, folderId: dbInfo?.folderId ?? null };
+    });
+
+  const databasesWithoutFolder = groupDatabases.filter(db => !db.folderId);
+  const databasesByFolder = (folders as GroupFolder[]).reduce((acc, folder) => {
+    acc[folder.id] = groupDatabases.filter(db => db.folderId === folder.id);
+    return acc;
+  }, {} as Record<string, typeof groupDatabases>);
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
+      return next;
+    });
+  };
+
   const toggleDatabase = (databaseId: string) => {
     const newExpanded = new Set(expandedDatabases);
     if (newExpanded.has(databaseId)) {
@@ -239,8 +265,50 @@ export const GroupStatsDetailView: React.FC<GroupStatsDetailViewProps> = ({
       {/* Lista detallada de bases de datos */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-foreground">Bases de datos del grupo</h2>
-        
-        {groupDatabases.map((database) => (
+
+        {/* Carpetas */}
+        {(folders as GroupFolder[]).map(folder => {
+          const folderDbs = databasesByFolder[folder.id] || [];
+          const isOpen = expandedFolders.has(folder.id);
+          return (
+            <div key={folder.id} className="border border-border rounded-lg overflow-hidden">
+              <button
+                onClick={() => toggleFolder(folder.id)}
+                className="w-full p-3 bg-secondary/30 hover:bg-secondary/50 transition-colors flex items-center gap-3 text-left"
+              >
+                {isOpen ? (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                )}
+                <span className="text-lg leading-none">{folder.icon || '📁'}</span>
+                <span
+                  className="font-medium text-sm"
+                  style={{ color: folder.color || undefined }}
+                >
+                  {folder.folderName}
+                </span>
+                <span className="text-xs text-muted-foreground">({folderDbs.length})</span>
+              </button>
+
+              {isOpen && folderDbs.length > 0 && (
+                <div className="p-3 space-y-3 bg-background/50">
+                  {folderDbs.map(database => (
+                    <DatabaseStatsCard
+                      key={database.id}
+                      database={database}
+                      isExpanded={expandedDatabases.has(database.id)}
+                      onToggle={() => toggleDatabase(database.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Bases de datos sin carpeta */}
+        {databasesWithoutFolder.map(database => (
           <DatabaseStatsCard
             key={database.id}
             database={database}
