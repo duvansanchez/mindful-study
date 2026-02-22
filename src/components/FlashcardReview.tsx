@@ -303,6 +303,10 @@ export function FlashcardReview({
   const [noteFilter, setNoteFilter] = useState<string>('all');
   const [showReviewNotes, setShowReviewNotes] = useState(true);
 
+  // Banner + modal de notas de repaso al entrar a la tarjeta
+  const [showNotesPromptBanner, setShowNotesPromptBanner] = useState(false);
+  const [showNotesModal, setShowNotesModal] = useState(false);
+
   // Estados para puntos de referencia
   const [showCreateReferenceDialog, setShowCreateReferenceDialog] = useState(false);
   const [selectedTextForReference, setSelectedTextForReference] = useState("");
@@ -945,6 +949,13 @@ export function FlashcardReview({
       return () => clearTimeout(timer);
     }
   }, [revealed, contentLoading, referencePoints, handleShowAllReferences]);
+
+  // Mostrar banner de notas al cargar la tarjeta si tiene notas
+  useEffect(() => {
+    if (!notesLoading && reviewNotes.length > 0) {
+      setShowNotesPromptBanner(true);
+    }
+  }, [notesLoading, reviewNotes.length]);
 
   // Limpiar tooltip al desmontar el componente
   useEffect(() => {
@@ -1770,6 +1781,30 @@ export function FlashcardReview({
               </div>
             )}
 
+            {/* Banner: notas de repaso disponibles */}
+            {showNotesPromptBanner && (
+              <div className="animate-fade-in flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                <StickyNote className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                <p className="text-sm text-blue-800 dark:text-blue-200 flex-1">
+                  Esta tarjeta tiene <strong>{reviewNotes.length}</strong> {reviewNotes.length === 1 ? 'nota de repaso' : 'notas de repaso'} — ¿quieres leerlas antes de estudiar?
+                </p>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => { setShowNotesModal(true); setShowNotesPromptBanner(false); }}
+                    className="px-2.5 py-1 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                  >
+                    Ver notas
+                  </button>
+                  <button
+                    onClick={() => setShowNotesPromptBanner(false)}
+                    className="px-2.5 py-1 text-xs font-medium rounded-md bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                  >
+                    Omitir
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Front of card - Title */}
             <div className="text-center animate-slide-up">
               <div className="flex items-center justify-center gap-2 mb-2">
@@ -1983,14 +2018,14 @@ export function FlashcardReview({
                 <div className="flex items-center justify-between">
                   <button
                     onClick={() => setShowReviewNotes(!showReviewNotes)}
-                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                    className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {showReviewNotes ? (
-                      <ChevronDown className="w-4 h-4" />
+                      <ChevronDown className="w-3.5 h-3.5" />
                     ) : (
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-3.5 h-3.5" />
                     )}
-                    <StickyNote className="w-4 h-4" />
+                    <StickyNote className="w-3.5 h-3.5" />
                     <span>Notas de repaso</span>
                     {reviewNotes.length > 0 && (
                       <span className="ml-1 px-2 py-0.5 text-xs bg-secondary text-secondary-foreground rounded-full">
@@ -2031,7 +2066,7 @@ export function FlashcardReview({
                     ) : filteredReviewNotes.length > 0 ? (
                       <div className="space-y-3">
                         {filteredReviewNotes.map((note) => (
-                  <div key={note.id} className="p-3 rounded-lg bg-background border border-border shadow-sm">
+                  <div key={note.id} className="p-2 rounded-lg bg-background border border-border shadow-sm">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 space-y-2">
                         {editingNoteId === note.id ? (
@@ -2075,9 +2110,9 @@ export function FlashcardReview({
                         ) : (
                           // Modo visualización
                           <>
-                            <div className="text-sm text-foreground leading-relaxed">
-                              <MarkdownRenderer 
-                                content={note.content} 
+                            <div className="text-xs text-foreground leading-relaxed">
+                              <MarkdownRenderer
+                                content={note.content}
                                 onImageClick={handleImageClick}
                               />
                             </div>
@@ -2257,6 +2292,54 @@ export function FlashcardReview({
         caption={imageModalCaption}
         alt={imageModalCaption || "Imagen de nota de repaso"}
       />
+
+      {/* Modal: notas de repaso antes de estudiar */}
+      {showNotesModal && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-background rounded-xl border border-border shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <StickyNote className="w-4 h-4 text-primary" />
+                <h2 className="font-semibold text-sm">Notas de repaso</h2>
+                <span className="text-xs px-2 py-0.5 bg-secondary rounded-full text-muted-foreground">
+                  {reviewNotes.length}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowNotesModal(false)}
+                className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Notes list */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {reviewNotes.map((note) => (
+                <div key={note.id} className="p-3 rounded-lg bg-secondary/40 border border-border">
+                  <div className="text-sm text-foreground leading-relaxed">
+                    <MarkdownRenderer content={note.content} onImageClick={handleImageClick} />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-3 border-t border-border">
+              <button
+                onClick={() => setShowNotesModal(false)}
+                className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                Listo, comenzar estudio
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

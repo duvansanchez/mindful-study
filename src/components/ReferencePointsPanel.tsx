@@ -145,8 +145,8 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <Bookmark className="w-4 h-4" />
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Bookmark className="w-3.5 h-3.5" />
           <span>Puntos de Referencia</span>
         </div>
         <div className="space-y-2">
@@ -166,14 +166,14 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
         <div className="flex items-center justify-between">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
             {isCollapsed ? (
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             ) : (
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5" />
             )}
-            <Bookmark className="w-4 h-4" />
+            <Bookmark className="w-3.5 h-3.5" />
             <span>Puntos de Referencia</span>
             {referencePoints.length > 0 && (
               <Badge variant="secondary" className="ml-1">
@@ -255,7 +255,7 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
               return (
                 <div
                   key={referencePoint.id}
-                  className="group p-3 rounded-lg border border-border hover:border-primary/50 transition-all bg-card"
+                  className="group p-3 rounded-lg border border-border hover:border-primary/50 transition-all bg-card overflow-hidden w-full"
                 >
                   {isEditing ? (
                     /* Modo edición */
@@ -306,16 +306,17 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                     /* Modo normal */
                     <div className="space-y-2">
                       {/* Header del punto de referencia */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <div 
-                              className="w-3 h-3 rounded-full flex-shrink-0" 
+                      <div className="relative w-full min-w-0">
+                        {/* Título + badge */}
+                        <div className="pr-2 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 min-w-0">
+                            <div
+                              className="w-3 h-3 rounded-full flex-shrink-0"
                               style={{ backgroundColor: categoryData.color }}
                             />
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <h4 className="text-sm font-medium text-foreground truncate">
+                                <h4 className="text-xs font-medium text-foreground truncate flex-1 min-w-0">
                                   {referencePoint.referenceName}
                                 </h4>
                               </TooltipTrigger>
@@ -332,9 +333,9 @@ export const ReferencePointsPanel: React.FC<ReferencePointsPanelProps> = ({
                             {categoryData.label}
                           </Badge>
                         </div>
-                        
-                        {/* Acciones */}
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+
+                        {/* Acciones — absolutas para no afectar el ancho del título */}
+                        <div className="absolute top-0 right-0 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-card rounded shadow-sm">
                           <Button
                             size="sm"
                             variant="ghost"

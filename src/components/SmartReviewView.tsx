@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Brain, AlertTriangle, TrendingDown, Moon, ChevronDown, ChevronRight, Loader2, Clock, CalendarDays } from 'lucide-react';
+import { ArrowLeft, Brain, AlertTriangle, TrendingDown, Moon, ChevronDown, ChevronRight, Loader2, Clock, CalendarDays, ArrowUpDown } from 'lucide-react';
 import { DatabaseGroup, Flashcard } from '@/types';
 import { useSpacedRepetition } from '@/hooks/useSpacedRepetition';
 import { useStudyStreak, useStudyCalendar } from '@/hooks/useStudyTracking';
@@ -12,22 +12,40 @@ interface SmartReviewViewProps {
 
 type Tab = 'spaced' | 'health' | 'activity';
 
+type EnrichedFlashcard = Flashcard & { groupName?: string };
+
 // ────────────────────────────────────────────────────────────────────────────
 // Sub-components
 // ────────────────────────────────────────────────────────────────────────────
 
-const FlashcardRow: React.FC<{ card: Flashcard }> = ({ card }) => (
+const FlashcardRow: React.FC<{ card: EnrichedFlashcard }> = ({ card }) => (
   <div className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-secondary/50 transition-colors gap-3">
     <span className="text-sm text-foreground truncate flex-1">{card.title}</span>
+    {card.groupName && (
+      <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 max-w-[120px] truncate">
+        {card.groupName}
+      </span>
+    )}
     <StateBadge state={card.state} size="xs" />
   </div>
 );
 
+type SortOption = 'default' | 'title-asc' | 'title-desc' | 'state' | 'group';
+
+const STATE_ORDER: Record<string, number> = { tocado: 0, verde: 1, solido: 2 };
+
+const SORT_LABELS: Record<SortOption, string> = {
+  default: 'Por defecto',
+  'title-asc': 'Título A→Z',
+  'title-desc': 'Título Z→A',
+  state: 'Estado',
+  group: 'Agrupación',
+};
+
 interface CollapsibleSectionProps {
   title: string;
   icon: React.ReactNode;
-  count: number;
-  children: React.ReactNode;
+  cards: EnrichedFlashcard[];
   defaultOpen?: boolean;
   badgeClass?: string;
 }
@@ -35,12 +53,36 @@ interface CollapsibleSectionProps {
 const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   title,
   icon,
-  count,
-  children,
+  cards,
   defaultOpen = false,
   badgeClass = 'bg-secondary text-muted-foreground',
 }) => {
   const [open, setOpen] = useState(defaultOpen);
+  const [groupFilter, setGroupFilter] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('default');
+
+  const availableGroups = useMemo(() => {
+    const names = cards.map(c => c.groupName).filter((n): n is string => Boolean(n));
+    return [...new Set(names)].sort();
+  }, [cards]);
+
+  const processedCards = useMemo(() => {
+    let result = groupFilter ? cards.filter(c => c.groupName === groupFilter) : cards;
+
+    if (sortBy === 'title-asc') {
+      result = [...result].sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === 'title-desc') {
+      result = [...result].sort((a, b) => b.title.localeCompare(a.title));
+    } else if (sortBy === 'state') {
+      result = [...result].sort((a, b) => (STATE_ORDER[a.state] ?? 0) - (STATE_ORDER[b.state] ?? 0));
+    } else if (sortBy === 'group') {
+      result = [...result].sort((a, b) => (a.groupName ?? '').localeCompare(b.groupName ?? ''));
+    }
+
+    return result;
+  }, [cards, groupFilter, sortBy]);
+
+  const hasFilters = groupFilter || sortBy !== 'default';
 
   return (
     <div className="border border-border rounded-xl overflow-hidden">
@@ -52,18 +94,74 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           {icon}
           <span className="font-medium text-sm">{title}</span>
           <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badgeClass}`}>
-            {count}
+            {cards.length}
           </span>
         </div>
         {open ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
       </button>
 
       {open && (
-        <div className="border-t border-border px-2 py-2 space-y-0.5 max-h-72 overflow-y-auto">
-          {count === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Sin tarjetas en esta categoría</p>
-          ) : children}
-        </div>
+        <>
+          {/* Filter + sort bar */}
+          <div className="border-t border-border px-3 py-2 flex flex-wrap items-center gap-2 bg-secondary/20">
+            {/* Group filter */}
+            {availableGroups.length > 1 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Agrupación:</span>
+                <div className="relative">
+                  <select
+                    value={groupFilter}
+                    onChange={e => setGroupFilter(e.target.value)}
+                    className="text-xs bg-background border border-border rounded-md px-2 py-1 pr-6 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  >
+                    <option value="">Todas ({cards.length})</option>
+                    {availableGroups.map(g => (
+                      <option key={g} value={g}>
+                        {g} ({cards.filter(c => c.groupName === g).length})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3 h-3 text-muted-foreground absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+            )}
+
+            {/* Sort */}
+            <div className="flex items-center gap-1.5">
+              <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+              <div className="relative">
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value as SortOption)}
+                  className="text-xs bg-background border border-border rounded-md px-2 py-1 pr-6 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/30"
+                >
+                  {(Object.keys(SORT_LABELS) as SortOption[]).map(opt => (
+                    <option key={opt} value={opt}>{SORT_LABELS[opt]}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3 h-3 text-muted-foreground absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Clear filters */}
+            {hasFilters && (
+              <button
+                onClick={() => { setGroupFilter(''); setSortBy('default'); }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto"
+              >
+                ✕ Limpiar
+              </button>
+            )}
+          </div>
+
+          <div className="border-t border-border px-2 py-2 space-y-0.5 max-h-72 overflow-y-auto">
+            {processedCards.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Sin tarjetas en esta categoría</p>
+            ) : (
+              processedCards.map(card => <FlashcardRow key={card.id} card={card} />)
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -128,8 +226,6 @@ const ActivityHeatmap: React.FC<{ data: { date: string; count: number }[]; days?
 export const SmartReviewView: React.FC<SmartReviewViewProps> = ({ groups, onBack }) => {
   const [activeTab, setActiveTab] = useState<Tab>('spaced');
   const [selectedGroupId, setSelectedGroupId] = useState<string | undefined>(undefined);
-  const [weekOpen, setWeekOpen] = useState(false);
-  const [neverOpen, setNeverOpen] = useState(false);
 
   const { dueToday, dueThisWeek, neverReviewed, atRisk, problematic, isLoading, totalFlashcards } =
     useSpacedRepetition(groups, selectedGroupId);
@@ -138,6 +234,18 @@ export const SmartReviewView: React.FC<SmartReviewViewProps> = ({ groups, onBack
   const { data: calendarData = [] } = useStudyCalendar(90);
 
   const streak = streakData?.streak ?? 0;
+
+  // Map databaseId → group name for enriching flashcards
+  const databaseToGroup = useMemo(() => {
+    const map = new Map<string, string>();
+    groups.forEach(g => {
+      (g.databaseIds ?? []).forEach(dbId => map.set(dbId, g.name));
+    });
+    return map;
+  }, [groups]);
+
+  const enrich = (cards: Flashcard[]): EnrichedFlashcard[] =>
+    cards.map(c => ({ ...c, groupName: databaseToGroup.get(c.databaseId) }));
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'spaced', label: 'Repetición espaciada' },
@@ -231,39 +339,40 @@ export const SmartReviewView: React.FC<SmartReviewViewProps> = ({ groups, onBack
           <CollapsibleSection
             title="Vencen hoy"
             icon={<Clock className="w-4 h-4 text-red-500" />}
-            count={dueToday.length}
-            defaultOpen={dueToday.length > 0}
+            cards={enrich(dueToday)}
+            defaultOpen={false}
             badgeClass="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
-          >
-            {dueToday.map(card => <FlashcardRow key={card.id} card={card} />)}
-          </CollapsibleSection>
+          />
 
           {/* Sección: Esta semana */}
           <CollapsibleSection
             title="Próxima semana"
             icon={<CalendarDays className="w-4 h-4 text-amber-500" />}
-            count={dueThisWeek.length}
+            cards={enrich(dueThisWeek)}
             defaultOpen={false}
             badgeClass="bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
-          >
-            {dueThisWeek.map(card => <FlashcardRow key={card.id} card={card} />)}
-          </CollapsibleSection>
+          />
 
           {/* Sección: Nunca repasadas */}
           <CollapsibleSection
             title="Nunca repasadas"
             icon={<Moon className="w-4 h-4 text-muted-foreground" />}
-            count={neverReviewed.length}
+            cards={enrich(neverReviewed)}
             defaultOpen={false}
-          >
-            {neverReviewed.map(card => <FlashcardRow key={card.id} card={card} />)}
-          </CollapsibleSection>
+          />
 
           {totalFlashcards > 0 && (
             <p className="text-xs text-muted-foreground text-center">
               Total analizado: {totalFlashcards} flashcards
             </p>
           )}
+
+          <div className="border border-border rounded-xl p-4 space-y-2 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground text-sm">Cómo se calcula</p>
+            <p><span className="font-medium text-red-500">Vencen hoy</span>: tarjetas que ya superaron su intervalo de repaso — tocadas sin repasar en más de 1 día, verdes en más de 7 días, sólidas en más de 21 días.</p>
+            <p><span className="font-medium text-amber-500">Próxima semana</span>: tarjetas que vencerán en los próximos 7 días, útil para anticipar la carga de estudio.</p>
+            <p><span className="font-medium text-muted-foreground">Nunca repasadas</span>: tarjetas que aún no tienen ninguna sesión de estudio registrada.</p>
+          </div>
         </div>
       )}
 
@@ -286,23 +395,19 @@ export const SmartReviewView: React.FC<SmartReviewViewProps> = ({ groups, onBack
           <CollapsibleSection
             title="En riesgo"
             icon={<AlertTriangle className="w-4 h-4 text-orange-500" />}
-            count={atRisk.length}
-            defaultOpen={atRisk.length > 0}
+            cards={enrich(atRisk)}
+            defaultOpen={false}
             badgeClass="bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400"
-          >
-            {atRisk.map(card => <FlashcardRow key={card.id} card={card} />)}
-          </CollapsibleSection>
+          />
 
           {/* Problemáticas */}
           <CollapsibleSection
             title="Problemáticas"
             icon={<TrendingDown className="w-4 h-4 text-purple-500" />}
-            count={problematic.length}
-            defaultOpen={problematic.length > 0}
+            cards={enrich(problematic)}
+            defaultOpen={false}
             badgeClass="bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400"
-          >
-            {problematic.map(card => <FlashcardRow key={card.id} card={card} />)}
-          </CollapsibleSection>
+          />
 
           {atRisk.length === 0 && problematic.length === 0 && (
             <div className="text-center py-10 space-y-2">

@@ -12,6 +12,7 @@ import { ExamMode } from "@/components/ExamMode";
 import { ExamResults } from "@/components/ExamResults";
 import { StatsView } from "@/components/StatsView";
 import { SmartReviewView } from "@/components/SmartReviewView";
+import { SessionSummaryView, SessionSummaryData, SessionEntry } from "@/components/SessionSummaryView";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
 import MatchingMode from "@/components/MatchingMode";
@@ -28,7 +29,7 @@ import { AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 
-type View = 'home' | 'groups' | 'groups-general-info' | 'stats' | 'smart-review' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'exams' | 'exam-player' | 'exam-results' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup';
+type View = 'home' | 'groups' | 'groups-general-info' | 'stats' | 'smart-review' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'exams' | 'exam-player' | 'exam-results' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup' | 'session-summary';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
@@ -42,7 +43,12 @@ const Index = () => {
   const [previousView, setPreviousView] = useState<View>('home'); // Para recordar de dónde venía
   const [pendingMode, setPendingMode] = useState<'review' | 'matching'>('review'); // Para saber qué modo se va a iniciar
   const [isPlannedSession, setIsPlannedSession] = useState(false); // Para distinguir sesiones planificadas
-  
+
+  // Session summary
+  const [sessionAbsoluteStart, setSessionAbsoluteStart] = useState<Date | null>(null);
+  const [sessionSnapshot, setSessionSnapshot] = useState<Map<string, KnowledgeState>>(new Map());
+  const [sessionSummaryData, setSessionSummaryData] = useState<SessionSummaryData | null>(null);
+
   // Estados para los diálogos de agrupaciones
   const [editingGroup, setEditingGroup] = useState<DatabaseGroup | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<DatabaseGroup | null>(null);
@@ -140,6 +146,17 @@ const Index = () => {
     setSelectedDatabaseId(null);
   };
 
+  const handleSessionSummaryGoHome = () => {
+    setSessionSummaryData(null);
+    setView('home');
+    setSelectedGroup(null);
+  };
+
+  const handleSessionSummaryGoSmartReview = () => {
+    setSessionSummaryData(null);
+    setView('smart-review');
+  };
+
   const handleDatabaseClick = (databaseId: string) => {
     setSelectedDatabaseId(databaseId);
     setPreviousView(view); // Recordar de dónde venía
@@ -164,7 +181,10 @@ const Index = () => {
   const handleStartReview = (selectedCards: Flashcard[]) => {
     setReviewCards(selectedCards);
     setCurrentCardIndex(0);
-    setStudyStartTime(new Date()); // Iniciar tracking de tiempo
+    const now = new Date();
+    setStudyStartTime(now); // Iniciar tracking de tiempo (por tarjeta)
+    setSessionAbsoluteStart(now); // Inicio absoluto de la sesión completa
+    setSessionSnapshot(new Map(selectedCards.map(c => [c.id, c.state])));
     
     // Decidir a qué vista ir según el modo pendiente
     if (pendingMode === 'matching') {
@@ -239,6 +259,38 @@ const Index = () => {
     }
   };
 
+  const endSessionWithSummary = (finalReviewCards: Flashcard[]) => {
+    const totalDuration = sessionAbsoluteStart
+      ? Math.floor((new Date().getTime() - sessionAbsoluteStart.getTime()) / 1000)
+      : 0;
+
+    // Deduplicate by id — keep final state of each unique card
+    const uniqueCards = Array.from(new Map(finalReviewCards.map(c => [c.id, c])).values());
+
+    const entries: SessionEntry[] = uniqueCards.map(card => ({
+      id: card.id,
+      title: card.title,
+      originalState: sessionSnapshot.get(card.id) ?? card.state,
+      finalState: card.state,
+      groupName: groups.find(g => g.databaseIds.includes(card.databaseId))?.name,
+    }));
+
+    setSessionSummaryData({
+      entries,
+      totalDurationSeconds: totalDuration,
+      groupName: selectedGroup?.name,
+    });
+
+    setView('session-summary');
+    setSelectedDatabaseId(null);
+    setStudyStartTime(null);
+    setSessionAbsoluteStart(null);
+    setReviewCards([]);
+    setCurrentCardIndex(0);
+    setCardsToRepeat([]);
+    setIsPlannedSession(false);
+  };
+
   const handleNextCard = async () => {
     // Actualizar fecha de repaso de la tarjeta actual antes de pasar a la siguiente
     const currentCard = reviewCards[currentCardIndex];
@@ -296,9 +348,7 @@ const Index = () => {
         setStudyStartTime(new Date());
       } else {
         // No hay más flashcards para repetir, terminar el repaso
-        setView('home');
-        setSelectedDatabaseId(null);
-        setStudyStartTime(null);
+        endSessionWithSummary(reviewCards);
       }
     }
   };
@@ -336,9 +386,7 @@ const Index = () => {
           setStudyStartTime(new Date());
         } else {
           // No hay más flashcards para repetir, terminar el repaso
-          setView('home');
-          setSelectedDatabaseId(null);
-          setStudyStartTime(null);
+          endSessionWithSummary(reviewCards);
         }
       }
     }
@@ -723,6 +771,15 @@ const Index = () => {
           currentIndex={currentCardIndex}
           totalCards={reviewCards.length}
           cardsToRepeatCount={cardsToRepeat.length}
+        />
+      )}
+
+      {/* Session Summary */}
+      {view === 'session-summary' && sessionSummaryData && (
+        <SessionSummaryView
+          data={sessionSummaryData}
+          onGoHome={handleSessionSummaryGoHome}
+          onGoSmartReview={handleSessionSummaryGoSmartReview}
         />
       )}
 
