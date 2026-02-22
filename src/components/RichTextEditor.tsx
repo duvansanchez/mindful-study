@@ -259,7 +259,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   return (
     <div className={`border border-border rounded-lg ${className}`}>
       {/* Barra de herramientas */}
-      <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/30">
+      <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/30 flex-wrap">
         <Button
           type="button"
           variant="ghost"
