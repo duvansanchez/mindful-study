@@ -277,6 +277,71 @@ const ToggleBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
   );
 };
 
+// Componente para columnas (column_list / column)
+const ColumnBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
+  const [children, setChildren] = useState<NotionBlock[]>(block.children || []);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(!!block.children?.length);
+
+  React.useEffect(() => {
+    if (block.hasChildren && !loaded && !block.children?.length) {
+      setLoading(true);
+      fetch(`/api/blocks/${block.id}/children`)
+        .then(r => r.json())
+        .then(data => { setChildren(data.children || []); setLoaded(true); })
+        .catch(err => console.error('Error loading column children:', err))
+        .finally(() => setLoading(false));
+    }
+  }, [block.hasChildren, block.id, loaded, block.children?.length]);
+
+  return (
+    <div className="flex-1 min-w-0">
+      {loading ? (
+        <div className="text-sm text-muted-foreground flex items-center gap-2">
+          <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+          Cargando...
+        </div>
+      ) : children.length > 0 ? (
+        <NotionRenderer blocks={children} />
+      ) : null}
+    </div>
+  );
+};
+
+const ColumnListBlock: React.FC<{ block: NotionBlock }> = ({ block }) => {
+  const [columns, setColumns] = useState<NotionBlock[]>(block.children || []);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(!!block.children?.length);
+
+  React.useEffect(() => {
+    if (block.hasChildren && !loaded && !block.children?.length) {
+      setLoading(true);
+      fetch(`/api/blocks/${block.id}/children`)
+        .then(r => r.json())
+        .then(data => { setColumns(data.children || []); setLoaded(true); })
+        .catch(err => console.error('Error loading column_list children:', err))
+        .finally(() => setLoading(false));
+    }
+  }, [block.hasChildren, block.id, loaded, block.children?.length]);
+
+  if (loading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 my-2">
+        <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+        Cargando columnas...
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-6 my-2">
+      {columns.map(col => (
+        <ColumnBlock key={col.id} block={col} />
+      ))}
+    </div>
+  );
+};
+
 const RichTextRenderer: React.FC<{ richText: RichText[] }> = ({ richText }) => {
   return (
     <>
@@ -598,15 +663,10 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({ blocks }) => {
             ); }
 
           case 'column_list':
+            return <ColumnListBlock key={key} block={block} />;
+
           case 'column':
-            if (block.hasChildren) {
-              return <ToggleBlock key={key} block={block} />;
-            }
-            return (
-              <div key={key} className="leading-relaxed whitespace-pre-wrap">
-                <RichTextRenderer richText={richText} />
-              </div>
-            );
+            return <ColumnBlock key={key} block={block} />;
 
           case 'table':
             console.log('🔍 RENDERIZANDO TABLA:', block);
