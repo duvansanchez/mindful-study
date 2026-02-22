@@ -2087,14 +2087,109 @@ class DatabaseService {
   static async deleteExamDocument(examId) {
     try {
       const pool = await getPool();
-      
+
       await pool.request()
         .input('examId', sql.UniqueIdentifier, examId)
         .query('DELETE FROM ExamDocuments WHERE Id = @examId');
-      
+
       return true;
     } catch (error) {
       console.error('Error eliminando documento de examen:', error);
+      throw error;
+    }
+  }
+
+  // ── Cobertura de flashcards por examen ──────────────────────────────────
+
+  static async ensureExamCoverageTable() {
+    try {
+      const pool = await getPool();
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='FlashcardExamCoverage' AND xtype='U')
+        BEGIN
+          CREATE TABLE app.FlashcardExamCoverage (
+            FlashcardId    NVARCHAR(255)     NOT NULL,
+            ExamDocumentId UNIQUEIDENTIFIER  NOT NULL,
+            DatabaseId     NVARCHAR(255)     NOT NULL,
+            CoveredAt      DATETIME2         DEFAULT GETUTCDATE(),
+            CONSTRAINT PK_FlashcardExamCoverage PRIMARY KEY (FlashcardId, ExamDocumentId),
+            CONSTRAINT FK_FlashcardExamCoverage_Exam
+              FOREIGN KEY (ExamDocumentId) REFERENCES dbo.ExamDocuments(Id) ON DELETE CASCADE
+          );
+        END
+      `);
+      console.log('✅ Tabla FlashcardExamCoverage verificada');
+    } catch (error) {
+      console.error('Error creando tabla FlashcardExamCoverage:', error);
+    }
+  }
+
+  static async getFlashcardCoverage(groupId, databaseId) {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .input('databaseId', sql.NVarChar, databaseId)
+        .query(`
+          SELECT fec.FlashcardId,
+                 COUNT(*)            AS examCount,
+                 MAX(fec.CoveredAt)  AS lastCoveredAt
+          FROM app.FlashcardExamCoverage fec
+          INNER JOIN dbo.ExamDocuments ed ON fec.ExamDocumentId = ed.Id
+          WHERE ed.GroupId = @groupId
+            AND fec.DatabaseId = @databaseId
+          GROUP BY fec.FlashcardId
+        `);
+      return result.recordset;
+    } catch (error) {
+      console.error('Error obteniendo cobertura de flashcards:', error);
+      throw error;
+    }
+  }
+
+  static async setFlashcardCoverage(examDocumentId, databaseId, flashcardIds) {
+    if (!flashcardIds || flashcardIds.length === 0) return { linkedCount: 0 };
+    try {
+      const pool = await getPool();
+      let linkedCount = 0;
+      for (const flashcardId of flashcardIds) {
+        await pool.request()
+          .input('flashcardId', sql.NVarChar, flashcardId)
+          .input('examDocumentId', sql.UniqueIdentifier, examDocumentId)
+          .input('databaseId', sql.NVarChar, databaseId)
+          .query(`
+            IF NOT EXISTS (
+              SELECT 1 FROM app.FlashcardExamCoverage
+              WHERE FlashcardId = @flashcardId AND ExamDocumentId = @examDocumentId
+            )
+            INSERT INTO app.FlashcardExamCoverage (FlashcardId, ExamDocumentId, DatabaseId)
+            VALUES (@flashcardId, @examDocumentId, @databaseId)
+          `);
+        linkedCount++;
+      }
+      return { linkedCount };
+    } catch (error) {
+      console.error('Error registrando cobertura de flashcards:', error);
+      throw error;
+    }
+  }
+
+  static async getCoverageSummaryByDatabase(groupId) {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('groupId', sql.UniqueIdentifier, groupId)
+        .query(`
+          SELECT fec.DatabaseId,
+                 COUNT(DISTINCT fec.FlashcardId) AS coveredCount
+          FROM app.FlashcardExamCoverage fec
+          INNER JOIN dbo.ExamDocuments ed ON fec.ExamDocumentId = ed.Id
+          WHERE ed.GroupId = @groupId
+          GROUP BY fec.DatabaseId
+        `);
+      return result.recordset;
+    } catch (error) {
+      console.error('Error obteniendo resumen de cobertura:', error);
       throw error;
     }
   }

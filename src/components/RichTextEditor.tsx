@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Image, Bold, Italic, Link2, Type, Table, Loader2, AlertCircle } from 'lucide-react';
+import { Image, Bold, Italic, Link2, Type, Table, Loader2, AlertCircle, Minus } from 'lucide-react';
 import { ImageService } from '@/services/imageService';
 import { toast } from 'sonner';
 
@@ -259,7 +259,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   return (
     <div className={`border border-border rounded-lg ${className}`}>
       {/* Barra de herramientas */}
-      <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/30 flex-wrap">
+      <div className="flex items-center gap-0.5 p-1 border-b border-border bg-muted/30 flex-wrap">
         <Button
           type="button"
           variant="ghost"
@@ -267,11 +267,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           onClick={() => wrapSelectedText('**')}
           disabled={disabled}
           title="Negrita"
-          className="h-8 w-8 p-0"
+          className="h-6 w-6 p-0"
         >
-          <Bold className="w-4 h-4" />
+          <Bold className="w-3 h-3" />
         </Button>
-        
+
         <Button
           type="button"
           variant="ghost"
@@ -279,11 +279,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           onClick={() => wrapSelectedText('*')}
           disabled={disabled}
           title="Cursiva"
-          className="h-8 w-8 p-0"
+          className="h-6 w-6 p-0"
         >
-          <Italic className="w-4 h-4" />
+          <Italic className="w-3 h-3" />
         </Button>
-        
+
         <Button
           type="button"
           variant="ghost"
@@ -291,11 +291,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           onClick={() => wrapSelectedText('[', '](url)')}
           disabled={disabled}
           title="Enlace"
-          className="h-8 w-8 p-0"
+          className="h-6 w-6 p-0"
         >
-          <Link2 className="w-4 h-4" />
+          <Link2 className="w-3 h-3" />
         </Button>
-        
+
         <Button
           type="button"
           variant="ghost"
@@ -311,34 +311,34 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           }}
           disabled={disabled}
           title="Convertir texto base64 a imágenes"
-          className="h-8 w-8 p-0"
+          className="h-6 w-6 p-0"
         >
-          <AlertCircle className="w-4 h-4" />
+          <AlertCircle className="w-3 h-3" />
         </Button>
-        
-        <div className="w-px h-6 bg-border mx-1" />
-        
+
+        <div className="w-px h-4 bg-border mx-0.5" />
+
         <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || isProcessingImage}
-          className="h-8 px-3 bg-primary/10 hover:bg-primary/20 text-primary border-primary/30"
+          className="h-6 px-2 bg-primary/10 hover:bg-primary/20 text-primary border-primary/30"
         >
           {isProcessingImage ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin mr-1" />
-              <span className="text-xs">Subiendo...</span>
+              <Loader2 className="w-3 h-3 animate-spin mr-1" />
+              <span className="text-[10px]">Subiendo...</span>
             </>
           ) : (
             <>
-              <Image className="w-4 h-4 mr-1" />
-              <span className="text-xs font-medium">Subir Imagen</span>
+              <Image className="w-3 h-3 mr-1" />
+              <span className="text-[10px] font-medium">Subir Imagen</span>
             </>
           )}
         </Button>
-        
+
         <Button
           type="button"
           variant="ghost"
@@ -346,11 +346,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           onClick={() => setShowImageDialog(true)}
           disabled={disabled}
           title="Insertar imagen por URL"
-          className="h-8 w-8 p-0"
+          className="h-6 w-6 p-0"
         >
-          <Link2 className="w-4 h-4" />
+          <Link2 className="w-3 h-3" />
         </Button>
-        
+
         <Button
           type="button"
           variant="ghost"
@@ -358,9 +358,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           onClick={handleInsertTable}
           disabled={disabled}
           title="Insertar tabla"
-          className="h-8 w-8 p-0"
+          className="h-6 w-6 p-0"
         >
-          <Table className="w-4 h-4" />
+          <Table className="w-3 h-3" />
+        </Button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => insertText('\n---\n')}
+          disabled={disabled}
+          title="Insertar divisor"
+          className="h-6 w-6 p-0"
+        >
+          <Minus className="w-3 h-3" />
         </Button>
       </div>
 

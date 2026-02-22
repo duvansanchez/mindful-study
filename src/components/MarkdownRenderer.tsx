@@ -240,7 +240,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       };
       
       return (
-        <HeaderTag className={`${sizeClasses[level as keyof typeof sizeClasses]} text-foreground mt-4 mb-2`}>
+        <HeaderTag className={`${sizeClasses[level as keyof typeof sizeClasses]} text-foreground mt-2 mb-0.5`}>
           {processedText}
         </HeaderTag>
       );
@@ -248,7 +248,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     
     // Separadores: ---
     if (line.trim() === '---') {
-      return <hr className="my-4 border-border" />;
+      return <hr className="my-1 border-border" />;
     }
     
     return null;
@@ -289,11 +289,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     
     // Procesar como línea normal
     if (line.trim() === '') {
-      elements.push(<br key={elementKey++} />);
+      elements.push(<div key={elementKey++} className="h-1" />);
     } else {
       const processedLine = processInlineMarkdown(line);
       elements.push(
-        <div key={elementKey++} className={elements.length > 0 ? 'mt-2' : ''}>
+        <div key={elementKey++} className={elements.length > 0 ? 'mt-0.5' : ''}>
           {processedLine}
         </div>
       );

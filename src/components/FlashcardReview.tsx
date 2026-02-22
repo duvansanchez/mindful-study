@@ -57,18 +57,23 @@ const closestBlock = (el: Element | null, container: Element) => {
 };
 
 const buildTextIndex = (container: Element) => {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+  // SHOW_TEXT | SHOW_ELEMENT para detectar <br> además de nodos de texto
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
     acceptNode: (node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as Element;
+        const tag = el.tagName;
+        if (tag === 'BR') return NodeFilter.FILTER_ACCEPT; // capturar <br> como \n
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_SKIP; // ignorar el elemento pero descender en sus hijos
+      }
+      // Nodo de texto
       const text = node as Text;
       if (!text.data || text.data.length === 0) return NodeFilter.FILTER_REJECT;
-
       const parentEl = text.parentElement;
       if (!parentEl) return NodeFilter.FILTER_REJECT;
-
-      // Evitar textos no visibles típicos
       const tag = parentEl.tagName;
       if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return NodeFilter.FILTER_REJECT;
-
       return NodeFilter.FILTER_ACCEPT;
     },
   });
@@ -76,10 +81,20 @@ const buildTextIndex = (container: Element) => {
   const entries: TextNodeIndexEntry[] = [];
   let fullText = '';
   let current: Node | null;
-
   let prevTextNode: Text | null = null;
 
   while ((current = walker.nextNode())) {
+    // <br> → insertar \n si el último char no es ya \n
+    if (current.nodeType === Node.ELEMENT_NODE) {
+      if (fullText.length > 0 && fullText[fullText.length - 1] !== '\n') {
+        const sepStart = fullText.length;
+        fullText += '\n';
+        entries.push({ node: null, start: sepStart, end: fullText.length });
+        prevTextNode = null; // evitar doble \n por cambio de bloque en el siguiente texto
+      }
+      continue;
+    }
+
     const node = current as Text;
 
     if (prevTextNode) {
@@ -91,7 +106,6 @@ const buildTextIndex = (container: Element) => {
         const sepStart = fullText.length;
         fullText += '\n';
         const sepEnd = fullText.length;
-        // node null = entrada virtual (no corresponde a un Text real)
         entries.push({ node: null, start: sepStart, end: sepEnd });
       }
     }
@@ -499,6 +513,7 @@ export function FlashcardReview({
 
   // Función para mostrar/ocultar SOLO los tooltips (sin afectar resaltados)
   const handleToggleAllTooltips = useCallback((show: boolean) => {
+    setTooltipsVisible(show);
     if (show) {
       // Mostrar tooltips para todos los puntos de referencia
       const contentArea = document.querySelector('.flashcard-content-area');
@@ -732,9 +747,7 @@ export function FlashcardReview({
       if (key === 't' || key === 'T') {
         event.preventDefault();
         console.log('🎯 Tecla T - Toggle tooltips de puntos de referencia');
-        const newState = !tooltipsVisible;
-        setTooltipsVisible(newState);
-        handleToggleAllTooltips(newState);
+        handleToggleAllTooltips(!tooltipsVisible);
         return;
       }
 
@@ -863,45 +876,46 @@ export function FlashcardReview({
       const { fullText, entries } = buildTextIndex(contentArea);
       if (!fullText || entries.length === 0) return;
 
-      const normalizeText = (text: string) => text
-        .replace(/\s+/g, ' ')
-        .replace(/\n/g, ' ')
-        .trim();
-
       // ── PASO 1: calcular TODOS los ranges ANTES de tocar el DOM ──
       const toHighlight: Array<{ range: Range; referencePoint: ReferencePoint }> = [];
+
+      // Cache canonicalización del fullText (costoso, se hace una sola vez)
+      const { canon: canonFull, map: mapFull } = canonicalizeWhitespaceWithMap(fullText);
 
       for (const referencePoint of referencePoints) {
         const selectedText = referencePoint.selectedText;
         if (!selectedText || selectedText.trim().length === 0) continue;
 
-        let index = fullText.indexOf(selectedText);
+        let index = -1;
+        let matchLength = selectedText.length;
 
+        // Intento 1: coincidencia exacta
+        const exactIdx = fullText.indexOf(selectedText);
+        if (exactIdx !== -1) {
+          index = exactIdx;
+        }
+
+        // Intento 2: normalización de whitespace (maneja \n vs espacios en code blocks)
         if (index === -1) {
-          const normalizedSelected = normalizeText(selectedText);
-          const normalizedFull = normalizeText(fullText);
-          const normalizedIndex = normalizedFull.indexOf(normalizedSelected);
-
-          if (normalizedIndex !== -1) {
-            let originalIndex = 0;
-            let normalizedCount = 0;
-            for (let i = 0; i < fullText.length && normalizedCount < normalizedIndex; i++) {
-              const char = fullText[i];
-              if (!/\s/.test(char) || (i > 0 && !/\s/.test(fullText[i-1]))) normalizedCount++;
-              originalIndex = i;
+          const { canon: canonNeedle } = canonicalizeWhitespaceWithMap(selectedText);
+          const canonIdx = canonFull.indexOf(canonNeedle);
+          if (canonIdx !== -1) {
+            const mapped = mapCanonicalRangeToOriginal(canonIdx, canonIdx + canonNeedle.length, mapFull, fullText.length);
+            if (mapped) {
+              index = mapped.origStart;
+              matchLength = mapped.origEnd - mapped.origStart;
             }
-            index = originalIndex;
           }
         }
 
+        // Intento 3: primeras palabras del texto
         if (index === -1) {
           const words = selectedText.split(/\s+/).slice(0, 20).join(' ');
           const partialIndex = fullText.indexOf(words);
-          if (partialIndex !== -1) index = partialIndex;
-          else continue;
+          if (partialIndex !== -1) { index = partialIndex; } else continue;
         }
 
-        const range = createRangeFromOffsets(entries, index, index + selectedText.length);
+        const range = createRangeFromOffsets(entries, index, index + matchLength);
         if (range) toHighlight.push({ range, referencePoint });
       }
 
@@ -943,21 +957,31 @@ export function FlashcardReview({
     }, 100);
   }, [referencePoints, clearTooltipAndHighlights]);
 
-  // Efecto para mostrar automáticamente los puntos de referencia cuando se revela el contenido
-  useEffect(() => {
-    if (revealed && !contentLoading && referencePoints.length > 0) {
-      const timer = setTimeout(() => {
-        handleShowAllReferences();
-        // Activar tooltips después de que los highlights estén en el DOM
-        setTimeout(() => {
-          setTooltipsVisible(true);
-          handleToggleAllTooltips(true);
-        }, 200);
-      }, 500);
+  // Refs estables para los callbacks — evitan que el useEffect cancele su timer
+  // cada vez que activeTooltip cambia y recrea los callbacks
+  const handleShowAllReferencesRef = useRef(handleShowAllReferences);
+  useEffect(() => { handleShowAllReferencesRef.current = handleShowAllReferences; }, [handleShowAllReferences]);
 
-      return () => clearTimeout(timer);
-    }
-  }, [revealed, contentLoading, referencePoints, handleShowAllReferences, handleToggleAllTooltips]);
+  const handleToggleAllTooltipsRef = useRef(handleToggleAllTooltips);
+  useEffect(() => { handleToggleAllTooltipsRef.current = handleToggleAllTooltips; }, [handleToggleAllTooltips]);
+
+  // Efecto para mostrar automáticamente los puntos de referencia cuando se revela el contenido.
+  // Deps mínimas (solo datos): revealed, contentLoading, referencePoints.length
+  // Los callbacks se leen desde refs para no reiniciar el timer cuando cambian.
+  useEffect(() => {
+    if (!revealed || contentLoading || referencePoints.length === 0) return;
+
+    const timer = setTimeout(() => {
+      handleShowAllReferencesRef.current();
+      // Activar tooltips después de que los highlights estén en el DOM
+      setTimeout(() => {
+        handleToggleAllTooltipsRef.current(true);
+      }, 200);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealed, contentLoading, referencePoints.length]);
 
   // Mostrar banner de notas al cargar la tarjeta si tiene notas
   useEffect(() => {

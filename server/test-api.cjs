@@ -26,6 +26,7 @@ const notion = new Client({
 initializeDatabase().then(success => {
   if (success) {
     console.log('🗄️ Base de datos inicializada correctamente');
+    DatabaseService.ensureExamCoverageTable();
   } else {
     console.log('⚠️ Continuando sin base de datos local (solo funciones de Notion disponibles)');
   }
@@ -192,6 +193,48 @@ app.delete('/exams/:examId', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Error eliminando documento de examen:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== ENDPOINTS DE COBERTURA DE EXÁMENES ====================
+
+// Obtener qué flashcards de una BD están cubiertas por algún examen del grupo
+app.get('/groups/:groupId/databases/:databaseId/flashcard-coverage', async (req, res) => {
+  try {
+    const { groupId, databaseId } = req.params;
+    const coverage = await DatabaseService.getFlashcardCoverage(groupId, databaseId);
+    res.json(coverage);
+  } catch (error) {
+    console.error('❌ Error obteniendo cobertura de flashcards:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Resumen de cobertura por base de datos para un grupo
+app.get('/groups/:groupId/coverage-summary', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const summary = await DatabaseService.getCoverageSummaryByDatabase(groupId);
+    res.json(summary);
+  } catch (error) {
+    console.error('❌ Error obteniendo resumen de cobertura:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Vincular flashcards a un examen (registrar cobertura)
+app.post('/exams/:examId/flashcard-coverage', async (req, res) => {
+  try {
+    const { examId } = req.params;
+    const { databaseId, flashcardIds } = req.body;
+    if (!databaseId || !Array.isArray(flashcardIds)) {
+      return res.status(400).json({ error: 'databaseId y flashcardIds[] son requeridos' });
+    }
+    const result = await DatabaseService.setFlashcardCoverage(examId, databaseId, flashcardIds);
+    res.json({ success: true, linkedCount: result.linkedCount });
+  } catch (error) {
+    console.error('❌ Error vinculando cobertura de flashcards:', error);
     res.status(500).json({ error: error.message });
   }
 });
