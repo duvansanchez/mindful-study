@@ -301,7 +301,7 @@ export function FlashcardReview({
 
   // Estado para filtro de notas de repaso
   const [noteFilter, setNoteFilter] = useState<string>('all');
-  const [showReviewNotes, setShowReviewNotes] = useState(true);
+  const [showReviewNotes, setShowReviewNotes] = useState(false);
 
   // Banner + modal de notas de repaso al entrar a la tarjeta
   const [showNotesPromptBanner, setShowNotesPromptBanner] = useState(false);
