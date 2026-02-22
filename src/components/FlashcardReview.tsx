@@ -852,7 +852,7 @@ export function FlashcardReview({
   const handleShowAllReferences = useCallback(() => {
     // Limpiar tooltips activos primero
     clearTooltipAndHighlights();
-    
+
     setTimeout(() => {
       const contentArea = document.querySelector('.flashcard-content-area');
       if (!contentArea) return;
@@ -863,112 +863,101 @@ export function FlashcardReview({
       const { fullText, entries } = buildTextIndex(contentArea);
       if (!fullText || entries.length === 0) return;
 
-      // Resaltar todos los puntos de referencia
-      referencePoints.forEach((referencePoint) => {
-        const selectedText = referencePoint.selectedText;
-        if (!selectedText || selectedText.trim().length === 0) return;
+      const normalizeText = (text: string) => text
+        .replace(/\s+/g, ' ')
+        .replace(/\n/g, ' ')
+        .trim();
 
-        // Intentar búsqueda exacta primero
+      // ── PASO 1: calcular TODOS los ranges ANTES de tocar el DOM ──
+      const toHighlight: Array<{ range: Range; referencePoint: ReferencePoint }> = [];
+
+      for (const referencePoint of referencePoints) {
+        const selectedText = referencePoint.selectedText;
+        if (!selectedText || selectedText.trim().length === 0) continue;
+
         let index = fullText.indexOf(selectedText);
-        
-        // Si no se encuentra, intentar búsqueda flexible
+
         if (index === -1) {
-          // Normalizar texto para búsqueda (quitar espacios extra, saltos de línea, etc.)
-          const normalizeText = (text: string) => text
-            .replace(/\s+/g, ' ')  // Reemplazar múltiples espacios/saltos por un espacio
-            .replace(/\n/g, ' ')   // Reemplazar saltos de línea por espacios
-            .trim();
-          
           const normalizedSelected = normalizeText(selectedText);
           const normalizedFull = normalizeText(fullText);
-          
           const normalizedIndex = normalizedFull.indexOf(normalizedSelected);
-          
+
           if (normalizedIndex !== -1) {
-            // Encontrar la posición aproximada en el texto original
-            // Contar caracteres hasta llegar a la posición normalizada
             let originalIndex = 0;
             let normalizedCount = 0;
-            
             for (let i = 0; i < fullText.length && normalizedCount < normalizedIndex; i++) {
               const char = fullText[i];
-              if (!/\s/.test(char) || (i > 0 && !/\s/.test(fullText[i-1]))) {
-                normalizedCount++;
-              }
+              if (!/\s/.test(char) || (i > 0 && !/\s/.test(fullText[i-1]))) normalizedCount++;
               originalIndex = i;
             }
-            
             index = originalIndex;
           }
         }
-        
+
         if (index === -1) {
-          // Intentar buscar una parte del texto (primeras 20 palabras)
           const words = selectedText.split(/\s+/).slice(0, 20).join(' ');
           const partialIndex = fullText.indexOf(words);
-          
-          if (partialIndex !== -1) {
-            index = partialIndex;
-          } else {
-            return;
-          }
+          if (partialIndex !== -1) index = partialIndex;
+          else continue;
         }
 
         const range = createRangeFromOffsets(entries, index, index + selectedText.length);
-        if (!range) return;
+        if (range) toHighlight.push({ range, referencePoint });
+      }
 
-        // Crear resaltado clickeable
+      // ── PASO 2: aplicar todos los highlights ahora (el DOM se modifica aquí) ──
+      for (const { range, referencePoint } of toHighlight) {
         const highlight = wrapRangeWithHighlight(contentArea, range, referencePoint.color);
-        if (highlight) {
-          // Hacer el resaltado clickeable para abrir modal de notas
-          highlight.style.cursor = 'pointer';
-          highlight.style.position = 'relative';
-          highlight.title = `📍 ${referencePoint.referenceName} - Clic para ver notas`;
-          
-          // Agregar indicador de notas si tiene notas
-          if (referencePoint.notes && referencePoint.notes.trim()) {
-            const noteIndicator = document.createElement('span');
-            noteIndicator.style.cssText = `
-              position: absolute;
-              top: -2px;
-              right: -2px;
-              width: 6px;
-              height: 6px;
-              background-color: #3B82F6;
-              border-radius: 50%;
-              border: 1px solid white;
-              z-index: 10;
-              pointer-events: none;
-            `;
-            highlight.appendChild(noteIndicator);
-          }
-          
-          const handleHighlightClick = (e: Event) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setNoteModalReference(referencePoint);
-          };
-          
-          highlight.addEventListener('click', handleHighlightClick);
-          
-          // Guardar referencia para limpieza posterior
-          highlight.setAttribute('data-reference-id', referencePoint.id.toString());
+        if (!highlight) continue;
+
+        highlight.style.cursor = 'pointer';
+        highlight.style.position = 'relative';
+        highlight.title = `📍 ${referencePoint.referenceName} - Clic para ver notas`;
+
+        if (referencePoint.notes && referencePoint.notes.trim()) {
+          const noteIndicator = document.createElement('span');
+          noteIndicator.style.cssText = `
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 6px;
+            height: 6px;
+            background-color: #3B82F6;
+            border-radius: 50%;
+            border: 1px solid white;
+            z-index: 10;
+            pointer-events: none;
+          `;
+          highlight.appendChild(noteIndicator);
         }
-      });
+
+        const handleHighlightClick = (e: Event) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setNoteModalReference(referencePoint);
+        };
+
+        highlight.addEventListener('click', handleHighlightClick);
+        highlight.setAttribute('data-reference-id', referencePoint.id.toString());
+      }
     }, 100);
   }, [referencePoints, clearTooltipAndHighlights]);
 
   // Efecto para mostrar automáticamente los puntos de referencia cuando se revela el contenido
   useEffect(() => {
     if (revealed && !contentLoading && referencePoints.length > 0) {
-      // Esperar un poco más para asegurar que el contenido esté completamente renderizado
       const timer = setTimeout(() => {
         handleShowAllReferences();
+        // Activar tooltips después de que los highlights estén en el DOM
+        setTimeout(() => {
+          setTooltipsVisible(true);
+          handleToggleAllTooltips(true);
+        }, 200);
       }, 500);
-      
+
       return () => clearTimeout(timer);
     }
-  }, [revealed, contentLoading, referencePoints, handleShowAllReferences]);
+  }, [revealed, contentLoading, referencePoints, handleShowAllReferences, handleToggleAllTooltips]);
 
   // Mostrar banner de notas al cargar la tarjeta si tiene notas
   useEffect(() => {
