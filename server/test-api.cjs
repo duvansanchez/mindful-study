@@ -182,6 +182,33 @@ app.get('/groups/:groupId/exam-attempts', async (req, res) => {
   }
 });
 
+// Actualizar documento de examen
+app.put('/exams/:examId', async (req, res) => {
+  try {
+    const { examId } = req.params;
+    const { examName, examData, timeLimit = 0 } = req.body;
+
+    if (!examName || examName.trim().length === 0) {
+      return res.status(400).json({ error: 'El nombre del examen es requerido' });
+    }
+    if (!Array.isArray(examData) || examData.length === 0) {
+      return res.status(400).json({ error: 'El examen debe contener al menos una pregunta' });
+    }
+
+    const exam = await DatabaseService.updateExamDocument(examId, examName.trim(), examData, timeLimit);
+
+    if (!exam) {
+      return res.status(404).json({ error: 'Examen no encontrado' });
+    }
+
+    console.log('✅ Documento de examen actualizado:', examName);
+    res.json(exam);
+  } catch (error) {
+    console.error('❌ Error actualizando documento de examen:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Eliminar documento de examen
 app.delete('/exams/:examId', async (req, res) => {
   try {

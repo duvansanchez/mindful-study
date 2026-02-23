@@ -1,10 +1,11 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { ArrowLeft, Upload, Play, Trash2, BarChart3, Loader2, Sparkles, CheckSquare, Square } from 'lucide-react';
-import { DatabaseGroup, Flashcard } from '@/types';
+import { ArrowLeft, Upload, Play, Trash2, BarChart3, Loader2, Sparkles, CheckSquare, Square, Pencil } from 'lucide-react';
+import { DatabaseGroup, Flashcard, ExamQuestion } from '@/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ExamStatsView } from '@/components/ExamStatsView';
 import { ExamGeneratorView } from '@/components/ExamGeneratorView';
+import { ExamEditorView } from '@/components/ExamEditorView';
 import { FlashcardFilters } from '@/components/FlashcardFilters';
 import { useNotionDatabases, useNotionFlashcards } from '@/hooks/useNotion';
 import { useLinkFlashcardCoverage } from '@/hooks/useExams';
@@ -51,6 +52,7 @@ export const ExamsView: React.FC<ExamsViewProps> = ({ group, onBack, onStartExam
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [selectedExamForStats, setSelectedExamForStats] = useState<Exam | null>(null);
+  const [editingExam, setEditingExam] = useState<Exam | null>(null);
 
   // Estado para el flujo de upload con vinculación de cobertura
   const [pendingExamData, setPendingExamData] = useState<PendingExamData | null>(null);
@@ -120,6 +122,31 @@ export const ExamsView: React.FC<ExamsViewProps> = ({ group, onBack, onStartExam
     },
     onError: () => toast.error('Error al eliminar el examen'),
   });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ examId, examName, examData, timeLimit }: { examId: string; examName: string; examData: ExamQuestion[]; timeLimit: number }) => {
+      const response = await fetch(`${API_BASE}/exams/${examId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ examName, examData, timeLimit }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || 'Error actualizando examen');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Examen actualizado');
+      queryClient.invalidateQueries({ queryKey: ['exams', group.id] });
+      setEditingExam(null);
+    },
+    onError: (err: Error) => toast.error(err.message || 'Error al actualizar el examen'),
+  });
+
+  const handleSaveExam = async (examId: string, examName: string, examData: ExamQuestion[], timeLimit: number) => {
+    await updateMutation.mutateAsync({ examId, examName, examData, timeLimit });
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -206,6 +233,22 @@ export const ExamsView: React.FC<ExamsViewProps> = ({ group, onBack, onStartExam
     const passRate = Math.round((examAttempts.filter(a => a.score >= 70).length / examAttempts.length) * 100);
     return { count: examAttempts.length, avg, best, passRate };
   };
+
+  // Editor de examen
+  if (editingExam) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-foreground">Editar examen</h1>
+        </div>
+        <ExamEditorView
+          exam={editingExam}
+          onSave={handleSaveExam}
+          onCancel={() => setEditingExam(null)}
+        />
+      </div>
+    );
+  }
 
   // Si hay un examen seleccionado para ver sus stats, mostrar la vista de estadísticas
   if (selectedExamForStats) {
@@ -544,6 +587,12 @@ export const ExamsView: React.FC<ExamsViewProps> = ({ group, onBack, onStartExam
                         >
                           <BarChart3 className="w-4 h-4" />
                           Ver estadísticas
+                        </button>
+                        <button
+                          onClick={() => setEditingExam(exam)}
+                          className="flex items-center justify-center gap-2 px-3 py-2 border border-border rounded hover:bg-secondary transition-colors text-sm"
+                        >
+                          <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => { if (confirm('¿Eliminar este examen?')) deleteMutation.mutate(exam.id); }}

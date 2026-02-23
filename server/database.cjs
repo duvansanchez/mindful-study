@@ -2083,6 +2083,45 @@ class DatabaseService {
     }
   }
 
+  // Actualizar documento de examen
+  static async updateExamDocument(examId, examName, examData, timeLimit = 0) {
+    try {
+      const pool = await getPool();
+      const examDataStr = JSON.stringify(examData);
+      const totalQuestions = Array.isArray(examData) ? examData.length : 0;
+
+      const result = await pool.request()
+        .input('examId', sql.UniqueIdentifier, examId)
+        .input('examName', sql.NVarChar(255), examName)
+        .input('examData', sql.NVarChar(sql.MAX), examDataStr)
+        .input('timeLimit', sql.Int, timeLimit)
+        .input('totalQuestions', sql.Int, totalQuestions)
+        .query(`
+          UPDATE ExamDocuments
+          SET ExamName = @examName, ExamData = @examData, TimeLimit = @timeLimit, TotalQuestions = @totalQuestions, UpdatedAt = GETUTCDATE()
+          OUTPUT INSERTED.Id, INSERTED.GroupId, INSERTED.ExamName, INSERTED.ExamData, INSERTED.TimeLimit, INSERTED.TotalQuestions, INSERTED.CreatedAt, INSERTED.UpdatedAt
+          WHERE Id = @examId
+        `);
+
+      if (result.recordset.length === 0) return null;
+
+      const exam = result.recordset[0];
+      return {
+        id: exam.Id,
+        groupId: exam.GroupId,
+        examName: exam.ExamName,
+        examData: JSON.parse(exam.ExamData),
+        timeLimit: exam.TimeLimit,
+        totalQuestions: exam.TotalQuestions,
+        createdAt: exam.CreatedAt,
+        updatedAt: exam.UpdatedAt
+      };
+    } catch (error) {
+      console.error('Error actualizando documento de examen:', error);
+      throw error;
+    }
+  }
+
   // Eliminar documento de examen
   static async deleteExamDocument(examId) {
     try {

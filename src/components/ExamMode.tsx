@@ -268,12 +268,12 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         </div>
 
         {/* Vistazo rápido de respuestas */}
-        <div className="grid grid-cols-6 gap-2 p-4 bg-muted/30 rounded-lg">
+        <div className="flex flex-wrap gap-1.5 p-3 bg-muted/30 rounded-lg">
           {questions.map((q, idx) => (
             <button
               key={q.id}
               onClick={() => setCurrentQuestionIndex(idx)}
-              className={`w-full aspect-square rounded font-semibold text-sm transition-all ${
+              className={`w-7 h-7 flex items-center justify-center rounded text-xs font-semibold transition-all ${
                 answers[q.id]
                   ? 'bg-green-500/80 text-white'
                   : 'bg-muted border border-border text-muted-foreground'
