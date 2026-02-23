@@ -25,6 +25,52 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 
   const currentQuestion = questions[currentQuestionIndex];
 
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLTextAreaElement) return;
+
+      // ArrowUp/ArrowDown: cycle through options
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && currentQuestion.type !== 'essay') {
+        const options = currentQuestion.type === 'true-false'
+          ? ['Verdadero', 'Falso']
+          : (currentQuestion.options ?? []);
+        if (options.length === 0) return;
+        e.preventDefault();
+        const currentIndex = options.indexOf(answers[currentQuestion.id] ?? '');
+        let nextIndex: number;
+        if (e.key === 'ArrowDown') {
+          nextIndex = currentIndex < options.length - 1 ? currentIndex + 1 : 0;
+        } else {
+          nextIndex = currentIndex > 0 ? currentIndex - 1 : options.length - 1;
+        }
+        handleAnswerSelect(options[nextIndex]);
+        return;
+      }
+
+      // ArrowRight / Enter: siguiente pregunta
+      if (e.key === 'ArrowRight' || e.key === 'Enter') {
+        e.preventDefault();
+        if (currentQuestionIndex < questions.length - 1) {
+          setCurrentQuestionIndex(prev => prev + 1);
+        }
+        return;
+      }
+
+      // ArrowLeft: pregunta anterior
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (currentQuestionIndex > 0) {
+          setCurrentQuestionIndex(prev => prev - 1);
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentQuestion, answers, currentQuestionIndex, questions.length]);
+
   // Timer
   useEffect(() => {
     if (timeLimit === 0) return; // Sin límite de tiempo
