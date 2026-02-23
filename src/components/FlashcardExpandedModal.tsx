@@ -4,16 +4,17 @@ import { StateBadge } from './StateBadge';
 import { NotionRenderer } from './NotionRenderer';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ImageModal } from './ImageModal';
-import { 
-  X, 
-  StickyNote, 
-  MessageSquare, 
-  Bookmark, 
-  Eye, 
-  EyeOff, 
+import {
+  X,
+  StickyNote,
+  MessageSquare,
+  Bookmark,
+  Eye,
+  EyeOff,
   Calendar,
   Clock,
-  BookOpen
+  BookOpen,
+  PlayCircle
 } from 'lucide-react';
 import { useFlashcardContent } from '@/hooks/useNotion';
 import { useReviewNotes } from '@/hooks/useReviewNotes';
@@ -25,12 +26,14 @@ interface FlashcardExpandedModalProps {
   card: Flashcard;
   isOpen: boolean;
   onClose: () => void;
+  onReviewSingleCard?: (card: Flashcard) => void;
 }
 
 export const FlashcardExpandedModal: React.FC<FlashcardExpandedModalProps> = ({
   card,
   isOpen,
-  onClose
+  onClose,
+  onReviewSingleCard
 }) => {
   const [showContent, setShowContent] = useState(false);
   const [showReferencePoints, setShowReferencePoints] = useState(false);
@@ -287,14 +290,25 @@ export const FlashcardExpandedModal: React.FC<FlashcardExpandedModalProps> = ({
         {/* Footer del modal */}
         <div className="flex items-center justify-between p-6 border-t border-border bg-muted/30">
           <div className="text-sm text-muted-foreground">
-            Vista ampliada • Solo lectura
+            Vista ampliada
           </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            Cerrar
-          </button>
+          <div className="flex items-center gap-2">
+            {onReviewSingleCard && (
+              <button
+                onClick={() => onReviewSingleCard(card)}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                <PlayCircle className="w-4 h-4" />
+                Repasar esta tarjeta
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
 

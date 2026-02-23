@@ -22,6 +22,7 @@ interface OverviewModeProps {
   databaseName: string;
   databaseId: string;
   onClose: () => void;
+  onReviewSingleCard?: (card: Flashcard) => void;
 }
 
 type SortOption = 'priority' | 'alphabetical' | 'created';
@@ -48,9 +49,10 @@ interface FlashcardOverviewCardProps {
   card: Flashcard;
   onImageClick: (imageUrl: string, caption?: string) => void;
   onStateChange: (cardId: string, newState: KnowledgeState) => void;
+  onReviewSingleCard?: (card: Flashcard) => void;
 }
 
-const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onImageClick, onStateChange }) => {
+const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onImageClick, onStateChange, onReviewSingleCard }) => {
   const [currentState, setCurrentState] = useState<KnowledgeState>(card.state);
   const [isUpdatingState, setIsUpdatingState] = useState(false);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -435,12 +437,13 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onI
         card={card}
         isOpen={showExpandedModal}
         onClose={() => setShowExpandedModal(false)}
+        onReviewSingleCard={onReviewSingleCard}
       />
     </div>
   );
 };
 
-export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: OverviewModeProps) {
+export function OverviewMode({ flashcards, databaseName, databaseId, onClose, onReviewSingleCard }: OverviewModeProps) {
   const [sortOption, setSortOption] = useState<SortOption>('priority');
   const [localFlashcards, setLocalFlashcards] = useState<Flashcard[]>(flashcards);
   const [filteredCards, setFilteredCards] = useState<Flashcard[]>(flashcards);
@@ -604,7 +607,7 @@ export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: 
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sortedCards.map((card) => (
-                <FlashcardOverviewCard key={card.id} card={card} onImageClick={handleImageClick} onStateChange={handleStateChange} />
+                <FlashcardOverviewCard key={card.id} card={card} onImageClick={handleImageClick} onStateChange={handleStateChange} onReviewSingleCard={onReviewSingleCard} />
               ))}
             </div>
           )}

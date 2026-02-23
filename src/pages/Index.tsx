@@ -173,6 +173,16 @@ const Index = () => {
     setView('overview');
   };
 
+  const handleReviewSingleCard = (card: Flashcard) => {
+    setReviewCards([card]);
+    setCurrentCardIndex(0);
+    setCardsToRepeat([]);
+    setStudyStartTime(new Date());
+    setIsPlannedSession(true);
+    setPreviousView('overview');
+    setView('review');
+  };
+
   const handleStartMatchingMode = () => {
     setPendingMode('matching'); // Configurar modo matching
     setView('review-setup'); // Ir a la configuración primero
@@ -751,6 +761,7 @@ const Index = () => {
           databaseName={selectedDatabase.name}
           databaseId={selectedDatabase.id}
           onClose={handleCloseOverview}
+          onReviewSingleCard={handleReviewSingleCard}
         />
       )}
 
