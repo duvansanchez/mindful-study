@@ -1,10 +1,11 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { ArrowLeft, Upload, Play, Trash2, BarChart3, Loader2, Sparkles, CheckSquare, Square } from 'lucide-react';
-import { DatabaseGroup } from '@/types';
+import { DatabaseGroup, Flashcard } from '@/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ExamStatsView } from '@/components/ExamStatsView';
 import { ExamGeneratorView } from '@/components/ExamGeneratorView';
+import { FlashcardFilters } from '@/components/FlashcardFilters';
 import { useNotionDatabases, useNotionFlashcards } from '@/hooks/useNotion';
 import { useLinkFlashcardCoverage } from '@/hooks/useExams';
 
@@ -55,6 +56,7 @@ export const ExamsView: React.FC<ExamsViewProps> = ({ group, onBack, onStartExam
   const [pendingExamData, setPendingExamData] = useState<PendingExamData | null>(null);
   const [coverageDbId, setCoverageDbId] = useState<string | null>(null);
   const [coverageSelectedIds, setCoverageSelectedIds] = useState<Set<string>>(new Set());
+  const [filteredCoverageFlashcards, setFilteredCoverageFlashcards] = useState<Flashcard[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -346,6 +348,7 @@ export const ExamsView: React.FC<ExamsViewProps> = ({ group, onBack, onStartExam
                           onClick={() => {
                             setCoverageDbId(prev => prev === db.id ? null : db.id);
                             setCoverageSelectedIds(new Set());
+                            setFilteredCoverageFlashcards([]);
                           }}
                           className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm text-left transition-colors ${
                             coverageDbId === db.id
@@ -371,25 +374,48 @@ export const ExamsView: React.FC<ExamsViewProps> = ({ group, onBack, onStartExam
                           <p className="text-sm text-muted-foreground py-2">No se encontraron flashcards.</p>
                         ) : (
                           <>
+                            <FlashcardFilters
+                              key={coverageDbId}
+                              flashcards={coverageFlashcards}
+                              onFilterChange={setFilteredCoverageFlashcards}
+                              databaseId={coverageDbId ?? undefined}
+                            />
                             <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                               <span>
                                 <span className="font-medium text-foreground">{coverageSelectedIds.size}</span> seleccionadas
+                                <span className="ml-2">· {filteredCoverageFlashcards.length} de {coverageFlashcards.length} visibles</span>
                               </span>
                               <button
                                 onClick={() => {
-                                  if (coverageSelectedIds.size === coverageFlashcards.length) {
-                                    setCoverageSelectedIds(new Set());
+                                  const allVisibleSelected = filteredCoverageFlashcards.every(f => coverageSelectedIds.has(f.id));
+                                  if (allVisibleSelected) {
+                                    setCoverageSelectedIds(prev => {
+                                      const next = new Set(prev);
+                                      filteredCoverageFlashcards.forEach(f => next.delete(f.id));
+                                      return next;
+                                    });
                                   } else {
-                                    setCoverageSelectedIds(new Set(coverageFlashcards.map(f => f.id)));
+                                    setCoverageSelectedIds(prev => {
+                                      const next = new Set(prev);
+                                      filteredCoverageFlashcards.forEach(f => next.add(f.id));
+                                      return next;
+                                    });
                                   }
                                 }}
                                 className="text-primary hover:underline font-medium"
                               >
-                                {coverageSelectedIds.size === coverageFlashcards.length ? 'Deseleccionar todas' : 'Seleccionar todas'}
+                                {filteredCoverageFlashcards.every(f => coverageSelectedIds.has(f.id)) && filteredCoverageFlashcards.length > 0
+                                  ? 'Deseleccionar visibles'
+                                  : 'Seleccionar visibles'}
                               </button>
                             </div>
                             <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                              {coverageFlashcards.map(card => {
+                              {filteredCoverageFlashcards.length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center py-3">
+                                  Ninguna flashcard coincide con los filtros activos.
+                                </p>
+                              ) : null}
+                              {filteredCoverageFlashcards.map(card => {
                                 const isSelected = coverageSelectedIds.has(card.id);
                                 return (
                                   <label

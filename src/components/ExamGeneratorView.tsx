@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { DatabaseGroup } from '@/types';
+import { DatabaseGroup, Flashcard } from '@/types';
 import { useNotionFlashcards, useNotionDatabases } from '@/hooks/useNotion';
 import { NotionService } from '@/services/notion';
 import { useFlashcardCoverage, useCoverageSummary } from '@/hooks/useExams';
+import { FlashcardFilters } from './FlashcardFilters';
 import { Loader2, CheckSquare, Square, Download, Copy, Check, ChevronDown, ChevronUp, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -35,6 +36,7 @@ export const ExamGeneratorView: React.FC<ExamGeneratorViewProps> = ({ group }) =
   const [showPrompt, setShowPrompt] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [filteredFlashcards, setFilteredFlashcards] = useState<Flashcard[]>([]);
 
   const { data: allDatabases = [] } = useNotionDatabases();
   const { data: flashcards = [], isLoading: flashcardsLoading } = useNotionFlashcards(selectedDbId);
@@ -53,16 +55,17 @@ export const ExamGeneratorView: React.FC<ExamGeneratorViewProps> = ({ group }) =
     [coverage]
   );
 
-  // Cuando cambia la BD, pre-seleccionar automáticamente las NO cubiertas
+  // Cuando cambia la BD, resetear selección y lista filtrada
   const handleDbChange = (dbId: string) => {
     setSelectedDbId(dbId);
     setSelectedIds(new Set());
+    setFilteredFlashcards([]);
   };
 
-  // Después de cargar flashcards, pre-seleccionar las sin cobertura
+  // Flashcards sin cobertura dentro de la vista filtrada
   const uncoveredFlashcards = useMemo(
-    () => flashcards.filter(f => !coveredIds.has(f.id)),
-    [flashcards, coveredIds]
+    () => filteredFlashcards.filter(f => !coveredIds.has(f.id)),
+    [filteredFlashcards, coveredIds]
   );
 
   const handleSelectUncovered = () => {
@@ -216,6 +219,14 @@ export const ExamGeneratorView: React.FC<ExamGeneratorViewProps> = ({ group }) =
             <p className="text-sm text-muted-foreground">No se encontraron flashcards en esta base de datos.</p>
           ) : (
             <>
+              {/* Filtros avanzados */}
+              <FlashcardFilters
+                key={selectedDbId}
+                flashcards={flashcards}
+                onFilterChange={setFilteredFlashcards}
+                databaseId={selectedDbId ?? undefined}
+              />
+
               {/* Controles de selección */}
               <div className="flex items-center justify-between text-xs text-muted-foreground pb-1">
                 <span>
@@ -225,6 +236,7 @@ export const ExamGeneratorView: React.FC<ExamGeneratorViewProps> = ({ group }) =
                       · {coveredIds.size} ya cubiertas
                     </span>
                   )}
+                  <span className="ml-2">· {filteredFlashcards.length} de {flashcards.length} visibles</span>
                 </span>
                 <button
                   onClick={handleSelectUncovered}
@@ -236,7 +248,12 @@ export const ExamGeneratorView: React.FC<ExamGeneratorViewProps> = ({ group }) =
 
               {/* Lista */}
               <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
-                {flashcards.map(card => {
+                {filteredFlashcards.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Ninguna flashcard coincide con los filtros activos.
+                  </p>
+                ) : null}
+                {filteredFlashcards.map(card => {
                   const isCovered = coveredIds.has(card.id);
                   const isSelected = selectedIds.has(card.id);
                   const stateInfo = STATE_LABELS[card.state] ?? STATE_LABELS.tocado;

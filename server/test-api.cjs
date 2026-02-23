@@ -712,12 +712,18 @@ app.get('/databases', async (req, res) => {
   } catch (error) {
     console.error('❌ Error general:', error);
     // Si Notion devuelve rate limit (429), servir caché aunque esté vencido
-    if (error.status === 429 || error.code === 'rate_limited') {
+    if (error.status === 429 || error.code === 'rate_limited' || error.message?.toLowerCase().includes('rate limit')) {
       const stale = databasesCache.get('all_databases');
       if (stale) {
         console.log('⚡ Rate limit de Notion — sirviendo caché vencido como fallback');
         return res.json(stale.databases);
       }
+      const retryAfterSec = parseInt(error.headers?.get?.('retry-after') ?? '0', 10);
+      const retryMsg = retryAfterSec > 0
+        ? `Rate limit de Notion. Intenta de nuevo en ${Math.ceil(retryAfterSec / 60)} minuto(s).`
+        : 'Rate limit de Notion. Espera unos minutos e intenta de nuevo.';
+      console.log(`⚠️ Rate limit de Notion — sin caché disponible (retry-after: ${retryAfterSec}s)`);
+      return res.status(503).json({ error: retryMsg });
     }
     res.status(500).json({ error: error.message });
   }

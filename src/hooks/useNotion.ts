@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 
 // Hook para obtener bases de datos
 export const useNotionDatabases = (enabled: boolean = true) => {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['notion-databases'],
     queryFn: NotionService.getDatabases,
     enabled: enabled,
@@ -15,6 +15,18 @@ export const useNotionDatabases = (enabled: boolean = true) => {
     retry: 1, // un solo reintento — más reintentos agravan el rate limit
     retryDelay: 5000, // esperar 5 segundos antes de reintentar
   });
+
+  useEffect(() => {
+    if (!query.isError || !(query.error instanceof Error)) return;
+    const msg = query.error.message?.toLowerCase() ?? '';
+    if (msg.includes('rate limit')) {
+      toast.error(query.error.message, { id: 'notion-rate-limit', duration: 10000 });
+    } else {
+      toast.error(`Error al cargar bases de datos: ${query.error.message}`, { id: 'notion-db-error' });
+    }
+  }, [query.isError, query.error]);
+
+  return query;
 };
 
 // Hook para obtener flashcards de una base de datos

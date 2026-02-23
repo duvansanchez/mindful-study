@@ -7,16 +7,12 @@ const API_BASE = 'http://localhost:3002';
 export class NotionService {
   // Obtener todas las bases de datos accesibles
   static async getDatabases(): Promise<Database[]> {
-    try {
-      const response = await fetch(`${API_BASE}/databases`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching databases:', error);
-      return [];
+    const response = await fetch(`${API_BASE}/databases`);
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || `HTTP error! status: ${response.status}`);
     }
+    return response.json();
   }
 
   // Obtener flashcards de una base de datos específica
