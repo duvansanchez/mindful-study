@@ -12,7 +12,7 @@ const API_BASE = 'http://localhost:3002';
 interface GroupGeneralInfoViewProps {
   groups: DatabaseGroup[];
   onBack: () => void;
-  onStartSession?: (databaseId: string, flashcards: Flashcard[], studyMode: string) => void;
+  onStartSession?: (databaseId: string, flashcards: Flashcard[], studyMode: string, examId?: string | null) => void;
 }
 
 type PlanningSessionApi = Omit<PlanningSession, 'createdAt' | 'updatedAt'> & {

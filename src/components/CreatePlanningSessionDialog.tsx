@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { DatabaseGroup, Database, CreatePlanningSessionData, Flashcard, FlashcardWithDatabase } from '@/types';
+import { DatabaseGroup, Database, CreatePlanningSessionData, StudyMode, Flashcard, FlashcardWithDatabase } from '@/types';
 import { useCreatePlanningSession } from '@/hooks/usePlanning';
 import { useMultipleNotionFlashcards } from '@/hooks/useNotion';
+import { useQuery } from '@tanstack/react-query';
 import { FlashcardSelectionDialog } from './FlashcardSelectionDialog';
 import {
   Dialog,
@@ -16,19 +17,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { 
-  BookOpen, 
-  Eye, 
-  Shuffle, 
+  BookOpen,
+  Eye,
+  Shuffle,
   Loader2,
   Plus,
-  Filter
+  Filter,
+  ClipboardList
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -39,27 +34,10 @@ interface CreatePlanningSessionDialogProps {
 }
 
 const studyModeOptions = [
-  {
-    value: 'review' as const,
-    label: 'Modo Repaso Activo',
-    description: 'Flashcards tradicionales con retroalimentación',
-    icon: BookOpen,
-    color: 'text-blue-600'
-  },
-  {
-    value: 'matching' as const,
-    label: 'Modo Matching',
-    description: 'Conecta títulos con definiciones',
-    icon: Shuffle,
-    color: 'text-green-600'
-  },
-  {
-    value: 'overview' as const,
-    label: 'Modo Vista General',
-    description: 'Revisión rápida de todas las tarjetas',
-    icon: Eye,
-    color: 'text-purple-600'
-  }
+  { value: 'review' as StudyMode, label: 'Modo Repaso Activo', description: 'Flashcards con retroalimentación', icon: BookOpen, color: 'text-blue-600' },
+  { value: 'matching' as StudyMode, label: 'Modo Matching', description: 'Conecta títulos con definiciones', icon: Shuffle, color: 'text-green-600' },
+  { value: 'overview' as StudyMode, label: 'Modo Vista General', description: 'Revisión rápida de las tarjetas', icon: Eye, color: 'text-purple-600' },
+  { value: 'exam' as StudyMode, label: 'Examen', description: 'Realiza un examen del grupo', icon: ClipboardList, color: 'text-orange-600' },
 ];
 
 export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogProps> = ({
@@ -73,12 +51,22 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
     sessionName: '',
     databaseIds: [],
     sessionNote: '',
-    studyMode: 'review',
+    studyModes: ['review'],
+    examId: null,
     selectedFlashcards: []
   });
 
   const createMutation = useCreatePlanningSession();
-  
+
+  // Cargar exámenes del grupo para el selector
+  const examModeSelected = formData.studyModes?.includes('exam') ?? false;
+  const { data: groupExams = [] } = useQuery({
+    queryKey: ['exams', group.id],
+    queryFn: () => fetch(`/api/groups/${group.id}/exams`).then(r => r.ok ? r.json() : []),
+    enabled: examModeSelected,
+    staleTime: 2 * 60 * 1000,
+  });
+
   // Cargar flashcards de todas las bases de datos seleccionadas
   const selectedDatabases = useMemo(() => 
     databases.filter(db => formData.databaseIds?.includes(db.id)) || [],
@@ -114,12 +102,24 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
       return;
     }
 
+    if (!formData.studyModes || formData.studyModes.length === 0) {
+      toast.error('Debes seleccionar al menos un modo de estudio');
+      return;
+    }
+
+    if (formData.studyModes.includes('exam') && !formData.examId) {
+      toast.error('Debes seleccionar un examen para el modo Examen');
+      return;
+    }
+
     try {
-      // Enviar tanto databaseId (para compatibilidad) como databaseIds (para múltiples DBs)
       const sessionData = {
         ...formData,
-        databaseId: formData.databaseIds[0], // Para compatibilidad con esquema actual
-        databaseIds: formData.databaseIds    // Para soporte de múltiples bases de datos
+        databaseId: formData.databaseIds[0],
+        databaseIds: formData.databaseIds,
+        studyMode: formData.studyModes[0], // compat
+        studyModes: formData.studyModes,
+        examId: formData.examId || null,
       };
 
       console.log('🚀 Creando sesión con datos:', {
@@ -132,16 +132,17 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
         groupId: group.id,
         sessionData
       });
-      
+
       toast.success('Sesión de planificación creada exitosamente');
       setOpen(false);
-      
+
       // Limpiar formulario
       setFormData({
         sessionName: '',
         databaseIds: [],
         sessionNote: '',
-        studyMode: 'review',
+        studyModes: ['review'],
+        examId: null,
         selectedFlashcards: []
       });
     } catch (error) {
@@ -312,37 +313,70 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
             </div>
           )}
 
-          {/* Modo de estudio */}
+          {/* Modos de estudio */}
           <div className="space-y-2">
-            <Label htmlFor="studyMode">Modo de estudio</Label>
-            <Select 
-              value={formData.studyMode} 
-              onValueChange={(value: 'review' | 'matching' | 'overview') => 
-                handleInputChange('studyMode', value)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {studyModeOptions.map((mode) => {
-                  const Icon = mode.icon;
-                  return (
-                    <SelectItem key={mode.value} value={mode.value}>
-                      <div className="flex items-center gap-3 py-1">
-                        <Icon className={`w-4 h-4 ${mode.color}`} />
-                        <div>
-                          <div className="font-medium">{mode.label}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {mode.description}
-                          </div>
-                        </div>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            <Label>Modos de estudio</Label>
+            <div className="grid gap-2">
+              {studyModeOptions.map((mode) => {
+                const Icon = mode.icon;
+                const selected = formData.studyModes?.includes(mode.value) || false;
+                return (
+                  <label
+                    key={mode.value}
+                    className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
+                      selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-secondary/50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={(e) => {
+                        const current = formData.studyModes ?? [];
+                        const next = e.target.checked
+                          ? [...current, mode.value]
+                          : current.filter(m => m !== mode.value);
+                        setFormData(prev => ({
+                          ...prev,
+                          studyModes: next,
+                          // Limpiar examId si se deselecciona el modo examen
+                          examId: !e.target.checked && mode.value === 'exam' ? null : prev.examId
+                        }));
+                      }}
+                      className="rounded border-border accent-primary"
+                    />
+                    <Icon className={`w-4 h-4 ${mode.color}`} />
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{mode.label}</div>
+                      <div className="text-xs text-muted-foreground">{mode.description}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            {/* Selector de examen cuando el modo examen está seleccionado */}
+            {examModeSelected && (
+              <div className="mt-3 space-y-1.5">
+                <Label htmlFor="examSelect" className="text-sm">Examen a usar <span className="text-destructive">*</span></Label>
+                {groupExams.length === 0 ? (
+                  <p className="text-sm text-muted-foreground border border-dashed rounded-md p-2 text-center">
+                    No hay exámenes creados en este grupo
+                  </p>
+                ) : (
+                  <select
+                    id="examSelect"
+                    value={formData.examId || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, examId: e.target.value || null }))}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">Seleccionar examen...</option>
+                    {groupExams.map((exam: any) => (
+                      <option key={exam.id} value={exam.id}>{exam.examName}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Nota de la sesión */}

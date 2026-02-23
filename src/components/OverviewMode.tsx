@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Flashcard, KnowledgeState } from "@/types";
-import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
-import { Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, ArrowUpDown, Bookmark, Maximize2, ChevronRight, ChevronDown } from "lucide-react";
+import { Eye, EyeOff, StickyNote, ArrowLeft, BookOpen, MessageSquare, ArrowUpDown, Bookmark, Maximize2, ChevronRight, ChevronDown, Loader2 } from "lucide-react";
+import { NotionService } from "@/services/notion";
+import { toast } from "sonner";
 import { useFlashcardContent } from "@/hooks/useNotion";
 import { useReviewNotes } from "@/hooks/useReviewNotes";
 import { useNotesCountByDatabase } from "@/hooks/useStudyTracking";
@@ -25,12 +26,33 @@ interface OverviewModeProps {
 
 type SortOption = 'priority' | 'alphabetical' | 'created';
 
+const STATE_CONFIG: Record<KnowledgeState, { label: string; activeClass: string; hoverClass: string }> = {
+  tocado: {
+    label: 'Tocado',
+    activeClass: 'bg-state-tocado-bg text-state-tocado border-state-tocado/30',
+    hoverClass: 'hover:bg-state-tocado-bg/60 hover:text-state-tocado border-border',
+  },
+  verde: {
+    label: 'Verde',
+    activeClass: 'bg-state-verde-bg text-state-verde border-state-verde/30',
+    hoverClass: 'hover:bg-state-verde-bg/60 hover:text-state-verde border-border',
+  },
+  solido: {
+    label: 'Sólido',
+    activeClass: 'bg-state-solido-bg text-state-solido border-state-solido/30',
+    hoverClass: 'hover:bg-state-solido-bg/60 hover:text-state-solido border-border',
+  },
+};
+
 interface FlashcardOverviewCardProps {
   card: Flashcard;
   onImageClick: (imageUrl: string, caption?: string) => void;
+  onStateChange: (cardId: string, newState: KnowledgeState) => void;
 }
 
-const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onImageClick }) => {
+const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onImageClick, onStateChange }) => {
+  const [currentState, setCurrentState] = useState<KnowledgeState>(card.state);
+  const [isUpdatingState, setIsUpdatingState] = useState(false);
   const [isRevealed, setIsRevealed] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showReferencePoints, setShowReferencePoints] = useState(false);
@@ -57,6 +79,24 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onI
 
   const handleToggleContent = () => {
     setIsRevealed(!isRevealed);
+  };
+
+  const handleStateChange = async (newState: KnowledgeState) => {
+    if (newState === currentState || isUpdatingState) return;
+    const prev = currentState;
+    setCurrentState(newState); // optimistic
+    setIsUpdatingState(true);
+    try {
+      const result = await NotionService.updateFlashcardState(card.id, newState);
+      if (!result.success) throw new Error('Error al actualizar');
+      onStateChange(card.id, newState);
+      toast.success(`Dominio cambiado a ${STATE_CONFIG[newState].label}`);
+    } catch {
+      setCurrentState(prev); // revert
+      toast.error('No se pudo actualizar el dominio');
+    } finally {
+      setIsUpdatingState(false);
+    }
   };
 
   // Funciones para puntos de referencia
@@ -148,10 +188,26 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onI
             </h3>
           </div>
           
-          {/* Estado de dominio prominente */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground font-medium">Nivel de dominio:</span>
-            <StateBadge state={card.state} size="sm" showLabel={true} />
+          {/* Estado de dominio editable */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground font-medium">Dominio:</span>
+            {isUpdatingState && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+            {(Object.keys(STATE_CONFIG) as KnowledgeState[]).map((s) => {
+              const cfg = STATE_CONFIG[s];
+              const isActive = currentState === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => handleStateChange(s)}
+                  disabled={isUpdatingState}
+                  className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors disabled:opacity-60 ${
+                    isActive ? cfg.activeClass : `text-muted-foreground ${cfg.hoverClass}`
+                  }`}
+                >
+                  {cfg.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -386,7 +442,13 @@ const FlashcardOverviewCard: React.FC<FlashcardOverviewCardProps> = ({ card, onI
 
 export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: OverviewModeProps) {
   const [sortOption, setSortOption] = useState<SortOption>('priority');
+  const [localFlashcards, setLocalFlashcards] = useState<Flashcard[]>(flashcards);
   const [filteredCards, setFilteredCards] = useState<Flashcard[]>(flashcards);
+
+  const handleStateChange = useCallback((cardId: string, newState: KnowledgeState) => {
+    setLocalFlashcards(prev => prev.map(c => c.id === cardId ? { ...c, state: newState } : c));
+    setFilteredCards(prev => prev.map(c => c.id === cardId ? { ...c, state: newState } : c));
+  }, []);
 
   // Estado para ImageModal
   const [imageModalOpen, setImageModalOpen] = useState(false);
@@ -426,12 +488,12 @@ export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: 
     return sorted;
   }, [filteredCards, sortOption]);
 
-  // Contar tarjetas por estado
+  // Contar tarjetas por estado (usa estado local para reflejar cambios inmediatos)
   const stats = {
-    tocado: flashcards.filter(c => c.state === 'tocado').length,
-    verde: flashcards.filter(c => c.state === 'verde').length,
-    solido: flashcards.filter(c => c.state === 'solido').length,
-    total: flashcards.length,
+    tocado: localFlashcards.filter(c => c.state === 'tocado').length,
+    verde: localFlashcards.filter(c => c.state === 'verde').length,
+    solido: localFlashcards.filter(c => c.state === 'solido').length,
+    total: localFlashcards.length,
   };
 
   return (
@@ -450,7 +512,7 @@ export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: 
             <BookOpen className="w-5 h-5 text-primary" />
             <div>
               <h1 className="font-semibold text-foreground">{databaseName}</h1>
-              <p className="text-sm text-muted-foreground">Vista general • Solo lectura</p>
+              <p className="text-sm text-muted-foreground">Vista general</p>
             </div>
           </div>
         </div>
@@ -486,8 +548,8 @@ export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: 
                   Modo de vista general
                 </p>
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Explora el contenido sin afectar tu progreso de aprendizaje. 
-                  Usa esta vista para detectar huecos conceptuales y decidir qué repasar después.
+                  Explora el contenido y ajusta el dominio de cada tarjeta directamente desde aquí.
+                  Usa los botones <strong>Tocado / Verde / Sólido</strong> en cada tarjeta para actualizar rápidamente.
                 </p>
               </div>
             </div>
@@ -542,7 +604,7 @@ export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: 
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sortedCards.map((card) => (
-                <FlashcardOverviewCard key={card.id} card={card} onImageClick={handleImageClick} />
+                <FlashcardOverviewCard key={card.id} card={card} onImageClick={handleImageClick} onStateChange={handleStateChange} />
               ))}
             </div>
           )}
@@ -553,7 +615,7 @@ export function OverviewMode({ flashcards, databaseName, databaseId, onClose }: 
       <footer className="px-6 py-3 border-t border-border bg-muted/30">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <p>
-            Esta vista es solo para lectura. Los estados de aprendizaje no se modifican.
+            Haz clic en <strong>Tocado</strong>, <strong>Verde</strong> o <strong>Sólido</strong> en cualquier tarjeta para cambiar su dominio.
           </p>
           <p>
             {sortedCards.length === flashcards.length 

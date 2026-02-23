@@ -36,7 +36,7 @@ interface PlanningViewProps {
   group: DatabaseGroup;
   databases: Database[];
   onBack: () => void;
-  onStartSession?: (databaseId: string, flashcards: Flashcard[], studyMode: string) => void;
+  onStartSession?: (databaseId: string, flashcards: Flashcard[], studyMode: string, examId?: string | null) => void;
 }
 
 export const PlanningView: React.FC<PlanningViewProps> = ({
@@ -276,45 +276,49 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleStartSession = async (session: PlanningSession) => {
+  const handleStartSession = async (session: PlanningSession, selectedMode?: string) => {
     if (!onStartSession || isStartingSession) return;
-    
+
+    const mode = selectedMode || session.studyModes?.[0] || session.studyMode || 'review';
+
+    // Para modo examen no necesitamos cargar flashcards, solo el examId
+    if (mode === 'exam') {
+      onStartSession(session.databaseId, [], 'exam', session.examId);
+      return;
+    }
+
     setIsStartingSession(true);
     setStartingSessionId(session.id);
-    
+
     try {
-      // Obtener los databaseIds de la sesión
       const databaseIds = session.databaseIds || (session.databaseId ? [session.databaseId] : []);
-      
+
       if (databaseIds.length === 0) {
         alert('No hay bases de datos configuradas para esta sesión.');
         return;
       }
-      
-      // Cargar flashcards de todas las bases de datos
+
       const promises = databaseIds.map(async (dbId) => {
         const flashcards = await NotionService.getFlashcardsFromDatabase(dbId);
         return flashcards.map(f => ({ ...f, databaseId: dbId }));
       });
-      
+
       const results = await Promise.all(promises);
       const allFlashcards = results.flat();
-      
-      // Filtrar por flashcards seleccionadas si hay alguna
+
       let finalFlashcards = allFlashcards;
       if (session.selectedFlashcards && session.selectedFlashcards.length > 0) {
         const selectedIds = new Set(session.selectedFlashcards);
         finalFlashcards = allFlashcards.filter(f => selectedIds.has(f.id));
       }
-      
+
       if (finalFlashcards.length === 0) {
         alert('No hay flashcards disponibles para esta sesión.');
         return;
       }
-      
-      // Iniciar la sesión con las flashcards cargadas
-      onStartSession(session.databaseId, finalFlashcards, session.studyMode);
-      
+
+      onStartSession(session.databaseId, finalFlashcards, mode);
+
     } catch (error) {
       console.error('Error cargando flashcards:', error);
       alert('Error al cargar las flashcards. Intenta de nuevo.');

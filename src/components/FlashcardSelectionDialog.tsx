@@ -97,13 +97,13 @@ export const FlashcardSelectionDialog: React.FC<FlashcardSelectionDialogProps> =
 
   // Obtener conteos de notas de repaso para la base de datos seleccionada
   const currentDatabaseId = selectedDatabase !== 'all' ? selectedDatabase : databases[0]?.id;
-  const { data: notesCounts = {} } = useNotesCountByDatabase(currentDatabaseId);
+  const { data: rawNotesCounts } = useNotesCountByDatabase(currentDatabaseId);
+  // Referencia estable para evitar re-renders infinitos cuando notesCounts es undefined
+  const notesCounts = useMemo(() => rawNotesCounts ?? {}, [rawNotesCounts]);
 
   // Cargar flashcards de múltiples bases de datos
   const databaseFlashcards = useMemo(() => {
     if (databases.length === 0) return flashcards || [];
-    
-    // Si tenemos bases de datos, intentar agregar información de DB a las flashcards
     return (flashcards || []).map(card => {
       if ('databaseId' in card && card.databaseId) {
         const database = databases.find(db => db.id === card.databaseId);
@@ -117,8 +117,11 @@ export const FlashcardSelectionDialog: React.FC<FlashcardSelectionDialogProps> =
     });
   }, [databases, flashcards]);
 
-  // Usar flashcards combinadas o las pasadas directamente
-  const allFlashcards = databases.length > 0 ? databaseFlashcards : flashcards;
+  // Memoizar allFlashcards para evitar que el useEffect de filtros se dispare en cada render
+  const allFlashcards = useMemo(
+    () => databases.length > 0 ? databaseFlashcards : (flashcards || []),
+    [databases.length, databaseFlashcards, flashcards]
+  );
 
   // Analizar las flashcards para extraer opciones de filtro disponibles
   useEffect(() => {

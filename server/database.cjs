@@ -33,12 +33,26 @@ const initializeDatabase = async () => {
     console.log('🔧 DEBUG: User:', dbConfig.user);
     console.log('🔧 DEBUG: Encrypt:', dbConfig.options.encrypt);
     console.log('🔧 DEBUG: TrustServerCertificate:', dbConfig.options.trustServerCertificate);
-    
+
     if (!poolPromise) {
       poolPromise = new sql.ConnectionPool(dbConfig).connect();
     }
-    await poolPromise;
+    const pool = await poolPromise;
     console.log('✅ Conexión a SQL Server establecida');
+
+    // Migraciones de esquema
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'ExamId')
+          ALTER TABLE PlanningSession ADD ExamId NVARCHAR(255) NULL;
+        IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'StudyMode' AND max_length < 200)
+          ALTER TABLE PlanningSession ALTER COLUMN StudyMode NVARCHAR(200) NULL;
+      `);
+      console.log('✅ Migraciones de esquema aplicadas');
+    } catch (migrationError) {
+      console.warn('⚠️ Error aplicando migraciones (puede ser normal):', migrationError.message);
+    }
+
     return true;
   } catch (error) {
     console.error('❌ Error conectando a SQL Server:', error.message);
@@ -929,7 +943,7 @@ class DatabaseService {
       const result = await pool.request()
         .input('groupId', sql.UniqueIdentifier, groupId)
         .query(`
-          SELECT 
+          SELECT
             Id,
             GroupId,
             SessionName,
@@ -940,6 +954,7 @@ class DatabaseService {
             SelectedFlashcards,
             OrderIndex,
             FolderId,
+            ExamId,
             CreatedAt,
             UpdatedAt
           FROM PlanningSession 
@@ -985,14 +1000,32 @@ class DatabaseService {
           }
         }
 
+        // Parsear studyModes: si empieza con '[' es JSON array, si no es modo legacy
+        let studyModes = [];
+        let studyMode = row.StudyMode || 'review';
+        if (row.StudyMode) {
+          if (row.StudyMode.trim().startsWith('[')) {
+            try {
+              studyModes = JSON.parse(row.StudyMode);
+              studyMode = studyModes[0] || 'review';
+            } catch (e) {
+              studyModes = [row.StudyMode];
+            }
+          } else {
+            studyModes = [row.StudyMode];
+          }
+        }
+
         const sessionData = {
           id: row.Id,
           groupId: row.GroupId,
           sessionName: row.SessionName,
           databaseId: row.DatabaseId,
-          databaseIds: databaseIds, // Usar el array parseado correctamente
+          databaseIds: databaseIds,
           sessionNote: row.SessionNote,
-          studyMode: row.StudyMode,
+          studyMode: studyMode,
+          studyModes: studyModes,
+          examId: row.ExamId || null,
           selectedFlashcards: selectedFlashcards,
           orderIndex: row.OrderIndex,
           folderId: row.FolderId,
@@ -1012,7 +1045,7 @@ class DatabaseService {
   }
 
   // Crear nueva sesión de planificación
-  static async createPlanningSession(groupId, sessionName, databaseId, sessionNote, studyMode, selectedFlashcards, orderIndex, databaseIds = null) {
+  static async createPlanningSession(groupId, sessionName, databaseId, sessionNote, studyMode, selectedFlashcards, orderIndex, databaseIds = null, studyModes = null, examId = null) {
     console.log('🔧 createPlanningSession - INICIANDO');
     console.log('🔧 Parámetros recibidos:', { groupId, sessionName, databaseId, sessionNote, studyMode, selectedFlashcards: selectedFlashcards?.length, orderIndex, databaseIds });
     
@@ -1032,9 +1065,14 @@ class DatabaseService {
         orderIndex = maxOrderResult.recordset[0].NextOrder;
       }
 
+      // Serializar studyModes: si hay array usa JSON, si no usa modo único
+      const effectiveStudyMode = (studyModes && studyModes.length > 0)
+        ? JSON.stringify(studyModes)
+        : (studyMode || 'review');
+
       // Convertir array de flashcards a JSON
-      const selectedFlashcardsJson = selectedFlashcards && selectedFlashcards.length > 0 
-        ? JSON.stringify(selectedFlashcards) 
+      const selectedFlashcardsJson = selectedFlashcards && selectedFlashcards.length > 0
+        ? JSON.stringify(selectedFlashcards)
         : null;
 
       // CORRECCIÓN CRÍTICA: Asegurar que databaseIds siempre tenga un valor válido
@@ -1058,15 +1096,16 @@ class DatabaseService {
         .input('sessionName', sql.NVarChar(255), sessionName)
         .input('databaseId', sql.NVarChar(255), databaseId)
         .input('sessionNote', sql.NVarChar(sql.MAX), sessionNote)
-        .input('studyMode', sql.NVarChar(50), studyMode)
+        .input('studyMode', sql.NVarChar(200), effectiveStudyMode)
         .input('selectedFlashcards', sql.NVarChar(sql.MAX), selectedFlashcardsJson)
         .input('databaseIds', sql.NVarChar(sql.MAX), databaseIdsJson)
         .input('orderIndex', sql.Int, orderIndex)
+        .input('examId', sql.NVarChar(255), examId || null)
         .query(`
           INSERT INTO PlanningSession (
-            Id, GroupId, SessionName, DatabaseId, SessionNote, StudyMode, SelectedFlashcards, DatabaseIds, OrderIndex, CreatedAt, UpdatedAt
+            Id, GroupId, SessionName, DatabaseId, SessionNote, StudyMode, SelectedFlashcards, DatabaseIds, OrderIndex, ExamId, CreatedAt, UpdatedAt
           ) VALUES (
-            @sessionId, @groupId, @sessionName, @databaseId, @sessionNote, @studyMode, @selectedFlashcards, @databaseIds, @orderIndex, GETDATE(), GETDATE()
+            @sessionId, @groupId, @sessionName, @databaseId, @sessionNote, @studyMode, @selectedFlashcards, @databaseIds, @orderIndex, @examId, GETDATE(), GETDATE()
           )
         `);
 
@@ -1100,7 +1139,9 @@ class DatabaseService {
         databaseId,
         databaseIds: finalDatabaseIds,
         sessionNote,
-        studyMode,
+        studyMode: studyModes && studyModes.length > 0 ? studyModes[0] : (studyMode || 'review'),
+        studyModes: studyModes || [studyMode || 'review'],
+        examId: examId || null,
         selectedFlashcards: selectedFlashcards || [],
         orderIndex,
         createdAt: new Date(),
@@ -1177,8 +1218,11 @@ class DatabaseService {
         setClause.push('SessionNote = @sessionNote');
       }
 
-      if (updates.studyMode !== undefined) {
-        request.input('studyMode', sql.NVarChar(50), updates.studyMode);
+      if (updates.studyModes !== undefined || updates.studyMode !== undefined) {
+        const serialized = (updates.studyModes && updates.studyModes.length > 0)
+          ? JSON.stringify(updates.studyModes)
+          : (updates.studyMode || 'review');
+        request.input('studyMode', sql.NVarChar(100), serialized);
         setClause.push('StudyMode = @studyMode');
       }
 
@@ -1198,6 +1242,11 @@ class DatabaseService {
       if (updates.folderId !== undefined) {
         request.input('folderId', sql.UniqueIdentifier, updates.folderId);
         setClause.push('FolderId = @folderId');
+      }
+
+      if (updates.examId !== undefined) {
+        request.input('examId', sql.NVarChar(255), updates.examId || null);
+        setClause.push('ExamId = @examId');
       }
 
       if (setClause.length === 0) {

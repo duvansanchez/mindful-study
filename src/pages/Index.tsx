@@ -517,20 +517,39 @@ const Index = () => {
     setExamResults(null);
   };
 
-  const handleStartPlannedSession = (databaseId: string, flashcards: Flashcard[], studyMode: string) => {
-    console.log('🚀 Iniciando sesión planificada:', { 
-      databaseId, 
-      flashcardsCount: flashcards.length, 
+  const handleStartPlannedSession = async (databaseId: string, flashcards: Flashcard[], studyMode: string, examId?: string | null) => {
+    console.log('🚀 Iniciando sesión planificada:', {
+      databaseId,
+      flashcardsCount: flashcards.length,
       studyMode,
-      flashcardIds: flashcards.map(f => f.id).slice(0, 5) // Mostrar solo los primeros 5 IDs
+      examId,
     });
-    
+
+    // Modo examen: lanzar el examen vinculado directamente, o navegar a la lista de exámenes
+    if (studyMode === 'exam') {
+      if (examId) {
+        try {
+          const res = await fetch(`/api/exams/${examId}`);
+          if (res.ok) {
+            const exam = await res.json();
+            handleStartExam(exam.id, exam.examName, exam.examData || [], exam.timeLimit ?? 0);
+            return;
+          }
+        } catch {
+          // si falla, caemos al fallback
+        }
+      }
+      setPreviousView(view);
+      setView('exams');
+      return;
+    }
+
     // Verificar si hay flashcards disponibles
     if (flashcards.length === 0) {
       alert('No hay flashcards disponibles para esta sesión.');
       return;
     }
-    
+
     // Configurar la base de datos seleccionada
     setSelectedDatabaseId(databaseId);
     

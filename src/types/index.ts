@@ -65,6 +65,8 @@ export interface Statistics {
   total: number;
 }
 
+export type StudyMode = 'review' | 'matching' | 'overview' | 'exam';
+
 export interface PlanningSession {
   id: string;
   groupId: string;
@@ -72,7 +74,9 @@ export interface PlanningSession {
   databaseId: string; // Mantener para compatibilidad hacia atrás
   databaseIds?: string[]; // Nueva propiedad para múltiples bases de datos
   sessionNote: string;
-  studyMode: 'review' | 'matching' | 'overview';
+  studyMode: string; // Legacy: primer modo (compat)
+  studyModes?: StudyMode[]; // Nuevo: array de modos seleccionados
+  examId?: string | null; // ID del examen vinculado (cuando studyModes incluye 'exam')
   orderIndex: number;
   selectedFlashcards?: string[]; // IDs de las flashcards seleccionadas
   folderId?: string | null; // ID de la carpeta (opcional)
@@ -104,7 +108,9 @@ export interface CreatePlanningSessionData {
   databaseId?: string; // Opcional para compatibilidad hacia atrás
   databaseIds?: string[]; // Nueva propiedad para múltiples bases de datos
   sessionNote: string;
-  studyMode: 'review' | 'matching' | 'overview';
+  studyMode?: string; // Legacy: primer modo
+  studyModes?: StudyMode[]; // Nuevo: array de modos
+  examId?: string | null; // ID del examen vinculado
   selectedFlashcards?: string[];
   orderIndex?: number;
   folderId?: string | null; // ID de la carpeta (opcional)

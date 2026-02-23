@@ -304,28 +304,31 @@ app.get('/groups/:groupId/planning-sessions', async (req, res) => {
 app.post('/groups/:groupId/planning-sessions', async (req, res) => {
   try {
     const { groupId } = req.params;
-    const { 
-      sessionName, 
-      databaseId, 
-      databaseIds, // Nueva propiedad para múltiples bases de datos
-      sessionNote, 
+    const {
+      sessionName,
+      databaseId,
+      databaseIds,
+      sessionNote,
       studyMode,
+      studyModes,
       selectedFlashcards,
-      orderIndex 
+      orderIndex,
+      examId
     } = req.body;
-    
+
     if (!sessionName || sessionName.trim().length === 0) {
       return res.status(400).json({ error: 'El nombre de la sesión es requerido' });
     }
-    
-    // Validar que haya al menos una base de datos (compatibilidad hacia atrás)
+
     const finalDatabaseId = databaseId || (databaseIds && databaseIds.length > 0 ? databaseIds[0] : null);
     if (!finalDatabaseId) {
       return res.status(400).json({ error: 'Al menos una base de datos es requerida' });
     }
-    
-    if (!studyMode || !['review', 'matching', 'overview'].includes(studyMode)) {
-      return res.status(400).json({ error: 'Modo de estudio inválido' });
+
+    const validModes = ['review', 'matching', 'overview', 'exam'];
+    const effectiveModes = Array.isArray(studyModes) && studyModes.length > 0 ? studyModes : (studyMode ? [studyMode] : []);
+    if (effectiveModes.length === 0 || !effectiveModes.every(m => validModes.includes(m))) {
+      return res.status(400).json({ error: 'Debes seleccionar al menos un modo de estudio válido' });
     }
     
     console.log('📅 Creando sesión de planificación para grupo:', groupId);
@@ -350,12 +353,14 @@ app.post('/groups/:groupId/planning-sessions', async (req, res) => {
     const session = await DatabaseService.createPlanningSession(
       groupId,
       sessionName.trim(),
-      finalDatabaseId, // Usar la primera DB para compatibilidad con el esquema actual
+      finalDatabaseId,
       sessionNote?.trim() || '',
-      studyMode,
+      effectiveModes[0], // primer modo para compat
       selectedFlashcards || [],
-      orderIndex || null, // Asegurar que orderIndex no sea undefined
-      finalDatabaseIds // Pasar el array corregido
+      orderIndex || null,
+      finalDatabaseIds,
+      effectiveModes, // array completo de modos
+      examId || null
     );
     
     console.log('✅ Sesión de planificación creada:', session.id);
