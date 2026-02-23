@@ -46,11 +46,30 @@ const initializeDatabase = async () => {
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'ExamId')
           ALTER TABLE PlanningSession ADD ExamId NVARCHAR(255) NULL;
         IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'StudyMode' AND max_length < 200)
-          ALTER TABLE PlanningSession ALTER COLUMN StudyMode NVARCHAR(200) NULL;
+          ALTER TABLE PlanningSession ALTER COLUMN StudyMode NVARCHAR(MAX) NULL;
       `);
       console.log('✅ Migraciones de esquema aplicadas');
     } catch (migrationError) {
       console.warn('⚠️ Error aplicando migraciones (puede ser normal):', migrationError.message);
+    }
+
+    // Eliminar CHECK constraint en StudyMode que impide guardar JSON o 'exam'
+    try {
+      await pool.request().query(`
+        DECLARE @constraintName NVARCHAR(255);
+        SELECT @constraintName = name
+        FROM sys.check_constraints
+        WHERE parent_object_id = OBJECT_ID('PlanningSession')
+          AND parent_column_id = (
+            SELECT column_id FROM sys.columns
+            WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'StudyMode'
+          );
+        IF @constraintName IS NOT NULL
+          EXEC('ALTER TABLE PlanningSession DROP CONSTRAINT [' + @constraintName + ']');
+      `);
+      console.log('✅ CHECK constraint de StudyMode eliminado (si existía)');
+    } catch (constraintError) {
+      console.warn('⚠️ Error eliminando CHECK constraint (puede ser normal):', constraintError.message);
     }
 
     return true;
