@@ -37,13 +37,15 @@ interface PlanningViewProps {
   databases: Database[];
   onBack: () => void;
   onStartSession?: (databaseId: string, flashcards: Flashcard[], studyMode: string, examId?: string | null) => void;
+  onStartAllModes?: (databaseId: string, flashcards: Flashcard[], modes: string[], examId?: string | null) => void;
 }
 
 export const PlanningView: React.FC<PlanningViewProps> = ({
   group,
   databases,
   onBack,
-  onStartSession
+  onStartSession,
+  onStartAllModes
 }) => {
   const [draggedSession, setDraggedSession] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -276,6 +278,60 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     e.dataTransfer.dropEffect = 'move';
   };
 
+  const handleStartAllModesSession = async (session: PlanningSession) => {
+    if (!onStartAllModes || isStartingSession) return;
+
+    const modes = (session.studyModes && session.studyModes.length > 0)
+      ? session.studyModes
+      : [session.studyMode as string];
+
+    if (modes.length === 0) return;
+
+    // Check if we need flashcards (any non-exam mode)
+    const needsFlashcards = modes.some(m => m !== 'exam');
+
+    setIsStartingSession(true);
+    setStartingSessionId(session.id);
+
+    try {
+      let flashcards: Flashcard[] = [];
+
+      if (needsFlashcards) {
+        const databaseIds = session.databaseIds || (session.databaseId ? [session.databaseId] : []);
+        if (databaseIds.length === 0) {
+          alert('No hay bases de datos configuradas para esta sesión.');
+          return;
+        }
+
+        const promises = databaseIds.map(async (dbId) => {
+          const cards = await NotionService.getFlashcardsFromDatabase(dbId);
+          return cards.map(f => ({ ...f, databaseId: dbId }));
+        });
+
+        const results = await Promise.all(promises);
+        flashcards = results.flat();
+
+        if (session.selectedFlashcards && session.selectedFlashcards.length > 0) {
+          const selectedIds = new Set(session.selectedFlashcards);
+          flashcards = flashcards.filter(f => selectedIds.has(f.id));
+        }
+
+        if (flashcards.length === 0) {
+          alert('No hay flashcards disponibles para esta sesión.');
+          return;
+        }
+      }
+
+      onStartAllModes(session.databaseId, flashcards, modes, session.examId);
+    } catch (error) {
+      console.error('Error cargando flashcards:', error);
+      alert('Error al cargar las flashcards. Intenta de nuevo.');
+    } finally {
+      setIsStartingSession(false);
+      setStartingSessionId(null);
+    }
+  };
+
   const handleStartSession = async (session: PlanningSession, selectedMode?: string) => {
     if (!onStartSession || isStartingSession) return;
 
@@ -473,13 +529,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                           draggable
                           onDragStart={(e) => handleDragStart(e, session.id)}
                         >
-                          <PlanningSessionCard 
+                          <PlanningSessionCard
                             session={session}
                             databases={groupDatabases}
                             sessionNumber={index + 1}
                             onEdit={handleEditSession}
                             onDelete={handleDeleteSession}
                             onStartSession={handleStartSession}
+                            onStartAllModes={onStartAllModes ? handleStartAllModesSession : undefined}
                             isStarting={startingSessionId === session.id}
                           />
                         </div>
@@ -525,13 +582,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                       </div>
                       
                       <div className="flex-1">
-                        <PlanningSessionCard 
+                        <PlanningSessionCard
                           session={session}
                           databases={groupDatabases}
                           sessionNumber={index + 1}
                           onEdit={handleEditSession}
                           onDelete={handleDeleteSession}
                           onStartSession={handleStartSession}
+                          onStartAllModes={onStartAllModes ? handleStartAllModesSession : undefined}
                           isStarting={startingSessionId === session.id}
                         />
                       </div>

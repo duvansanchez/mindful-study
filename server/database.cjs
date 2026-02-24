@@ -47,6 +47,8 @@ const initializeDatabase = async () => {
           ALTER TABLE PlanningSession ADD ExamId NVARCHAR(255) NULL;
         IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'StudyMode' AND max_length < 200)
           ALTER TABLE PlanningSession ALTER COLUMN StudyMode NVARCHAR(MAX) NULL;
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('app.DatabaseGroups') AND name = 'FolderId')
+          ALTER TABLE app.DatabaseGroups ADD FolderId NVARCHAR(255) NULL;
       `);
       console.log('✅ Migraciones de esquema aplicadas');
     } catch (migrationError) {

@@ -10,7 +10,8 @@ import {
   Edit3,
   Trash2,
   Loader2,
-  ClipboardList
+  ClipboardList,
+  PlayCircle
 } from 'lucide-react';
 
 interface PlanningSessionCardProps {
@@ -20,6 +21,7 @@ interface PlanningSessionCardProps {
   onEdit?: (session: PlanningSession) => void;
   onDelete?: (session: PlanningSession) => void;
   onStartSession?: (session: PlanningSession, mode?: string) => void;
+  onStartAllModes?: (session: PlanningSession) => void;
   isStarting?: boolean;
 }
 
@@ -65,6 +67,7 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
   onEdit,
   onDelete,
   onStartSession,
+  onStartAllModes,
   isStarting = false
 }) => {
   const sessionModes = (session.studyModes && session.studyModes.length > 0)
@@ -187,7 +190,16 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
             <span>Iniciar sesión</span>
           </button>
         ) : (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap items-center gap-1">
+            {onStartAllModes && (
+              <button
+                onClick={() => onStartAllModes(session)}
+                className="flex items-center gap-1 px-2 py-1 rounded transition-colors text-xs bg-primary/10 text-primary hover:bg-primary/20"
+              >
+                <PlayCircle className="w-3 h-3" />
+                <span>Iniciar sesión</span>
+              </button>
+            )}
             {sessionModes.map(m => {
               const cfg = studyModeConfig[m] ?? studyModeConfig.review;
               const Icon = cfg.icon;

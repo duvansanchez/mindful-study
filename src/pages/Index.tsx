@@ -53,6 +53,12 @@ const Index = () => {
   const [editingGroup, setEditingGroup] = useState<DatabaseGroup | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<DatabaseGroup | null>(null);
 
+  // Cola de modos para sesiones multi-modo
+  const [sessionModeQueue, setSessionModeQueue] = useState<string[]>([]);
+  const [sessionQueueFlashcards, setSessionQueueFlashcards] = useState<Flashcard[]>([]);
+  const [sessionQueueDatabaseId, setSessionQueueDatabaseId] = useState<string | null>(null);
+  const [sessionQueueExamId, setSessionQueueExamId] = useState<string | null>(null);
+
   // Estados para exámenes
   const [currentExamId, setCurrentExamId] = useState<string | null>(null);
   const [currentExamName, setCurrentExamName] = useState<string>('');
@@ -269,7 +275,15 @@ const Index = () => {
     }
   };
 
-  const endSessionWithSummary = (finalReviewCards: Flashcard[]) => {
+  const endSessionWithSummary = async (finalReviewCards: Flashcard[]) => {
+    // If there are more modes queued and this is not a single-card review from overview,
+    // advance to the next mode instead of showing the summary
+    if (sessionModeQueue.length > 0 && previousView !== 'overview') {
+      const advanced = await advanceSessionQueue(sessionModeQueue);
+      if (advanced) return;
+    }
+
+    clearSessionQueue();
     const totalDuration = sessionAbsoluteStart
       ? Math.floor((new Date().getTime() - sessionAbsoluteStart.getTime()) / 1000)
       : 0;
@@ -450,11 +464,20 @@ const Index = () => {
     setIsPlannedSession(false); // Limpiar el estado de sesión planificada
   };
 
-  const handleCloseOverview = () => {
-    // Regresar a la vista anterior
+  const handleCloseOverview = async () => {
+    // If there are more modes queued (planned session), advance to next
+    if (sessionModeQueue.length > 0 && isPlannedSession) {
+      const advanced = await advanceSessionQueue(sessionModeQueue);
+      if (advanced) {
+        setIsPlannedSession(false);
+        return;
+      }
+    }
+
+    clearSessionQueue();
     setView(previousView);
     setSelectedDatabaseId(null);
-    setIsPlannedSession(false); // Limpiar el estado de sesión planificada
+    setIsPlannedSession(false);
   };
 
   // Handlers para exámenes
@@ -522,12 +545,119 @@ const Index = () => {
   };
 
   const handleExamBack = () => {
-    setView('exams');
+    clearSessionQueue();
+    setView(previousView || 'exams');
     setCurrentExamId(null);
     setCurrentExamName('');
     setCurrentExamQuestions([]);
     setExamAnswers({});
     setExamResults(null);
+  };
+
+  const handleExamResultsBack = async () => {
+    if (sessionModeQueue.length > 0) {
+      const queueSnapshot = sessionModeQueue;
+      setCurrentExamId(null);
+      setCurrentExamName('');
+      setCurrentExamQuestions([]);
+      setExamAnswers({});
+      setExamResults(null);
+      const advanced = await advanceSessionQueue(queueSnapshot);
+      if (advanced) return;
+    }
+
+    clearSessionQueue();
+    setView(previousView || 'exams');
+    setCurrentExamId(null);
+    setCurrentExamName('');
+    setCurrentExamQuestions([]);
+    setExamAnswers({});
+    setExamResults(null);
+  };
+
+  const modeLabels: Record<string, string> = {
+    review: 'Repaso activo',
+    matching: 'Matching',
+    overview: 'Vista general',
+    exam: 'Examen',
+  };
+
+  const clearSessionQueue = () => {
+    setSessionModeQueue([]);
+    setSessionQueueFlashcards([]);
+    setSessionQueueDatabaseId(null);
+    setSessionQueueExamId(null);
+  };
+
+  const advanceSessionQueue = async (queue: string[]): Promise<boolean> => {
+    if (queue.length === 0) {
+      clearSessionQueue();
+      return false;
+    }
+
+    const [nextMode, ...remaining] = queue;
+    setSessionModeQueue(remaining);
+    toast.success(`Iniciando: ${modeLabels[nextMode] || nextMode}`);
+
+    if (nextMode === 'exam') {
+      if (sessionQueueExamId) {
+        try {
+          const res = await fetch(`/api/exams/${sessionQueueExamId}`);
+          if (res.ok) {
+            const exam = await res.json();
+            setCurrentExamId(exam.id);
+            setCurrentExamName(exam.examName);
+            setCurrentExamQuestions(exam.examData || []);
+            setCurrentExamTimeLimit(exam.timeLimit ?? 0);
+            setExamAnswers({});
+            setPreviousView('planning');
+            setView('exam-player');
+            return true;
+          }
+        } catch {}
+      }
+      setPreviousView('planning');
+      setView('exams');
+      return true;
+    }
+
+    setSelectedDatabaseId(sessionQueueDatabaseId);
+    setReviewCards(sessionQueueFlashcards);
+    setCurrentCardIndex(0);
+    setCardsToRepeat([]);
+    setStudyStartTime(new Date());
+    setIsPlannedSession(true);
+    setPreviousView('planning');
+
+    if (nextMode === 'overview') {
+      setView('overview');
+    } else if (nextMode === 'matching') {
+      setPendingMode('matching');
+      setView('matching');
+    } else {
+      setPendingMode('review');
+      setView('review');
+    }
+    return true;
+  };
+
+  const handleStartAllModesPlanned = async (
+    databaseId: string,
+    flashcards: Flashcard[],
+    modes: string[],
+    examId?: string | null
+  ) => {
+    if (modes.length === 0) return;
+
+    // Store queue for subsequent modes
+    setSessionQueueFlashcards(flashcards);
+    setSessionQueueDatabaseId(databaseId);
+    setSessionQueueExamId(examId ?? null);
+    setSessionModeQueue(modes.slice(1));
+
+    // Start first mode
+    toast.success(`Sesión iniciada (${modes.length} modos) — ${modeLabels[modes[0]] || modes[0]}`);
+    await handleStartPlannedSession(databaseId, flashcards, modes[0], examId);
   };
 
   const handleStartPlannedSession = async (databaseId: string, flashcards: Flashcard[], studyMode: string, examId?: string | null) => {
@@ -732,6 +862,7 @@ const Index = () => {
             databases={databases}
             onBack={() => setView('group-detail')}
             onStartSession={handleStartPlannedSession}
+            onStartAllModes={handleStartAllModesPlanned}
           />
         )}
 
@@ -832,7 +963,7 @@ const Index = () => {
         <ExamResults
           attempt={examResults}
           questions={currentExamQuestions}
-          onBack={handleExamBack}
+          onBack={handleExamResultsBack}
         />
       )}
 
