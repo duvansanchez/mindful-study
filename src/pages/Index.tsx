@@ -432,7 +432,10 @@ const Index = () => {
 
     // Regresar a la vista anterior y limpiar estados
     setView(previousView);
-    setSelectedDatabaseId(null);
+    // Preservar selectedDatabaseId si regresamos a una vista que lo necesita
+    if (previousView !== 'overview' && previousView !== 'mode-selection') {
+      setSelectedDatabaseId(null);
+    }
     setReviewCards([]);
     setCurrentCardIndex(0);
     setCardsToRepeat([]); // Limpiar flashcards para repetir

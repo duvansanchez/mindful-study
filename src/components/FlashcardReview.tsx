@@ -3,7 +3,8 @@ import { Flashcard, KnowledgeState } from "@/types";
 import { StateBadge } from "./StateBadge";
 import { NotionRenderer } from "./NotionRenderer";
 import type { NotionBlock } from "./NotionRenderer";
-import { ChevronDown, ChevronUp, ChevronRight, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon, Bookmark, ExternalLink, Hash } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Clock, Link2, StickyNote, X, MessageSquarePlus, Send, Loader2, Trash2, AlertCircle, MessageSquare, RotateCcw, Edit3, Check, X as XIcon, Bookmark, ExternalLink, Hash} from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFlashcardContent } from "@/hooks/useNotion";
@@ -312,6 +313,10 @@ export function FlashcardReview({
   // Estados para edición de notas
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState("");
+
+  // Estado para modal expandido del editor de notas
+  const [noteEditorModalOpen, setNoteEditorModalOpen] = useState(false);
+  const [noteEditorModalMode, setNoteEditorModalMode] = useState<'add' | 'edit'>('add');
 
   // Estado para filtro de notas de repaso
   const [noteFilter, setNoteFilter] = useState<string>('all');
@@ -1049,6 +1054,8 @@ export function FlashcardReview({
   const handleStartEditNote = (noteId: string, currentContent: string) => {
     setEditingNoteId(noteId);
     setEditingNoteText(currentContent);
+    setNoteEditorModalMode('edit');
+    setNoteEditorModalOpen(true);
   };
 
   const handleCancelEditNote = () => {
@@ -1717,78 +1724,35 @@ export function FlashcardReview({
                   <div key={note.id} className="p-2 rounded-lg bg-background border border-border shadow-sm">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 space-y-2">
-                        {editingNoteId === note.id ? (
-                          // Modo edición
-                          <div className="space-y-2">
-                            <RichTextEditor
-                              value={editingNoteText}
-                              onChange={setEditingNoteText}
-                              placeholder="Edita tu nota... Puedes usar **negrita**, *cursiva*, [enlaces](url) e imágenes"
-                              disabled={updateNoteMutation.isPending}
+                        <>
+                          <div className="text-xs text-foreground leading-relaxed">
+                            <MarkdownRenderer
+                              content={note.content}
+                              onImageClick={handleImageClick}
                             />
-                            <div className="flex gap-2 justify-end">
-                              <button
-                                onClick={handleCancelEditNote}
-                                className="px-3 py-1.5 text-xs rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-1"
-                                title="Cancelar edición"
-                              >
-                                <XIcon className="w-3 h-3" />
-                                Cancelar
-                              </button>
-                              <button
-                                onClick={handleSaveEditNote}
-                                disabled={!editingNoteText.trim() || updateNoteMutation.isPending}
-                                className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center gap-1"
-                                title="Guardar cambios"
-                              >
-                                {updateNoteMutation.isPending ? (
-                                  <>
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                    Guardando...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Check className="w-3 h-3" />
-                                    Guardar
-                                  </>
-                                )}
-                              </button>
-                            </div>
                           </div>
-                        ) : (
-                          // Modo visualización
-                          <>
-                            <div className="text-xs text-foreground leading-relaxed">
-                              <MarkdownRenderer
-                                content={note.content}
-                                onImageClick={handleImageClick}
-                              />
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
-                            </p>
-                          </>
-                        )}
+                          <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(note.createdAt, { addSuffix: true, locale: es })}
+                          </p>
+                        </>
                       </div>
-                      {editingNoteId !== note.id && (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => handleStartEditNote(note.id, note.content)}
-                            className="p-1 rounded hover:bg-secondary/50 hover:text-foreground transition-colors flex-shrink-0"
-                            title="Editar nota"
-                          >
-                            <Edit3 className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteNote(note.id)}
-                            disabled={deleteNoteMutation.isPending}
-                            className="p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-colors flex-shrink-0"
-                            title="Eliminar nota"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleStartEditNote(note.id, note.content)}
+                          className="p-1 rounded hover:bg-secondary/50 hover:text-foreground transition-colors flex-shrink-0"
+                          title="Editar nota"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteNote(note.id)}
+                          disabled={deleteNoteMutation.isPending}
+                          className="p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-colors flex-shrink-0"
+                          title="Eliminar nota"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                       ))}
@@ -1877,69 +1841,13 @@ export function FlashcardReview({
             
             {/* Add new note */}
             <div className="border-t border-border p-4 bg-background/50">
-              {!showNoteInput ? (
-                <button
-                  onClick={() => setShowNoteInput(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-lg border border-dashed border-border transition-colors"
-                >
-                  <MessageSquarePlus className="w-4 h-4" />
-                  Agregar nota de repaso
-                </button>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    {quickNotes.map((quick) => (
-                      <button
-                        key={quick}
-                        onClick={() => {
-                          const formattedQuick = `**${quick}**: `;
-                          setNoteText(noteText ? `${noteText}\n${formattedQuick}` : formattedQuick);
-                        }}
-                        className="px-2 py-1 text-xs rounded bg-secondary border border-border hover:border-primary/50 transition-colors font-medium"
-                        style={{ color: getNoteColor(quick) }}
-                      >
-                        {quick}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="space-y-2">
-                    <RichTextEditor
-                      value={noteText}
-                      onChange={setNoteText}
-                      placeholder="Escribe qué no dominabas... Puedes usar **negrita**, *cursiva*, [enlaces](url) e imágenes"
-                      disabled={addNoteMutation.isPending}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setShowNoteInput(false);
-                          setNoteText("");
-                        }}
-                        className="px-3 py-2 text-sm rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={handleAddNote}
-                        disabled={!noteText.trim() || addNoteMutation.isPending}
-                        className="flex-1 px-3 py-2 text-sm rounded-lg bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                      >
-                        {addNoteMutation.isPending ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Guardando...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="w-4 h-4" />
-                            Guardar nota
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={() => { setNoteText(""); setNoteEditorModalMode('add'); setNoteEditorModalOpen(true); }}
+                className="w-full flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-lg border border-dashed border-border transition-colors"
+              >
+                <MessageSquarePlus className="w-4 h-4" />
+                Agregar nota de repaso
+              </button>
             </div>
           </div>
         </div>
@@ -2030,6 +1938,101 @@ export function FlashcardReview({
           </div>
         </div>
       )}
+
+      {/* Modal editor expandido de notas */}
+      <Dialog
+        open={noteEditorModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (noteEditorModalMode === 'edit') handleCancelEditNote();
+            else setNoteText("");
+          }
+          setNoteEditorModalOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl flex flex-col max-h-[90vh]">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>
+              {noteEditorModalMode === 'add' ? 'Nueva nota de repaso' : 'Editar nota de repaso'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col flex-1 overflow-hidden gap-4">
+            {noteEditorModalMode === 'add' && (
+              <div className="flex flex-wrap gap-2 flex-shrink-0">
+                {quickNotes.map((quick) => (
+                  <button
+                    key={quick}
+                    type="button"
+                    onClick={() => {
+                      const formattedQuick = `**${quick}**: `;
+                      setNoteText(noteText ? `${noteText}\n${formattedQuick}` : formattedQuick);
+                    }}
+                    className="px-2 py-1 text-xs rounded bg-secondary border border-border hover:border-primary/50 transition-colors font-medium"
+                    style={{ color: getNoteColor(quick) }}
+                  >
+                    {quick}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto">
+              <RichTextEditor
+                value={noteEditorModalMode === 'add' ? noteText : editingNoteText}
+                onChange={noteEditorModalMode === 'add' ? setNoteText : setEditingNoteText}
+                placeholder={
+                  noteEditorModalMode === 'add'
+                    ? "Escribe qué no dominabas... Puedes usar **negrita**, *cursiva*, [enlaces](url) e imágenes"
+                    : "Edita tu nota... Puedes usar **negrita**, *cursiva*, [enlaces](url) e imágenes"
+                }
+                disabled={noteEditorModalMode === 'add' ? addNoteMutation.isPending : updateNoteMutation.isPending}
+                autoResize
+              />
+            </div>
+            <div className="flex gap-2 justify-end flex-shrink-0 border-t pt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (noteEditorModalMode === 'edit') handleCancelEditNote();
+                  else setNoteText("");
+                  setNoteEditorModalOpen(false);
+                }}
+                className="px-4 py-2 text-sm rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNoteEditorModalOpen(false);
+                  if (noteEditorModalMode === 'add') {
+                    handleAddNote();
+                  } else {
+                    handleSaveEditNote();
+                  }
+                }}
+                disabled={
+                  noteEditorModalMode === 'add'
+                    ? !noteText.trim() || addNoteMutation.isPending
+                    : !editingNoteText.trim() || updateNoteMutation.isPending
+                }
+                className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center gap-2"
+              >
+                {(noteEditorModalMode === 'add' ? addNoteMutation.isPending : updateNoteMutation.isPending) ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Guardar nota
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

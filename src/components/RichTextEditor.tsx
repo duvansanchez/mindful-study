@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Image, Bold, Italic, Link2, Type, Table, Loader2, AlertCircle, Minus } from 'lucide-react';
@@ -11,6 +11,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  autoResize?: boolean;
 }
 
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({
@@ -18,13 +19,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   onChange,
   placeholder = "Escribe tu nota...",
   disabled = false,
-  className = ""
+  className = "",
+  autoResize = false,
 }) => {
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoResize && textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [value, autoResize]);
 
   // Insertar texto en la posición del cursor
   const insertText = (textToInsert: string) => {
@@ -393,8 +402,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           onPaste={handlePaste}
           placeholder={placeholder}
           disabled={disabled || isProcessingImage}
-          className="border-0 resize-none focus-visible:ring-0 min-h-[120px]"
-          rows={5}
+          className={`border-0 resize-none focus-visible:ring-0 ${autoResize ? 'min-h-[120px] overflow-hidden' : 'min-h-[120px]'}`}
+          rows={autoResize ? undefined : 5}
         />
         
         {/* Indicador de procesamiento de imagen */}
