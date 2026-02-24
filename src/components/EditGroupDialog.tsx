@@ -76,120 +76,122 @@ export function EditGroupDialog({ group, open, onOpenChange }: EditGroupDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh]">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Editar agrupación</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Nombre */}
-          <div className="space-y-2">
-            <Label htmlFor="edit-name">Nombre de la agrupación</Label>
-            <Input
-              id="edit-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej: Tecnología, Idiomas, Ciencias..."
-              required
-            />
-          </div>
-
-          {/* Color */}
-          <ColorPicker
-            selectedColor={selectedColor}
-            onColorChange={setSelectedColor}
-          />
-
-          {/* Bases de datos */}
-          <div className="space-y-2">
-            <Label>Bases de datos</Label>
-            
-            {/* Buscador */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            {/* Nombre */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Nombre de la agrupación</Label>
               <Input
-                placeholder="Buscar bases de datos..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                id="edit-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ej: Tecnología, Idiomas, Ciencias..."
+                required
               />
             </div>
-            
-            {/* Resultados de búsqueda */}
-            {searchQuery.length > 0 && (
-              <div className="border rounded-md">
-                {databasesLoading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    <span className="text-sm text-muted-foreground">Cargando bases de datos...</span>
-                  </div>
-                ) : filteredDatabases.length > 0 ? (
-                  <div className="max-h-32 overflow-y-auto space-y-2 p-2">
-                    {filteredDatabases.map((database) => (
-                      <div key={database.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`edit-${database.id}`}
-                          checked={selectedDatabases.includes(database.id)}
-                          onCheckedChange={() => handleDatabaseToggle(database.id)}
-                        />
-                        <Label
-                          htmlFor={`edit-${database.id}`}
-                          className="text-sm font-normal cursor-pointer flex-1"
-                        >
-                          <span className="mr-2">{database.icon}</span>
-                          {database.name}
-                          <span className="text-xs text-muted-foreground ml-2">
-                            ({database.cardCount} tarjetas)
-                          </span>
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <span className="text-sm text-muted-foreground">
-                      No se encontraron bases de datos con "{searchQuery}"
-                    </span>
-                  </div>
-                )}
+
+            {/* Color */}
+            <ColorPicker
+              selectedColor={selectedColor}
+              onColorChange={setSelectedColor}
+            />
+
+            {/* Bases de datos */}
+            <div className="space-y-2">
+              <Label>Bases de datos</Label>
+
+              {/* Buscador */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Buscar bases de datos..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-            )}
-            
-            {/* Bases de datos seleccionadas */}
-            {selectedDatabases.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Bases de datos seleccionadas ({selectedDatabases.length})</Label>
-                <div className="flex flex-wrap gap-2">
-                  {selectedDatabases.map((dbId) => {
-                    const database = allDatabases.find(db => db.id === dbId);
-                    return database ? (
-                      <div key={dbId} className="flex items-center gap-1 bg-secondary px-2 py-1 rounded text-sm">
-                        <span>{database.icon}</span>
-                        <span>{database.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleDatabaseToggle(dbId)}
-                          className="ml-1 text-muted-foreground hover:text-foreground"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ) : null;
-                  })}
+
+              {/* Resultados de búsqueda */}
+              {searchQuery.length > 0 && (
+                <div className="border rounded-md">
+                  {databasesLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      <span className="text-sm text-muted-foreground">Cargando bases de datos...</span>
+                    </div>
+                  ) : filteredDatabases.length > 0 ? (
+                    <div className="max-h-32 overflow-y-auto space-y-2 p-2">
+                      {filteredDatabases.map((database) => (
+                        <div key={database.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`edit-${database.id}`}
+                            checked={selectedDatabases.includes(database.id)}
+                            onCheckedChange={() => handleDatabaseToggle(database.id)}
+                          />
+                          <Label
+                            htmlFor={`edit-${database.id}`}
+                            className="text-sm font-normal cursor-pointer flex-1"
+                          >
+                            <span className="mr-2">{database.icon}</span>
+                            {database.name}
+                            <span className="text-xs text-muted-foreground ml-2">
+                              ({database.cardCount} tarjetas)
+                            </span>
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <span className="text-sm text-muted-foreground">
+                        No se encontraron bases de datos con "{searchQuery}"
+                      </span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-            
-            {searchQuery.length === 0 && !databasesLoading && (
-              <div className="text-center py-4 border rounded-md border-dashed">
-                <span className="text-sm text-muted-foreground">
-                  Escribe para buscar bases de datos
-                </span>
-              </div>
-            )}
+              )}
+
+              {/* Bases de datos seleccionadas */}
+              {selectedDatabases.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Bases de datos seleccionadas ({selectedDatabases.length})</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedDatabases.map((dbId) => {
+                      const database = allDatabases.find(db => db.id === dbId);
+                      return database ? (
+                        <div key={dbId} className="flex items-center gap-1 bg-secondary px-2 py-1 rounded text-sm">
+                          <span>{database.icon}</span>
+                          <span>{database.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDatabaseToggle(dbId)}
+                            className="ml-1 text-muted-foreground hover:text-foreground"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {searchQuery.length === 0 && !databasesLoading && (
+                <div className="text-center py-4 border rounded-md border-dashed">
+                  <span className="text-sm text-muted-foreground">
+                    Escribe para buscar bases de datos
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Botones */}
-          <div className="flex justify-end space-x-2 pt-4">
+          <div className="flex justify-end space-x-2 pt-4 flex-shrink-0 border-t mt-4">
             <Button
               type="button"
               variant="outline"
