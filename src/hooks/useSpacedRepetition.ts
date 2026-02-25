@@ -104,14 +104,19 @@ export function useSpacedRepetition(
       const sessionCount = session.sessionCount ?? 0;
       const lastStudied = session.lastStudiedAt ? new Date(session.lastStudiedAt) : null;
 
+      // Enriquecer la tarjeta con la fecha real del SQL
+      const enrichedCard: Flashcard = lastStudied
+        ? { ...card, lastReviewed: lastStudied }
+        : card;
+
       // Tarjeta problemática: muchas sesiones, sigue en tocado
       if (sessionCount > PROBLEMATIC_SESSION_THRESHOLD && card.state === 'tocado') {
-        problematic.push(card);
+        problematic.push(enrichedCard);
       }
 
       if (!lastStudied) {
-        neverReviewed.push(card);
-        dueToday.push(card);
+        neverReviewed.push(enrichedCard);
+        dueToday.push(enrichedCard);
         continue;
       }
 
@@ -120,11 +125,11 @@ export function useSpacedRepetition(
 
       // Vence hoy
       if (nextReview <= startOfToday || daysSinceLast >= interval) {
-        dueToday.push(card);
+        dueToday.push(enrichedCard);
       }
       // Vence esta semana
       else if (nextReview <= endOfWeek) {
-        dueThisWeek.push(card);
+        dueThisWeek.push(enrichedCard);
       }
 
       // En riesgo: verde/sólido y sin repasar en más de 2x el intervalo
@@ -132,7 +137,7 @@ export function useSpacedRepetition(
         (card.state === 'verde' || card.state === 'solido') &&
         daysSinceLast > interval * RISK_MULTIPLIER
       ) {
-        atRisk.push(card);
+        atRisk.push(enrichedCard);
       }
     }
 
