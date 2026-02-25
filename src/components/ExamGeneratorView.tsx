@@ -21,10 +21,9 @@ const PROMPT_TEXT = `Eres un experto en evaluación educativa. Analiza las flash
 
 Reglas:
 - Crea al menos 1 pregunta por flashcard
-- Mezcla tipos: multiple, true-false y essay
+- Solo usa los tipos: multiple y true-false (NO uses essay ni respuestas de texto libre)
 - Para "multiple": proporciona siempre 4 opciones en "options" y el texto exacto de la correcta en "correctAnswer"
-- Para "true-false": options debe ser ["Verdadero", "Falso"]
-- Para "essay": omite "options", "correctAnswer" es una respuesta modelo
+- Para "true-false": options debe ser ["Verdadero", "Falso"] y "correctAnswer" debe ser "Verdadero" o "Falso"
 - Agrega "explanation" a cada pregunta
 - El "id" de cada pregunta debe ser un número correlativo empezando en 1
 
@@ -123,7 +122,7 @@ export const ExamGeneratorView: React.FC<ExamGeneratorViewProps> = ({ group }) =
             {
               id: 1,
               question: 'texto de la pregunta',
-              type: 'multiple | true-false | essay',
+              type: 'multiple | true-false',
               options: ['solo para multiple y true-false'],
               correctAnswer: 'string',
               explanation: 'string',

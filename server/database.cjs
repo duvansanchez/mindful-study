@@ -2337,7 +2337,7 @@ class DatabaseService {
                  COUNT(*)            AS examCount,
                  MAX(fec.CoveredAt)  AS lastCoveredAt
           FROM app.FlashcardExamCoverage fec
-          INNER JOIN dbo.ExamDocuments ed ON fec.ExamDocumentId = ed.Id
+          INNER JOIN ExamDocuments ed ON fec.ExamDocumentId = ed.Id
           WHERE ed.GroupId = @groupId
             AND fec.DatabaseId = @databaseId
           GROUP BY fec.FlashcardId
@@ -2345,7 +2345,7 @@ class DatabaseService {
       return result.recordset;
     } catch (error) {
       console.error('Error obteniendo cobertura de flashcards:', error);
-      throw error;
+      return [];
     }
   }
 
@@ -2385,14 +2385,14 @@ class DatabaseService {
           SELECT fec.DatabaseId,
                  COUNT(DISTINCT fec.FlashcardId) AS coveredCount
           FROM app.FlashcardExamCoverage fec
-          INNER JOIN dbo.ExamDocuments ed ON fec.ExamDocumentId = ed.Id
+          INNER JOIN ExamDocuments ed ON fec.ExamDocumentId = ed.Id
           WHERE ed.GroupId = @groupId
           GROUP BY fec.DatabaseId
         `);
       return result.recordset;
     } catch (error) {
       console.error('Error obteniendo resumen de cobertura:', error);
-      throw error;
+      return [];
     }
   }
 

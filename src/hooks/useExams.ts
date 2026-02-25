@@ -21,7 +21,8 @@ export const useFlashcardCoverage = (groupId: string, databaseId: string | null)
     queryKey: ['flashcard-coverage', groupId, databaseId],
     queryFn: () =>
       fetch(`/api/groups/${groupId}/databases/${databaseId}/flashcard-coverage`)
-        .then(r => r.json()),
+        .then(r => r.json())
+        .then(data => (Array.isArray(data) ? data : [])),
     enabled: !!groupId && !!databaseId,
     staleTime: 2 * 60 * 1000,
   });
@@ -31,7 +32,9 @@ export const useCoverageSummary = (groupId: string) =>
   useQuery<CoverageSummaryEntry[]>({
     queryKey: ['coverage-summary', groupId],
     queryFn: () =>
-      fetch(`/api/groups/${groupId}/coverage-summary`).then(r => r.json()),
+      fetch(`/api/groups/${groupId}/coverage-summary`)
+        .then(r => r.json())
+        .then(data => (Array.isArray(data) ? data : [])),
     enabled: !!groupId,
     staleTime: 2 * 60 * 1000,
   });
