@@ -46,7 +46,7 @@ const FlashcardRow: React.FC<{ card: EnrichedFlashcard }> = ({ card }) => (
   </div>
 );
 
-type SortOption = 'default' | 'title-asc' | 'title-desc' | 'state' | 'group';
+type SortOption = 'default' | 'title-asc' | 'title-desc' | 'state' | 'group' | 'date-asc' | 'date-desc';
 
 const STATE_ORDER: Record<string, number> = { tocado: 0, verde: 1, solido: 2 };
 
@@ -56,6 +56,8 @@ const SORT_LABELS: Record<SortOption, string> = {
   'title-desc': 'Título Z→A',
   state: 'Estado',
   group: 'Agrupación',
+  'date-asc': 'Fecha ↑ (más antigua)',
+  'date-desc': 'Fecha ↓ (más reciente)',
 };
 
 interface CollapsibleSectionProps {
@@ -93,6 +95,20 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
       result = [...result].sort((a, b) => (STATE_ORDER[a.state] ?? 0) - (STATE_ORDER[b.state] ?? 0));
     } else if (sortBy === 'group') {
       result = [...result].sort((a, b) => (a.groupName ?? '').localeCompare(b.groupName ?? ''));
+    } else if (sortBy === 'date-asc') {
+      result = [...result].sort((a, b) => {
+        if (!a.lastReviewed && !b.lastReviewed) return 0;
+        if (!a.lastReviewed) return -1;
+        if (!b.lastReviewed) return 1;
+        return new Date(a.lastReviewed).getTime() - new Date(b.lastReviewed).getTime();
+      });
+    } else if (sortBy === 'date-desc') {
+      result = [...result].sort((a, b) => {
+        if (!a.lastReviewed && !b.lastReviewed) return 0;
+        if (!a.lastReviewed) return 1;
+        if (!b.lastReviewed) return -1;
+        return new Date(b.lastReviewed).getTime() - new Date(a.lastReviewed).getTime();
+      });
     }
 
     return result;
