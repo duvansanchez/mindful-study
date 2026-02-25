@@ -306,7 +306,7 @@ export function FlashcardReview({
   cardsToRepeatCount = 0
 }: FlashcardReviewProps) {
   const [revealed, setRevealed] = useState(false);
-  const [showAuxiliary, setShowAuxiliary] = useState(false);
+  const [showAuxiliary, setShowAuxiliary] = useState(true);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [showNotesPanel, setShowNotesPanel] = useState(false);
