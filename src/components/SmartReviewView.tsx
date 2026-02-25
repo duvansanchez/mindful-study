@@ -18,6 +18,19 @@ type EnrichedFlashcard = Flashcard & { groupName?: string };
 // Sub-components
 // ────────────────────────────────────────────────────────────────────────────
 
+const formatLastReviewed = (date: Date | null | undefined): string => {
+  if (!date) return 'Sin repasar';
+  const d = new Date(date);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Hoy';
+  if (diffDays === 1) return 'Ayer';
+  if (diffDays < 7) return `Hace ${diffDays} días`;
+  if (diffDays < 30) return `Hace ${Math.floor(diffDays / 7)} sem.`;
+  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+};
+
 const FlashcardRow: React.FC<{ card: EnrichedFlashcard }> = ({ card }) => (
   <div className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-secondary/50 transition-colors gap-3">
     <span className="text-sm text-foreground truncate flex-1">{card.title}</span>
@@ -26,6 +39,9 @@ const FlashcardRow: React.FC<{ card: EnrichedFlashcard }> = ({ card }) => (
         {card.groupName}
       </span>
     )}
+    <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+      {formatLastReviewed(card.lastReviewed)}
+    </span>
     <StateBadge state={card.state} size="xs" />
   </div>
 );
