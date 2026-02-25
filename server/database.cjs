@@ -55,6 +55,79 @@ const initializeDatabase = async () => {
       console.warn('⚠️ Error aplicando migraciones (puede ser normal):', migrationError.message);
     }
 
+    // Crear tablas faltantes
+    try {
+      await pool.request().query(`
+        IF OBJECT_ID('SessionFolders', 'U') IS NULL
+          CREATE TABLE SessionFolders (
+            Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            GroupId UNIQUEIDENTIFIER NOT NULL,
+            FolderName NVARCHAR(255) NOT NULL,
+            Color NVARCHAR(50) DEFAULT '#6366f1',
+            Icon NVARCHAR(10) DEFAULT N'📁',
+            OrderIndex INT DEFAULT 0,
+            IsExpanded BIT DEFAULT 1,
+            CreatedAt DATETIME DEFAULT GETDATE(),
+            UpdatedAt DATETIME DEFAULT GETDATE()
+          );
+      `);
+      console.log('✅ SessionFolders table OK');
+    } catch (e) {
+      console.warn('⚠️ Error con SessionFolders:', e.message);
+    }
+
+    try {
+      await pool.request().query(`
+        IF OBJECT_ID('app.GroupFolders', 'U') IS NULL
+          CREATE TABLE app.GroupFolders (
+            Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            GroupId UNIQUEIDENTIFIER NOT NULL,
+            FolderName NVARCHAR(255) NOT NULL,
+            Color NVARCHAR(50) DEFAULT '#6366f1',
+            Icon NVARCHAR(10) DEFAULT N'📁',
+            OrderIndex INT DEFAULT 0,
+            IsExpanded BIT DEFAULT 1,
+            CreatedAt DATETIME DEFAULT GETDATE(),
+            UpdatedAt DATETIME DEFAULT GETDATE()
+          );
+      `);
+      console.log('✅ app.GroupFolders table OK');
+    } catch (e) {
+      console.warn('⚠️ Error con app.GroupFolders:', e.message);
+    }
+
+    try {
+      await pool.request().query(`
+        IF OBJECT_ID('app.GroupGoals', 'U') IS NULL
+          CREATE TABLE app.GroupGoals (
+            Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            GroupId UNIQUEIDENTIFIER NOT NULL,
+            Title NVARCHAR(255) NOT NULL,
+            Description NVARCHAR(MAX) NULL,
+            DueDate DATE NULL,
+            Completed BIT NOT NULL DEFAULT 0,
+            CreatedAt DATETIME DEFAULT GETDATE(),
+            UpdatedAt DATETIME DEFAULT GETDATE()
+          );
+      `);
+      console.log('✅ app.GroupGoals table OK');
+    } catch (e) {
+      console.warn('⚠️ Error con app.GroupGoals:', e.message);
+    }
+
+    // Columnas faltantes en tablas existentes
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('app.DatabaseGroupMappings') AND name = 'FolderId')
+          ALTER TABLE app.DatabaseGroupMappings ADD FolderId NVARCHAR(255) NULL;
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'FolderId')
+          ALTER TABLE PlanningSession ADD FolderId NVARCHAR(255) NULL;
+      `);
+      console.log('✅ Columnas FolderId adicionales OK');
+    } catch (e) {
+      console.warn('⚠️ Error añadiendo columnas FolderId:', e.message);
+    }
+
     // Eliminar CHECK constraint en StudyMode que impide guardar JSON o 'exam'
     try {
       await pool.request().query(`
