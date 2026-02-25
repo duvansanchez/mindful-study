@@ -1108,6 +1108,7 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
             }
             
             let value = '';
+            let currentRelations = null;
             switch (propValue.type) {
               case 'rich_text':
                 value = propValue.rich_text?.map((t) => t.plain_text).join('') || '';
@@ -1164,6 +1165,7 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
                 if (propValue.relation && propValue.relation.length > 0) {
                   try {
                     const relationNames = [];
+                    const relationItems = [];
                     for (const relation of propValue.relation) {
                       if (relation.id) {
                         try {
@@ -1173,8 +1175,10 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
                           if (titleProperty && titleProperty.title && titleProperty.title.length > 0) {
                             const title = titleProperty.title.map(t => t.plain_text).join('');
                             relationNames.push(title);
+                            relationItems.push({ id: relation.id, title });
                           } else {
                             relationNames.push('Sin título');
+                            relationItems.push({ id: relation.id, title: 'Sin título' });
                           }
                         } catch (error) {
                           console.error('Error obteniendo página relacionada:', error);
@@ -1183,6 +1187,7 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
                       }
                     }
                     value = relationNames.length > 0 ? relationNames.join(', ') : `${propValue.relation.length} elemento(s) relacionado(s)`;
+                    if (relationItems.length > 0) currentRelations = relationItems;
                   } catch (error) {
                     console.error('Error procesando relaciones:', error);
                     value = `${propValue.relation.length} elemento(s) relacionado(s)`;
@@ -1209,7 +1214,8 @@ app.get('/databases/:databaseId/flashcards', async (req, res) => {
             if (value && value.trim()) {
               auxiliaryInfo[propName] = {
                 type: propValue.type,
-                value: value.trim()
+                value: value.trim(),
+                ...(currentRelations ? { relations: currentRelations } : {})
               };
             }
           }

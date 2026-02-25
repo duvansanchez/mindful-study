@@ -18,6 +18,7 @@ import { FloatingReferenceButton } from "./FloatingReferenceButton";
 import { RichTextEditor } from "./RichTextEditor";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { ImageModal } from "./ImageModal";
+import { RelatedConceptModal } from "./RelatedConceptModal";
 
 const REFERENCE_HIGHLIGHT_ATTR = 'data-reference-highlight';
 
@@ -349,6 +350,9 @@ export function FlashcardReview({
   // Estado para ImageModal
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [imageModalUrl, setImageModalUrl] = useState("");
+
+  // Estado para modal de concepto relacionado
+  const [openRelation, setOpenRelation] = useState<{ id: string; title: string } | null>(null);
   const [imageModalCaption, setImageModalCaption] = useState("");
 
   const [lastReviewMessage, setLastReviewMessage] = useState<string | null>(null);
@@ -1543,8 +1547,23 @@ export function FlashcardReview({
                               <div className="w-2 h-2 rounded-full bg-muted-foreground/40 mt-2 flex-shrink-0" />
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs text-muted-foreground mb-1 font-medium">{propName}</p>
-                                <p className="text-sm text-foreground break-words">{propData.value}</p>
-                                {propData.type !== 'rich_text' && propData.type !== 'title' && (
+                                {propData.type === 'relation' && propData.relations && propData.relations.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {propData.relations.map(rel => (
+                                      <button
+                                        key={rel.id}
+                                        onClick={() => setOpenRelation(rel)}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs hover:bg-primary/20 transition-colors"
+                                      >
+                                        <Link2 className="w-3 h-3" />
+                                        {rel.title}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-foreground break-words">{propData.value}</p>
+                                )}
+                                {propData.type !== 'rich_text' && propData.type !== 'title' && propData.type !== 'relation' && (
                                   <p className="text-xs text-muted-foreground/60 mt-1">
                                     {propData.type === 'select' && '• Selección'}
                                     {propData.type === 'multi_select' && '• Selección múltiple'}
@@ -1889,6 +1908,12 @@ export function FlashcardReview({
         imageUrl={imageModalUrl}
         caption={imageModalCaption}
         alt={imageModalCaption || "Imagen de nota de repaso"}
+      />
+
+      {/* Modal de concepto relacionado */}
+      <RelatedConceptModal
+        relation={openRelation}
+        onClose={() => setOpenRelation(null)}
       />
 
       {/* Modal: notas de repaso antes de estudiar */}

@@ -128,6 +128,26 @@ const initializeDatabase = async () => {
       console.warn('⚠️ Error añadiendo columnas FolderId:', e.message);
     }
 
+    // Crear tabla ExamDocuments si no existe (requerida por FK de FlashcardExamCoverage)
+    try {
+      await pool.request().query(`
+        IF OBJECT_ID('ExamDocuments', 'U') IS NULL
+          CREATE TABLE ExamDocuments (
+            Id             UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            GroupId        UNIQUEIDENTIFIER NOT NULL,
+            ExamName       NVARCHAR(255)    NOT NULL,
+            ExamData       NVARCHAR(MAX)    NOT NULL,
+            TimeLimit      INT              NOT NULL DEFAULT 0,
+            TotalQuestions INT              NOT NULL DEFAULT 0,
+            CreatedAt      DATETIME2        NOT NULL DEFAULT GETUTCDATE(),
+            UpdatedAt      DATETIME2        NOT NULL DEFAULT GETUTCDATE()
+          );
+      `);
+      console.log('✅ ExamDocuments table OK');
+    } catch (e) {
+      console.warn('⚠️ Error con ExamDocuments:', e.message);
+    }
+
     // Eliminar CHECK constraint en StudyMode que impide guardar JSON o 'exam'
     try {
       await pool.request().query(`
@@ -2296,7 +2316,7 @@ class DatabaseService {
             CoveredAt      DATETIME2         DEFAULT GETUTCDATE(),
             CONSTRAINT PK_FlashcardExamCoverage PRIMARY KEY (FlashcardId, ExamDocumentId),
             CONSTRAINT FK_FlashcardExamCoverage_Exam
-              FOREIGN KEY (ExamDocumentId) REFERENCES dbo.ExamDocuments(Id) ON DELETE CASCADE
+              FOREIGN KEY (ExamDocumentId) REFERENCES ExamDocuments(Id) ON DELETE CASCADE
           );
         END
       `);
