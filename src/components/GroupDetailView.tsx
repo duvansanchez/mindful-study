@@ -314,9 +314,11 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
           </p>
         </button>
 
-        <button 
+        <button
           onClick={() => onShowGroupPlanning(group)}
-          className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left"
+          disabled={databasesLoading || foldersLoading || groupDatabasesLoading}
+          title={databasesLoading || foldersLoading || groupDatabasesLoading ? 'Espera a que carguen las bases de datos' : undefined}
+          className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:border-border"
         >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
@@ -329,9 +331,11 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
           </p>
         </button>
 
-        <button 
+        <button
           onClick={() => onShowGroupExams(group)}
-          className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left"
+          disabled={databasesLoading || foldersLoading || groupDatabasesLoading}
+          title={databasesLoading || foldersLoading || groupDatabasesLoading ? 'Espera a que carguen las bases de datos' : undefined}
+          className="group p-4 bg-card border border-border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50 text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:border-border"
         >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg group-hover:bg-orange-200 dark:group-hover:bg-orange-900/50 transition-colors">

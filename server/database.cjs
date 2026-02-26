@@ -45,6 +45,10 @@ const initializeDatabase = async () => {
       await pool.request().query(`
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'ExamId')
           ALTER TABLE PlanningSession ADD ExamId NVARCHAR(255) NULL;
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'DatabaseIds')
+          ALTER TABLE PlanningSession ADD DatabaseIds NVARCHAR(MAX) NULL;
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'FolderId')
+          ALTER TABLE PlanningSession ADD FolderId UNIQUEIDENTIFIER NULL;
         IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'StudyMode' AND max_length < 200)
           ALTER TABLE PlanningSession ALTER COLUMN StudyMode NVARCHAR(MAX) NULL;
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('app.DatabaseGroups') AND name = 'FolderId')
