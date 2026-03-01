@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Plus, Trash2, Eye, EyeOff, Save, X } from 'lucide-react';
+import { Settings, Plus, Trash2, Eye, EyeOff, Save, X, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+
+const API_BASE = '/api';
 
 interface NotionIntegration {
   id: string;
@@ -23,6 +26,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
   const [editingIntegration, setEditingIntegration] = useState<string | null>(null);
   const [newIntegration, setNewIntegration] = useState({ name: '', token: '' });
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [notificationEmail, setNotificationEmail] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
+
+  // Cargar email de notificaciones del servidor
+  useEffect(() => {
+    fetch(`${API_BASE}/user/settings`)
+      .then(r => r.ok ? r.json() : {})
+      .then(s => { if (s.notificationEmail) setNotificationEmail(s.notificationEmail); })
+      .catch(() => {});
+  }, []);
+
+  const handleSaveEmail = async () => {
+    setSavingEmail(true);
+    try {
+      await fetch(`${API_BASE}/user/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationEmail }),
+      });
+      toast.success('Email de notificaciones guardado');
+    } catch {
+      toast.error('Error guardando el email');
+    } finally {
+      setSavingEmail(false);
+    }
+  };
 
   // Cargar integraciones del localStorage
   useEffect(() => {
@@ -306,6 +335,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Notificaciones por email */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Bell className="w-4 h-4 text-orange-500" />
+            <div>
+              <CardTitle>Notificaciones de estudio</CardTitle>
+              <CardDescription>
+                Recibe un correo el día que tengas sesiones de repaso programadas
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="notificationEmail">Email para notificaciones</Label>
+            <div className="flex gap-2">
+              <Input
+                id="notificationEmail"
+                type="email"
+                placeholder="tu@email.com"
+                value={notificationEmail}
+                onChange={(e) => setNotificationEmail(e.target.value)}
+              />
+              <Button onClick={handleSaveEmail} disabled={savingEmail || !notificationEmail.trim()}>
+                <Save className="w-4 h-4 mr-2" />
+                {savingEmail ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Requiere configurar <code className="bg-muted px-1 rounded">SMTP_HOST</code>, <code className="bg-muted px-1 rounded">SMTP_USER</code> y <code className="bg-muted px-1 rounded">SMTP_PASS</code> en el archivo <code className="bg-muted px-1 rounded">.env</code> del servidor.
+          </p>
         </CardContent>
       </Card>
 

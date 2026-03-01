@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-const API_URL = 'http://localhost:3002';
+const API_URL = '/api';
 
 export interface GroupGoal {
   id: string;

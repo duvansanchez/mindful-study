@@ -37,7 +37,7 @@ export const RelatedFlashcardsModal: React.FC<RelatedFlashcardsModalProps> = ({
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:3002/flashcards/by-ids', {
+      const response = await fetch('/api/flashcards/by-ids', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

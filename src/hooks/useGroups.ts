@@ -93,7 +93,7 @@ export const useMoveDatabaseToFolder = () => {
       databaseId: string; 
       folderId: string | null 
     }) => {
-      const response = await fetch(`http://localhost:3002/groups/${groupId}/databases/${databaseId}/move-to-folder`, {
+      const response = await fetch(`/api/groups/${groupId}/databases/${databaseId}/move-to-folder`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -120,7 +120,7 @@ export const useGroupDatabases = (groupId: string) => {
   return useQuery({
     queryKey: ['group-databases', groupId],
     queryFn: async () => {
-      const response = await fetch(`http://localhost:3002/groups/${groupId}/databases`);
+      const response = await fetch(`/api/groups/${groupId}/databases`);
       if (!response.ok) {
         throw new Error('Error al obtener bases de datos del grupo');
       }

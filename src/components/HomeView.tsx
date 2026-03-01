@@ -8,7 +8,7 @@ export const HomeView: React.FC = () => {
   const handleClearCache = async () => {
     setIsClearing(true);
     try {
-      const response = await fetch('http://localhost:3002/clear-cache', {
+      const response = await fetch('/api/clear-cache', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

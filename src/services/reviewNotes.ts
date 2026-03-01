@@ -1,5 +1,5 @@
 // URL base de la API local
-const API_BASE = 'http://localhost:3002';
+const API_BASE = '/api';
 
 export interface ReviewNote {
   id: string;

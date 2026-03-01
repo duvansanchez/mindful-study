@@ -1,7 +1,6 @@
 import { Database, Flashcard, KnowledgeState } from '@/types';
 
-// URL base de la API local
-const API_BASE = 'http://localhost:3002';
+const API_BASE = '/api';
 
 // Servicio principal de Notion (usando API local)
 export class NotionService {

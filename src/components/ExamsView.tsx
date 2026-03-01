@@ -10,7 +10,7 @@ import { FlashcardFilters } from '@/components/FlashcardFilters';
 import { useNotionDatabases, useNotionFlashcards } from '@/hooks/useNotion';
 import { useLinkFlashcardCoverage } from '@/hooks/useExams';
 
-const API_BASE = 'http://localhost:3002';
+const API_BASE = '/api';
 
 interface ExamsViewProps {
   group: DatabaseGroup;

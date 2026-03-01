@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SessionFolder, CreateSessionFolderData } from '@/types';
 
-const API_URL = 'http://localhost:3002';
+const API_URL = '/api';
 
 // Obtener carpetas de un grupo
 export const useSessionFoldersByGroup = (groupId: string) => {

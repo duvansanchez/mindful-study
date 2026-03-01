@@ -7,7 +7,7 @@ import {
   ReferenceLine, ResponsiveContainer, Cell, LineChart, Line, Legend
 } from 'recharts';
 
-const API_BASE = 'http://localhost:3002';
+const API_BASE = '/api';
 
 interface ExamAttempt {
   id: string;

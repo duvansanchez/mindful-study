@@ -80,6 +80,7 @@ export interface PlanningSession {
   orderIndex: number;
   selectedFlashcards?: string[]; // IDs de las flashcards seleccionadas
   folderId?: string | null; // ID de la carpeta (opcional)
+  reviewDate?: Date | null; // Fecha programada de repaso
   createdAt: Date;
   updatedAt: Date;
 }
@@ -114,6 +115,7 @@ export interface CreatePlanningSessionData {
   selectedFlashcards?: string[];
   orderIndex?: number;
   folderId?: string | null; // ID de la carpeta (opcional)
+  reviewDate?: Date | null; // Fecha programada de repaso
 }
 
 // Nuevo tipo para flashcards con información de base de datos

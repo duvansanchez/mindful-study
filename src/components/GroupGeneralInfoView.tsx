@@ -7,7 +7,7 @@ import { NotionService } from '@/services/notion';
 import { RichTextEditor } from './RichTextEditor';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
-const API_BASE = 'http://localhost:3002';
+const API_BASE = '/api';
 
 interface GroupGeneralInfoViewProps {
   groups: DatabaseGroup[];

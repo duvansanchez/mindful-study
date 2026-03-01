@@ -1874,10 +1874,30 @@ export function FlashcardReview({
 
       {/* Progress bar */}
       <div className="h-1 bg-secondary">
-        <div 
+        <div
           className="h-full bg-state-verde transition-all duration-300"
           style={{ width: `${((currentIndex + 1) / totalCards) * 100}%` }}
         />
+      </div>
+
+      {/* Botones de navegación — solo mobile */}
+      <div className="flex sm:hidden items-center justify-between px-4 py-3 border-t border-border bg-card/50">
+        <button
+          onClick={() => onPrevious && currentIndex > 0 && onPrevious()}
+          disabled={currentIndex === 0}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight className="w-4 h-4 rotate-180" />
+          Anterior
+        </button>
+        <span className="text-xs text-muted-foreground">{currentIndex + 1} / {totalCards}</span>
+        <button
+          onClick={handleNext}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-sm font-medium transition-colors"
+        >
+          Siguiente
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Create Reference Point Dialog */}

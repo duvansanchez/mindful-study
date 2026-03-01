@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GroupFolder, CreateGroupFolderData } from '@/types';
 
-const API_URL = 'http://localhost:3002';
+const API_URL = '/api';
 
 // Obtener carpetas de una agrupación específica
 export const useGroupFoldersByGroup = (groupId: string) => {

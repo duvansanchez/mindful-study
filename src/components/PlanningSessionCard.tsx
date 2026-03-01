@@ -11,7 +11,8 @@ import {
   Trash2,
   Loader2,
   ClipboardList,
-  PlayCircle
+  PlayCircle,
+  Bell
 } from 'lucide-react';
 
 interface PlanningSessionCardProps {
@@ -159,6 +160,34 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Badge de fecha de repaso */}
+      {session.reviewDate && (() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const rd = new Date(session.reviewDate);
+        rd.setHours(0, 0, 0, 0);
+        const isToday = rd.getTime() === today.getTime();
+        const isPast = rd < today;
+        return (
+          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium w-fit ${
+            isToday
+              ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+              : isPast
+              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+              : 'bg-muted text-muted-foreground'
+          }`}>
+            <Bell className="w-3 h-3" />
+            <span>
+              {isToday
+                ? 'Repasar hoy'
+                : isPast
+                ? 'Repaso pendiente'
+                : `Repaso: ${new Date(session.reviewDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Información adicional */}
       <div className="flex items-center justify-between text-xs text-muted-foreground">

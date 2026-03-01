@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PlanningSession, CreatePlanningSessionData } from '@/types';
 
-const API_BASE = 'http://localhost:3002';
+const API_BASE = '/api';
 
 // Obtener sesiones de planificación de un grupo
 export const usePlanningSessionsByGroup = (groupId: string | null) => {
@@ -21,6 +21,7 @@ export const usePlanningSessionsByGroup = (groupId: string | null) => {
       
       return data.map((session: any) => ({
         ...session,
+        reviewDate: session.reviewDate ? new Date(session.reviewDate) : null,
         createdAt: new Date(session.createdAt),
         updatedAt: new Date(session.updatedAt)
       }));
@@ -125,6 +126,21 @@ export const useUpdatePlanningSession = () => {
       // Invalidar todas las sesiones de planificación
       queryClient.invalidateQueries({ queryKey: ['planning-sessions'] });
     },
+  });
+};
+
+// Obtener sesiones de planificación con fecha de repaso = hoy
+export const usePlanningSessionsDueToday = () => {
+  return useQuery({
+    queryKey: ['planning-sessions-due-today'],
+    queryFn: async (): Promise<{ id: string; groupId: string; groupName: string; sessionName: string; reviewDate: Date }[]> => {
+      const response = await fetch(`${API_BASE}/planning-sessions/due-today`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.map((s: any) => ({ ...s, reviewDate: new Date(s.reviewDate) }));
+    },
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 };
 

@@ -49,6 +49,8 @@ const initializeDatabase = async () => {
           ALTER TABLE PlanningSession ADD DatabaseIds NVARCHAR(MAX) NULL;
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'FolderId')
           ALTER TABLE PlanningSession ADD FolderId UNIQUEIDENTIFIER NULL;
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'ReviewDate')
+          ALTER TABLE PlanningSession ADD ReviewDate DATETIME2 NULL;
         IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PlanningSession') AND name = 'StudyMode' AND max_length < 200)
           ALTER TABLE PlanningSession ALTER COLUMN StudyMode NVARCHAR(MAX) NULL;
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('app.DatabaseGroups') AND name = 'FolderId')
@@ -1073,10 +1075,11 @@ class DatabaseService {
             OrderIndex,
             FolderId,
             ExamId,
+            ReviewDate,
             CreatedAt,
             UpdatedAt
-          FROM PlanningSession 
-          WHERE GroupId = @groupId 
+          FROM PlanningSession
+          WHERE GroupId = @groupId
           ORDER BY OrderIndex ASC, CreatedAt ASC
         `);
 
@@ -1147,6 +1150,7 @@ class DatabaseService {
           selectedFlashcards: selectedFlashcards,
           orderIndex: row.OrderIndex,
           folderId: row.FolderId,
+          reviewDate: row.ReviewDate || null,
           createdAt: row.CreatedAt,
           updatedAt: row.UpdatedAt
         };
@@ -1163,7 +1167,7 @@ class DatabaseService {
   }
 
   // Crear nueva sesión de planificación
-  static async createPlanningSession(groupId, sessionName, databaseId, sessionNote, studyMode, selectedFlashcards, orderIndex, databaseIds = null, studyModes = null, examId = null) {
+  static async createPlanningSession(groupId, sessionName, databaseId, sessionNote, studyMode, selectedFlashcards, orderIndex, databaseIds = null, studyModes = null, examId = null, reviewDate = null) {
     console.log('🔧 createPlanningSession - INICIANDO');
     console.log('🔧 Parámetros recibidos:', { groupId, sessionName, databaseId, sessionNote, studyMode, selectedFlashcards: selectedFlashcards?.length, orderIndex, databaseIds });
     
@@ -1219,11 +1223,12 @@ class DatabaseService {
         .input('databaseIds', sql.NVarChar(sql.MAX), databaseIdsJson)
         .input('orderIndex', sql.Int, orderIndex)
         .input('examId', sql.NVarChar(255), examId || null)
+        .input('reviewDate', sql.DateTime2, reviewDate ? new Date(reviewDate) : null)
         .query(`
           INSERT INTO PlanningSession (
-            Id, GroupId, SessionName, DatabaseId, SessionNote, StudyMode, SelectedFlashcards, DatabaseIds, OrderIndex, ExamId, CreatedAt, UpdatedAt
+            Id, GroupId, SessionName, DatabaseId, SessionNote, StudyMode, SelectedFlashcards, DatabaseIds, OrderIndex, ExamId, ReviewDate, CreatedAt, UpdatedAt
           ) VALUES (
-            @sessionId, @groupId, @sessionName, @databaseId, @sessionNote, @studyMode, @selectedFlashcards, @databaseIds, @orderIndex, @examId, GETDATE(), GETDATE()
+            @sessionId, @groupId, @sessionName, @databaseId, @sessionNote, @studyMode, @selectedFlashcards, @databaseIds, @orderIndex, @examId, @reviewDate, GETDATE(), GETDATE()
           )
         `);
 
@@ -1262,6 +1267,7 @@ class DatabaseService {
         examId: examId || null,
         selectedFlashcards: selectedFlashcards || [],
         orderIndex,
+        reviewDate: reviewDate ? new Date(reviewDate) : null,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -1367,6 +1373,11 @@ class DatabaseService {
         setClause.push('ExamId = @examId');
       }
 
+      if (updates.reviewDate !== undefined) {
+        request.input('reviewDate', sql.DateTime2, updates.reviewDate ? new Date(updates.reviewDate) : null);
+        setClause.push('ReviewDate = @reviewDate');
+      }
+
       if (setClause.length === 0) {
         return true; // No hay nada que actualizar
       }
@@ -1393,10 +1404,37 @@ class DatabaseService {
       await pool.request()
         .input('sessionId', sql.UniqueIdentifier, sessionId)
         .query(`DELETE FROM PlanningSession WHERE Id = @sessionId`);
-      
+
       return true;
     } catch (error) {
       console.error('Error eliminando sesión de planificación:', error);
+      throw error;
+    }
+  }
+
+  // Obtener sesiones con fecha de repaso = hoy
+  static async getPlanningSessionsDueToday() {
+    try {
+      const pool = await getPool();
+      const result = await pool.request().query(`
+        SELECT
+          ps.Id, ps.GroupId, ps.SessionName, ps.DatabaseId, ps.DatabaseIds,
+          ps.SessionNote, ps.StudyMode, ps.SelectedFlashcards, ps.OrderIndex,
+          ps.FolderId, ps.ExamId, ps.ReviewDate, ps.CreatedAt, ps.UpdatedAt,
+          dg.GroupName
+        FROM PlanningSession ps
+        LEFT JOIN app.DatabaseGroups dg ON dg.GroupId = ps.GroupId
+        WHERE CAST(ps.ReviewDate AS DATE) = CAST(GETDATE() AS DATE)
+      `);
+      return result.recordset.map(row => ({
+        id: row.Id,
+        groupId: row.GroupId,
+        groupName: row.GroupName || '',
+        sessionName: row.SessionName,
+        reviewDate: row.ReviewDate,
+      }));
+    } catch (error) {
+      console.error('Error obteniendo sesiones de repaso de hoy:', error);
       throw error;
     }
   }

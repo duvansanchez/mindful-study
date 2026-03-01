@@ -2,7 +2,26 @@ const { Client } = require('@notionhq/client');
 const express = require('express');
 const cors = require('cors');
 const { initializeDatabase, DatabaseService } = require('./database.cjs');
+const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
+
+// Ruta para las configuraciones del usuario
+const USER_SETTINGS_PATH = path.join(__dirname, 'user-settings.json');
+
+const readUserSettings = () => {
+  try {
+    if (fs.existsSync(USER_SETTINGS_PATH)) {
+      return JSON.parse(fs.readFileSync(USER_SETTINGS_PATH, 'utf8'));
+    }
+  } catch {}
+  return {};
+};
+
+const writeUserSettings = (settings) => {
+  fs.writeFileSync(USER_SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
+};
 
 const app = express();
 const port = 3002;
@@ -313,7 +332,8 @@ app.post('/groups/:groupId/planning-sessions', async (req, res) => {
       studyModes,
       selectedFlashcards,
       orderIndex,
-      examId
+      examId,
+      reviewDate
     } = req.body;
 
     if (!sessionName || sessionName.trim().length === 0) {
@@ -360,7 +380,8 @@ app.post('/groups/:groupId/planning-sessions', async (req, res) => {
       orderIndex || null,
       finalDatabaseIds,
       effectiveModes, // array completo de modos
-      examId || null
+      examId || null,
+      reviewDate || null
     );
     
     console.log('✅ Sesión de planificación creada:', session.id);
@@ -2905,6 +2926,17 @@ app.delete('/planning-sessions/:sessionId', async (req, res) => {
   }
 });
 
+// Obtener sesiones de planificación con fecha de repaso = hoy
+app.get('/planning-sessions/due-today', async (req, res) => {
+  try {
+    const sessions = await DatabaseService.getPlanningSessionsDueToday();
+    res.json(sessions);
+  } catch (error) {
+    console.error('❌ Error obteniendo sesiones de repaso de hoy:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== ENDPOINTS DE CARPETAS DE SESIONES ====================
 
 // Obtener carpetas de un grupo
@@ -3040,6 +3072,84 @@ app.put('/global-notes/group-info', async (req, res) => {
     res.json({ success: true, notes });
   } catch (error) {
     console.error('❌ Error guardando notas globales:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== ENDPOINTS DE CONFIGURACIÓN DE USUARIO ====================
+
+// Obtener configuración del usuario
+app.get('/user/settings', (req, res) => {
+  try {
+    const settings = readUserSettings();
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Guardar configuración del usuario
+app.post('/user/settings', (req, res) => {
+  try {
+    const current = readUserSettings();
+    const updated = { ...current, ...req.body };
+    writeUserSettings(updated);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== ENDPOINTS DE NOTIFICACIONES POR EMAIL ====================
+
+// Enviar email de recordatorio de repaso
+app.post('/notifications/send-review-email', async (req, res) => {
+  try {
+    const { email, sessions } = req.body;
+    if (!email || !sessions || sessions.length === 0) {
+      return res.status(400).json({ error: 'Email y sesiones son requeridos' });
+    }
+
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    if (!smtpHost || !smtpUser || !smtpPass) {
+      return res.status(503).json({ error: 'Configuración SMTP no disponible. Configura SMTP_HOST, SMTP_USER y SMTP_PASS en el .env' });
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    const sessionListHtml = sessions.map(s =>
+      `<li style="margin-bottom:8px;"><strong>${s.sessionName}</strong>${s.groupName ? ` <span style="color:#888;">(${s.groupName})</span>` : ''}</li>`
+    ).join('');
+
+    const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    await transporter.sendMail({
+      from: `"NotionStudy" <${smtpUser}>`,
+      to: email,
+      subject: `📚 Hoy tienes ${sessions.length} sesión${sessions.length !== 1 ? 'es' : ''} de estudio programada${sessions.length !== 1 ? 's' : ''}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px;">
+          <h2 style="color:#f97316;margin-top:0;">🔔 Notificaciones de estudio</h2>
+          <p style="color:#374151;">Hoy, <strong>${today}</strong>, tienes las siguientes sesiones programadas para repasar:</p>
+          <ul style="color:#374151;line-height:1.6;">${sessionListHtml}</ul>
+          <p style="color:#6b7280;font-size:0.875rem;">Abre NotionStudy para comenzar tu sesión de estudio.</p>
+        </div>
+      `,
+    });
+
+    console.log('✅ Email de notificación enviado a:', email);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error enviando email de notificación:', error);
     res.status(500).json({ error: error.message });
   }
 });

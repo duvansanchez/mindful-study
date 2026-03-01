@@ -11,6 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,8 +24,12 @@ import {
   Loader2,
   Save,
   Filter,
-  ClipboardList
+  ClipboardList,
+  CalendarIcon,
+  X
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 
 interface EditPlanningSessionDialogProps {
@@ -51,13 +57,15 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
   onSuccess
 }) => {
   const [flashcardSelectionOpen, setFlashcardSelectionOpen] = useState(false);
+  const [reviewDatePickerOpen, setReviewDatePickerOpen] = useState(false);
   const [formData, setFormData] = useState<CreatePlanningSessionData>({
     sessionName: '',
     databaseIds: [],
     sessionNote: '',
     studyModes: ['review'],
     examId: null,
-    selectedFlashcards: []
+    selectedFlashcards: [],
+    reviewDate: null
   });
 
   const updateMutation = useUpdatePlanningSession();
@@ -76,7 +84,8 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
         sessionNote: session.sessionNote || '',
         studyModes: (session.studyModes && session.studyModes.length > 0) ? session.studyModes : [session.studyMode as StudyMode],
         examId: session.examId || null,
-        selectedFlashcards: session.selectedFlashcards || []
+        selectedFlashcards: session.selectedFlashcards || [],
+        reviewDate: session.reviewDate ? new Date(session.reviewDate) : null
       });
     }
   }, [session, open]);
@@ -146,7 +155,8 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
         studyMode: formData.studyModes[0], // compat
         studyModes: formData.studyModes,
         examId: formData.studyModes.includes('exam') ? formData.examId : null,
-        selectedFlashcards: formData.selectedFlashcards
+        selectedFlashcards: formData.selectedFlashcards,
+        reviewDate: formData.reviewDate ?? null
       };
 
       await updateMutation.mutateAsync({
@@ -189,7 +199,7 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar sesión de estudio</DialogTitle>
             <DialogDescription>
@@ -386,6 +396,50 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
               )}
             </div>
 
+            {/* Fecha de repaso */}
+            <div className="space-y-2">
+              <Label>Fecha de repaso (opcional)</Label>
+              <div className="flex items-center gap-2">
+                <Popover open={reviewDatePickerOpen} onOpenChange={setReviewDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1 justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 w-4 h-4 text-muted-foreground" />
+                      {formData.reviewDate
+                        ? format(formData.reviewDate, "PPP", { locale: es })
+                        : <span className="text-muted-foreground">Sin fecha programada</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.reviewDate ?? undefined}
+                      onSelect={(date) => {
+                        setFormData(prev => ({ ...prev, reviewDate: date ?? null }));
+                        setReviewDatePickerOpen(false);
+                      }}
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                {formData.reviewDate && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setFormData(prev => ({ ...prev, reviewDate: null }))}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">Recibirás una notificación este día para repasar esta sesión</p>
+            </div>
+
             {/* Nota de la sesión */}
             <div className="space-y-2">
               <Label htmlFor="sessionNote">Nota de la sesión (opcional)</Label>
@@ -400,9 +454,9 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
 
             {/* Botones */}
             <div className="flex justify-end gap-3">
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={handleClose}
                 disabled={updateMutation.isPending}
               >
