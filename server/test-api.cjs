@@ -23,6 +23,70 @@ const writeUserSettings = (settings) => {
   fs.writeFileSync(USER_SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
 };
 
+const parseBooleanEnv = (value, defaultValue = false) => {
+  if (value === undefined || value === null) return defaultValue;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+};
+
+const getAutoReviewScheduleConfig = () => {
+  const enabled = parseBooleanEnv(process.env.REVIEW_EMAIL_SCHEDULE_ENABLED, false);
+  return { enabled };
+};
+
+const getDateKeyLocal = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const sendReviewEmailNotification = async (email, sessions) => {
+  if (!email || !sessions || sessions.length === 0) {
+    throw new Error('Email y sesiones son requeridos');
+  }
+
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+  const smtpUser = gmailUser || process.env.SMTP_USER;
+  const smtpPass = (gmailAppPassword || process.env.SMTP_PASS || '').replace(/\s+/g, '');
+
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    const error = new Error('Configuración de correo no disponible. Configura GMAIL_USER/GMAIL_APP_PASSWORD o SMTP_HOST/SMTP_USER/SMTP_PASS en el .env');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpPort === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+
+  const sessionListHtml = sessions.map(s =>
+    `<li style="margin-bottom:8px;"><strong>${s.sessionName}</strong>${s.groupName ? ` <span style="color:#888;">(${s.groupName})</span>` : ''}</li>`
+  ).join('');
+
+  const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  await transporter.sendMail({
+    from: `"NotionStudy" <${smtpUser}>`,
+    to: email,
+    subject: `📚 Hoy tienes ${sessions.length} sesión${sessions.length !== 1 ? 'es' : ''} de estudio programada${sessions.length !== 1 ? 's' : ''}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px;">
+        <h2 style="color:#f97316;margin-top:0;">🔔 Notificaciones de estudio</h2>
+        <p style="color:#374151;">Hoy, <strong>${today}</strong>, tienes las siguientes sesiones programadas para repasar:</p>
+        <ul style="color:#374151;line-height:1.6;">${sessionListHtml}</ul>
+        <p style="color:#6b7280;font-size:0.875rem;">Abre NotionStudy para comenzar tu sesión de estudio.</p>
+      </div>
+    `,
+  });
+};
+
 const app = express();
 const port = 3002;
 
@@ -3110,50 +3174,72 @@ app.post('/notifications/send-review-email', async (req, res) => {
       return res.status(400).json({ error: 'Email y sesiones son requeridos' });
     }
 
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpPort = parseInt(process.env.SMTP_PORT || '587');
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
-
-    if (!smtpHost || !smtpUser || !smtpPass) {
-      return res.status(503).json({ error: 'Configuración SMTP no disponible. Configura SMTP_HOST, SMTP_USER y SMTP_PASS en el .env' });
-    }
-
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      auth: { user: smtpUser, pass: smtpPass },
-    });
-
-    const sessionListHtml = sessions.map(s =>
-      `<li style="margin-bottom:8px;"><strong>${s.sessionName}</strong>${s.groupName ? ` <span style="color:#888;">(${s.groupName})</span>` : ''}</li>`
-    ).join('');
-
-    const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-
-    await transporter.sendMail({
-      from: `"NotionStudy" <${smtpUser}>`,
-      to: email,
-      subject: `📚 Hoy tienes ${sessions.length} sesión${sessions.length !== 1 ? 'es' : ''} de estudio programada${sessions.length !== 1 ? 's' : ''}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px;">
-          <h2 style="color:#f97316;margin-top:0;">🔔 Notificaciones de estudio</h2>
-          <p style="color:#374151;">Hoy, <strong>${today}</strong>, tienes las siguientes sesiones programadas para repasar:</p>
-          <ul style="color:#374151;line-height:1.6;">${sessionListHtml}</ul>
-          <p style="color:#6b7280;font-size:0.875rem;">Abre NotionStudy para comenzar tu sesión de estudio.</p>
-        </div>
-      `,
-    });
+    await sendReviewEmailNotification(email, sessions);
 
     console.log('✅ Email de notificación enviado a:', email);
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Error enviando email de notificación:', error);
-    res.status(500).json({ error: error.message });
+    res.status(error.statusCode || 500).json({ error: error.message });
   }
 });
 
+let isScheduledReviewEmailRunning = false;
+let sentScheduledReviewSessionKeys = new Set();
+
+const runScheduledReviewEmailIfNeeded = async () => {
+  const schedule = getAutoReviewScheduleConfig();
+  if (!schedule.enabled || isScheduledReviewEmailRunning) return;
+
+  const now = new Date();
+  const todayKey = getDateKeyLocal();
+  sentScheduledReviewSessionKeys = new Set(
+    [...sentScheduledReviewSessionKeys].filter(key => key.startsWith(`${todayKey}:`))
+  );
+
+  isScheduledReviewEmailRunning = true;
+  try {
+    const settings = readUserSettings();
+    const reportRecipient = process.env.REPORT_RECIPIENT?.trim();
+    const notificationEmail = settings?.notificationEmail?.trim() || reportRecipient;
+    if (!notificationEmail) {
+      return;
+    }
+
+    const dueSessions = await DatabaseService.getPlanningSessionsDueAtCurrentMinute(now);
+    if (!dueSessions || dueSessions.length === 0) {
+      return;
+    }
+
+    const pendingSessions = dueSessions.filter(session => {
+      const key = `${todayKey}:${session.id}`;
+      return !sentScheduledReviewSessionKeys.has(key);
+    });
+
+    if (pendingSessions.length === 0) {
+      return;
+    }
+
+    await sendReviewEmailNotification(notificationEmail, pendingSessions);
+    pendingSessions.forEach(session => {
+      sentScheduledReviewSessionKeys.add(`${todayKey}:${session.id}`);
+    });
+    console.log(`✅ Scheduler: email de repaso enviado a ${notificationEmail} para ${pendingSessions.length} sesión(es)`);
+  } catch (error) {
+    console.error('❌ Scheduler: error enviando email de repaso:', error.message);
+  } finally {
+    isScheduledReviewEmailRunning = false;
+  }
+};
+
+setInterval(runScheduledReviewEmailIfNeeded, 30 * 1000);
+
 app.listen(port, () => {
   console.log(`🚀 Test API server running at http://localhost:${port}`);
+  const schedule = getAutoReviewScheduleConfig();
+  if (schedule.enabled) {
+    console.log('⏰ Scheduler de repaso activo: revisa cada minuto y envía según la hora de cada sesión planificada');
+  } else {
+    console.log('⏰ Scheduler de repaso desactivado (REVIEW_EMAIL_SCHEDULE_ENABLED=false)');
+  }
 });

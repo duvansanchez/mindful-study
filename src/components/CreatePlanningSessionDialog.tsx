@@ -54,6 +54,7 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
   const [open, setOpen] = useState(false);
   const [flashcardSelectionOpen, setFlashcardSelectionOpen] = useState(false);
   const [reviewDatePickerOpen, setReviewDatePickerOpen] = useState(false);
+  const [reviewTime, setReviewTime] = useState('07:00');
   const [formData, setFormData] = useState<CreatePlanningSessionData>({
     sessionName: '',
     databaseIds: [],
@@ -63,6 +64,17 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
     selectedFlashcards: [],
     reviewDate: null
   });
+
+  const combineReviewDateTime = (date: Date | null | undefined, time: string): Date | null => {
+    if (!date) return null;
+    const [hours, minutes] = time.split(':').map(value => Number.parseInt(value, 10));
+    const safeHours = Number.isInteger(hours) ? Math.min(23, Math.max(0, hours)) : 7;
+    const safeMinutes = Number.isInteger(minutes) ? Math.min(59, Math.max(0, minutes)) : 0;
+
+    const merged = new Date(date);
+    merged.setHours(safeHours, safeMinutes, 0, 0);
+    return merged;
+  };
 
   const createMutation = useCreatePlanningSession();
 
@@ -128,6 +140,7 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
         studyMode: formData.studyModes[0], // compat
         studyModes: formData.studyModes,
         examId: formData.examId || null,
+        reviewDate: combineReviewDateTime(formData.reviewDate ?? null, reviewTime),
       };
 
       console.log('🚀 Creando sesión con datos:', {
@@ -154,6 +167,7 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
         selectedFlashcards: [],
         reviewDate: null
       });
+      setReviewTime('07:00');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error creando la sesión');
     }
@@ -430,6 +444,17 @@ export const CreatePlanningSessionDialog: React.FC<CreatePlanningSessionDialogPr
               )}
             </div>
             <p className="text-xs text-muted-foreground">Recibirás una notificación este día para repasar esta sesión</p>
+            <div className="space-y-1">
+              <Label htmlFor="reviewTime">Hora de notificación</Label>
+              <Input
+                id="reviewTime"
+                type="time"
+                value={reviewTime}
+                onChange={(e) => setReviewTime(e.target.value)}
+                disabled={!formData.reviewDate}
+              />
+              <p className="text-xs text-muted-foreground">La notificación se enviará a la hora que configures aquí</p>
+            </div>
           </div>
 
           {/* Nota de la sesión */}

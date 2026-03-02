@@ -1421,9 +1421,9 @@ class DatabaseService {
           ps.Id, ps.GroupId, ps.SessionName, ps.DatabaseId, ps.DatabaseIds,
           ps.SessionNote, ps.StudyMode, ps.SelectedFlashcards, ps.OrderIndex,
           ps.FolderId, ps.ExamId, ps.ReviewDate, ps.CreatedAt, ps.UpdatedAt,
-          dg.GroupName
+          dg.Name AS GroupName
         FROM PlanningSession ps
-        LEFT JOIN app.DatabaseGroups dg ON dg.GroupId = ps.GroupId
+        LEFT JOIN app.DatabaseGroups dg ON dg.Id = ps.GroupId
         WHERE CAST(ps.ReviewDate AS DATE) = CAST(GETDATE() AS DATE)
       `);
       return result.recordset.map(row => ({
@@ -1435,6 +1435,40 @@ class DatabaseService {
       }));
     } catch (error) {
       console.error('Error obteniendo sesiones de repaso de hoy:', error);
+      throw error;
+    }
+  }
+
+  // Obtener sesiones con fecha y hora de repaso en el minuto actual
+  static async getPlanningSessionsDueAtCurrentMinute(referenceDate = new Date()) {
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('referenceDate', sql.DateTime2, referenceDate)
+        .input('hour', sql.Int, referenceDate.getHours())
+        .input('minute', sql.Int, referenceDate.getMinutes())
+        .query(`
+          SELECT
+            ps.Id, ps.GroupId, ps.SessionName, ps.DatabaseId, ps.DatabaseIds,
+            ps.SessionNote, ps.StudyMode, ps.SelectedFlashcards, ps.OrderIndex,
+            ps.FolderId, ps.ExamId, ps.ReviewDate, ps.CreatedAt, ps.UpdatedAt,
+            dg.Name AS GroupName
+          FROM PlanningSession ps
+          LEFT JOIN app.DatabaseGroups dg ON dg.Id = ps.GroupId
+          WHERE CAST(ps.ReviewDate AS DATE) = CAST(@referenceDate AS DATE)
+            AND DATEPART(HOUR, ps.ReviewDate) = @hour
+            AND DATEPART(MINUTE, ps.ReviewDate) = @minute
+        `);
+
+      return result.recordset.map(row => ({
+        id: row.Id,
+        groupId: row.GroupId,
+        groupName: row.GroupName || '',
+        sessionName: row.SessionName,
+        reviewDate: row.ReviewDate,
+      }));
+    } catch (error) {
+      console.error('Error obteniendo sesiones de repaso por hora:', error);
       throw error;
     }
   }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { HomeView } from "@/components/HomeView";
 import { GroupsView } from "@/components/GroupsView";
@@ -23,7 +23,6 @@ import { EditGroupDialog } from "@/components/EditGroupDialog";
 import { DeleteGroupDialog } from "@/components/DeleteGroupDialog";
 import { useNotionDatabases, useNotionFlashcards, useNotionConnection, useNotionStats, useUpdateFlashcardState, useUpdateFlashcardReviewDate } from "@/hooks/useNotion";
 import { useGroups } from "@/hooks/useGroups";
-import { usePlanningSessionsDueToday } from "@/hooks/usePlanning";
 import { useRecordStudySession } from "@/hooks/useStudyTracking";
 import { KnowledgeState, Flashcard, DatabaseGroup } from "@/types";
 import { AlertCircle, Loader2, WifiOff } from "lucide-react";
@@ -79,29 +78,6 @@ const Index = () => {
 
   // Groups hooks
   const { data: groups = [], isLoading: groupsLoading } = useGroups();
-
-  // Sesiones de planificación con fecha de repaso = hoy (para notificación por email)
-  const { data: dueSessions = [] } = usePlanningSessionsDueToday();
-  const emailSentRef = useRef(false);
-  useEffect(() => {
-    if (emailSentRef.current || dueSessions.length === 0) return;
-    if (sessionStorage.getItem('review-email-sent-today') === new Date().toDateString()) return;
-    emailSentRef.current = true;
-    fetch('/api/user/settings')
-      .then(r => r.ok ? r.json() : {})
-      .then(({ notificationEmail }) => {
-        if (!notificationEmail) return;
-        return fetch('/api/notifications/send-review-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: notificationEmail, sessions: dueSessions }),
-        });
-      })
-      .then(r => {
-        if (r?.ok) sessionStorage.setItem('review-email-sent-today', new Date().toDateString());
-      })
-      .catch(() => {});
-  }, [dueSessions]);
 
   // Update database count when flashcards are loaded
   useEffect(() => {

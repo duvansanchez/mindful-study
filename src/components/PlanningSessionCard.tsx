@@ -85,11 +85,11 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
     <div className="w-full">
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
-          <h3 className="font-semibold text-foreground text-lg mb-1">
+          <h3 className="font-semibold text-foreground text-base sm:text-lg mb-1">
             {session.sessionName}
           </h3>
           
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
             {/* Bases de datos */}
             <div className="flex items-center gap-1">
               <BookOpen className="w-4 h-4" />
@@ -166,6 +166,11 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const rd = new Date(session.reviewDate);
+        const reviewTimeLabel = new Date(session.reviewDate).toLocaleTimeString('es-ES', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
         rd.setHours(0, 0, 0, 0);
         const isToday = rd.getTime() === today.getTime();
         const isPast = rd < today;
@@ -180,10 +185,10 @@ export const PlanningSessionCard: React.FC<PlanningSessionCardProps> = ({
             <Bell className="w-3 h-3" />
             <span>
               {isToday
-                ? 'Repasar hoy'
+                ? `Repasar hoy ${reviewTimeLabel}`
                 : isPast
                 ? 'Repaso pendiente'
-                : `Repaso: ${new Date(session.reviewDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                : `Repaso: ${new Date(session.reviewDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })} ${reviewTimeLabel}`}
             </span>
           </div>
         );

@@ -387,50 +387,53 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header con navegación */}
-      <div className="flex items-center justify-between">
-        <button 
+      <div className="flex items-center justify-between gap-2">
+        <button
           onClick={onBack}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
-          Volver al grupo
+          <span className="hidden sm:inline">Volver al grupo</span>
+          <span className="sm:hidden">Volver</span>
         </button>
-        
+
         <div className="flex items-center gap-2">
           <button
             onClick={handleCreateFolder}
-            className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1.5 sm:px-4 sm:py-2 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors"
           >
-            <FolderPlus className="w-4 h-4" />
-            Nueva carpeta
+            <FolderPlus className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">Nueva carpeta</span>
+            <span className="sm:hidden">Carpeta</span>
           </button>
-          
-          <CreatePlanningSessionDialog 
-            group={group} 
+
+          <CreatePlanningSessionDialog
+            group={group}
             databases={groupDatabases}
           >
-            <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
-              <Plus className="w-4 h-4" />
-              Nueva sesión
+            <button className="flex items-center gap-1.5 px-2 py-1.5 sm:px-4 sm:py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
+              <Plus className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Nueva sesión</span>
+              <span className="sm:hidden">Sesión</span>
             </button>
           </CreatePlanningSessionDialog>
         </div>
       </div>
       
       {/* Información del grupo */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <div className="flex items-start gap-4">
-          <div 
-            className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0"
+      <div className="bg-card border border-border rounded-lg p-4 sm:p-6">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div
+            className="w-10 h-10 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{ backgroundColor: `${group.color}20` }}
           >
-            <Calendar className="w-8 h-8" style={{ color: group.color }} />
+            <Calendar className="w-5 h-5 sm:w-8 sm:h-8" style={{ color: group.color }} />
           </div>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-foreground mb-2">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold text-foreground mb-1 sm:mb-2 truncate">
               Planificación: {group.name}
             </h1>
-            <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-6 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <BookOpen className="w-4 h-4" />
                 <span>{groupDatabases.length} base{groupDatabases.length !== 1 ? 's' : ''} de datos</span>
@@ -449,7 +452,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground">Sesiones de estudio</h2>
           {sessions.length > 0 && (
-            <span className="text-sm text-muted-foreground">
+            <span className="hidden sm:inline text-sm text-muted-foreground">
               Arrastra para reordenar
             </span>
           )}
@@ -573,7 +576,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                       <div className="absolute -top-1 left-0 right-0 h-0.5 bg-primary rounded-full" />
                     )}
                     
-                    <div className="flex items-center gap-3 bg-card border border-border rounded-lg p-4 hover:shadow-md transition-all duration-200 cursor-move">
+                    <div className="flex items-center gap-2 sm:gap-3 bg-card border border-border rounded-lg p-3 sm:p-4 hover:shadow-md transition-all duration-200 cursor-move">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <GripVertical className="w-4 h-4" />
                         <span className="text-sm font-medium min-w-[2rem] text-center">

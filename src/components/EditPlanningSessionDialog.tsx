@@ -58,6 +58,7 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
 }) => {
   const [flashcardSelectionOpen, setFlashcardSelectionOpen] = useState(false);
   const [reviewDatePickerOpen, setReviewDatePickerOpen] = useState(false);
+  const [reviewTime, setReviewTime] = useState('07:00');
   const [formData, setFormData] = useState<CreatePlanningSessionData>({
     sessionName: '',
     databaseIds: [],
@@ -67,6 +68,17 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
     selectedFlashcards: [],
     reviewDate: null
   });
+
+  const combineReviewDateTime = (date: Date | null | undefined, time: string): Date | null => {
+    if (!date) return null;
+    const [hours, minutes] = time.split(':').map(value => Number.parseInt(value, 10));
+    const safeHours = Number.isInteger(hours) ? Math.min(23, Math.max(0, hours)) : 7;
+    const safeMinutes = Number.isInteger(minutes) ? Math.min(59, Math.max(0, minutes)) : 0;
+
+    const merged = new Date(date);
+    merged.setHours(safeHours, safeMinutes, 0, 0);
+    return merged;
+  };
 
   const updateMutation = useUpdatePlanningSession();
 
@@ -87,6 +99,15 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
         selectedFlashcards: session.selectedFlashcards || [],
         reviewDate: session.reviewDate ? new Date(session.reviewDate) : null
       });
+
+      if (session.reviewDate) {
+        const parsed = new Date(session.reviewDate);
+        const hours = String(parsed.getHours()).padStart(2, '0');
+        const minutes = String(parsed.getMinutes()).padStart(2, '0');
+        setReviewTime(`${hours}:${minutes}`);
+      } else {
+        setReviewTime('07:00');
+      }
     }
   }, [session, open]);
 
@@ -156,7 +177,7 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
         studyModes: formData.studyModes,
         examId: formData.studyModes.includes('exam') ? formData.examId : null,
         selectedFlashcards: formData.selectedFlashcards,
-        reviewDate: formData.reviewDate ?? null
+        reviewDate: combineReviewDateTime(formData.reviewDate ?? null, reviewTime)
       };
 
       await updateMutation.mutateAsync({
@@ -438,6 +459,17 @@ export const EditPlanningSessionDialog: React.FC<EditPlanningSessionDialogProps>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">Recibirás una notificación este día para repasar esta sesión</p>
+              <div className="space-y-1">
+                <Label htmlFor="reviewTimeEdit">Hora de notificación</Label>
+                <Input
+                  id="reviewTimeEdit"
+                  type="time"
+                  value={reviewTime}
+                  onChange={(e) => setReviewTime(e.target.value)}
+                  disabled={!formData.reviewDate}
+                />
+                <p className="text-xs text-muted-foreground">La notificación se enviará a la hora que configures aquí</p>
+              </div>
             </div>
 
             {/* Nota de la sesión */}
