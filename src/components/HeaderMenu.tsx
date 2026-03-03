@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Home, BarChart3, Folder, Settings, Brain } from 'lucide-react';
+import { ChevronDown, Home, BarChart3, Folder, Settings, Brain, Calendar } from 'lucide-react';
 
 interface HeaderMenuProps {
   currentView: string;
@@ -27,6 +27,7 @@ export const HeaderMenu: React.FC<HeaderMenuProps> = ({ currentView, onNavigate 
     { id: 'groups', label: 'Agrupaciones', icon: Folder },
     { id: 'stats', label: 'Estadísticas', icon: BarChart3 },
     { id: 'smart-review', label: 'Repaso Inteligente', icon: Brain },
+    { id: 'scheduled-sessions', label: 'Planificaciones programadas', icon: Calendar },
     { id: 'settings', label: 'Configuración', icon: Settings }
   ];
 

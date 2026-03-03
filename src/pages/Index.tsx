@@ -12,6 +12,7 @@ import { ExamMode } from "@/components/ExamMode";
 import { ExamResults } from "@/components/ExamResults";
 import { StatsView } from "@/components/StatsView";
 import { SmartReviewView } from "@/components/SmartReviewView";
+import { ScheduledPlanningsView } from "@/components/ScheduledPlanningsView";
 import { SessionSummaryView, SessionSummaryData, SessionEntry } from "@/components/SessionSummaryView";
 import { ReviewSetup } from "@/components/ReviewSetup";
 import { FlashcardReview } from "@/components/FlashcardReview";
@@ -29,7 +30,7 @@ import { AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 
-type View = 'home' | 'groups' | 'groups-general-info' | 'stats' | 'smart-review' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'exams' | 'exam-player' | 'exam-results' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup' | 'session-summary';
+type View = 'home' | 'groups' | 'groups-general-info' | 'stats' | 'smart-review' | 'scheduled-sessions' | 'settings' | 'group-detail' | 'group-stats' | 'group-goals' | 'planning' | 'exams' | 'exam-player' | 'exam-results' | 'mode-selection' | 'review-setup' | 'review' | 'matching' | 'overview' | 'notion-setup' | 'session-summary';
 
 const Index = () => {
   const [view, setView] = useState<View>('home');
@@ -822,7 +823,11 @@ const Index = () => {
         )}
 
         {view === 'smart-review' && (
-          <SmartReviewView groups={groups} onBack={handleBackToHome} />
+          <SmartReviewView groups={groups} onBack={handleBackToHome} onNavigateToScheduled={() => setView('scheduled-sessions')} />
+        )}
+
+        {view === 'scheduled-sessions' && (
+          <ScheduledPlanningsView onBack={handleBackToHome} />
         )}
 
         {view === 'group-detail' && selectedGroup && (

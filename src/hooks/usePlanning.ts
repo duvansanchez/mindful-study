@@ -144,6 +144,26 @@ export const usePlanningSessionsDueToday = () => {
   });
 };
 
+// Obtener todas las sesiones de planificación programadas (próximos días)
+export const usePlanningSessionsNextDays = () => {
+  return useQuery({
+    queryKey: ['planning-sessions-next-days'],
+    queryFn: async (): Promise<PlanningSession[]> => {
+      const response = await fetch(`${API_BASE}/planning-sessions/next-days`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.map((s: any) => ({
+        ...s,
+        reviewDate: s.reviewDate ? new Date(s.reviewDate) : null,
+        createdAt: new Date(s.createdAt),
+        updatedAt: new Date(s.updatedAt)
+      }));
+    },
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+};
+
 // Eliminar sesión de planificación
 export const useDeletePlanningSession = () => {
   const queryClient = useQueryClient();

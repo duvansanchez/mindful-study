@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Brain, AlertTriangle, TrendingDown, Moon, ChevronDown, ChevronRight, Loader2, Clock, CalendarDays, ArrowUpDown } from 'lucide-react';
+import { ArrowLeft, Brain, AlertTriangle, TrendingDown, Moon, ChevronDown, ChevronRight, Loader2, Clock, CalendarDays, ArrowUpDown, Calendar } from 'lucide-react';
 import { DatabaseGroup, Flashcard } from '@/types';
 import { useSpacedRepetition } from '@/hooks/useSpacedRepetition';
 import { useStudyStreak, useStudyCalendar } from '@/hooks/useStudyTracking';
@@ -8,6 +8,7 @@ import { StateBadge } from './StateBadge';
 interface SmartReviewViewProps {
   groups: DatabaseGroup[];
   onBack: () => void;
+  onNavigateToScheduled?: () => void;
 }
 
 type Tab = 'spaced' | 'health' | 'activity';
@@ -255,7 +256,7 @@ const ActivityHeatmap: React.FC<{ data: { date: string; count: number }[]; days?
 // Main Component
 // ────────────────────────────────────────────────────────────────────────────
 
-export const SmartReviewView: React.FC<SmartReviewViewProps> = ({ groups, onBack }) => {
+export const SmartReviewView: React.FC<SmartReviewViewProps> = ({ groups, onBack, onNavigateToScheduled }) => {
   const [activeTab, setActiveTab] = useState<Tab>('spaced');
   const [selectedGroupId, setSelectedGroupId] = useState<string | undefined>(undefined);
 
@@ -300,7 +301,15 @@ export const SmartReviewView: React.FC<SmartReviewViewProps> = ({ groups, onBack
           <Brain className="w-5 h-5 text-primary" />
           <h1 className="text-lg font-semibold">Repaso Inteligente</h1>
         </div>
-        <div className="w-16" />
+        {onNavigateToScheduled && (
+          <button
+            onClick={onNavigateToScheduled}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors text-sm font-medium"
+          >
+            <Calendar className="w-4 h-4" />
+            <span className="hidden sm:inline">Planificaciones</span>
+          </button>
+        )}
       </div>
 
       {/* Group selector */}

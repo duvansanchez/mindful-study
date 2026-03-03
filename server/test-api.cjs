@@ -3001,6 +3001,21 @@ app.get('/planning-sessions/due-today', async (req, res) => {
   }
 });
 
+// Obtener todas las sesiones de planificación programadas (próximos días)
+app.get('/planning-sessions/next-days', async (req, res) => {
+  try {
+    const sessions = await DatabaseService.getPlanningSessionsNextDays();
+    console.log(`📅 [GET /planning-sessions/next-days] Devolviendo ${sessions.length} sesiones`);
+    if (sessions.length > 0) {
+      console.log('📅 Primera sesión:', sessions[0]);
+    }
+    res.json(sessions);
+  } catch (error) {
+    console.error('❌ Error obteniendo sesiones de planificación del futuro:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== ENDPOINTS DE CARPETAS DE SESIONES ====================
 
 // Obtener carpetas de un grupo

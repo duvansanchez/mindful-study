@@ -1473,6 +1473,53 @@ class DatabaseService {
     }
   }
 
+  // Obtener sesiones de planificación: pasadas (6 meses atrás) + próximos 90 días
+  static async getPlanningSessionsNextDays(daysAhead = 90) {
+    try {
+      const pool = await getPool();
+
+      const result = await pool.request()
+        .input('daysAhead', sql.Int, daysAhead)
+        .query(`
+          SELECT
+            ps.Id, ps.GroupId, ps.SessionName, ps.DatabaseId, ps.DatabaseIds,
+            ps.SessionNote, ps.StudyMode, ps.SelectedFlashcards, ps.OrderIndex,
+            ps.FolderId, ps.ExamId, ps.ReviewDate, ps.CreatedAt, ps.UpdatedAt,
+            dg.Name AS GroupName
+          FROM PlanningSession ps
+          LEFT JOIN app.DatabaseGroups dg ON dg.Id = ps.GroupId
+          WHERE ps.ReviewDate IS NOT NULL
+            AND CAST(ps.ReviewDate AS DATE) >= CAST(DATEADD(MONTH, -6, GETDATE()) AS DATE)
+            AND CAST(ps.ReviewDate AS DATE) <= CAST(DATEADD(DAY, @daysAhead, GETDATE()) AS DATE)
+          ORDER BY ps.ReviewDate ASC
+        `);
+
+      console.log(`📅 [getPlanningSessionsNextDays] Encontradas ${result.recordset.length} sesiones`);
+
+      return result.recordset.map(row => ({
+        id: row.Id,
+        groupId: row.GroupId,
+        groupName: row.GroupName || '',
+        name: row.SessionName,
+        sessionName: row.SessionName,
+        databaseId: row.DatabaseId,
+        databaseIds: row.DatabaseIds ? (typeof row.DatabaseIds === 'string' ? JSON.parse(row.DatabaseIds) : row.DatabaseIds) : [],
+        sessionNote: row.SessionNote || '',
+        studyMode: row.StudyMode || '',
+        selectedFlashcards: row.SelectedFlashcards ? JSON.parse(row.SelectedFlashcards) : [],
+        orderIndex: row.OrderIndex,
+        folderId: row.FolderId,
+        examId: row.ExamId,
+        reviewDate: row.ReviewDate,
+        createdAt: row.CreatedAt,
+        updatedAt: row.UpdatedAt,
+      }));
+    } catch (error) {
+      console.error('Error obteniendo sesiones de planificación del futuro:', error);
+      throw error;
+    }
+  }
+
   // ==================== CARPETAS DE SESIONES ====================
 
   // Obtener carpetas de un grupo
